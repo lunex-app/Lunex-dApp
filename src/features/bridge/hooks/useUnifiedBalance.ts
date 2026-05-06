@@ -5,14 +5,29 @@ import { BRIDGE_CHAINS, ERC20_APPROVE_ABI } from "../config/bridgeConfig";
 export function useUnifiedBalance() {
   const { address } = useAccount();
 
-  // Create contract read configurations for all supported chains
-  const contracts = Object.values(BRIDGE_CHAINS).map((chain) => ({
-    address: chain.usdc,
-    abi: ERC20_APPROVE_ABI,
-    functionName: "balanceOf",
-    args: address ? [address] : undefined,
-    chainId: chain.chainId,
-  }));
+  // Create contract read configurations for all supported chains (USDC and EURC)
+  const contracts: any[] = [];
+  
+  Object.values(BRIDGE_CHAINS).forEach((chain) => {
+    // USDC read
+    contracts.push({
+      address: chain.usdc,
+      abi: ERC20_APPROVE_ABI,
+      functionName: "balanceOf",
+      args: address ? [address] : undefined,
+      chainId: chain.chainId,
+    });
+    // EURC read (if supported)
+    if (chain.eurc) {
+      contracts.push({
+        address: chain.eurc,
+        abi: ERC20_APPROVE_ABI,
+        functionName: "balanceOf",
+        args: address ? [address] : undefined,
+        chainId: chain.chainId,
+      });
+    }
+  });
 
   const { data: results, isLoading } = useReadContracts({
     contracts,
@@ -22,25 +37,35 @@ export function useUnifiedBalance() {
     },
   });
 
-  // Aggregate total raw balance and format it
   let totalRawBalance = 0n;
-  const balancesByChain: Record<string, { raw: bigint; formatted: string }> = {};
+  const balancesByChain: Record<string, { value: bigint; formatted: string }> = {};
 
-  if (results) {
-    Object.keys(BRIDGE_CHAINS).forEach((chainKey, index) => {
-      const chain = Object.values(BRIDGE_CHAINS)[index];
-      const result = results[index];
+  if (results && results.length > 0) {
+    let resultIdx = 0;
+    Object.keys(BRIDGE_CHAINS).forEach((chainKey) => {
+      const chain = BRIDGE_CHAINS[chainKey as any];
       
-      const balance = result.status === "success" ? (result.result as bigint) : 0n;
+      // Get USDC result
+      const usdcResult = results[resultIdx++];
+      const usdcBalance = usdcResult?.status === "success" ? (usdcResult.result as bigint) : 0n;
       
-      // Standardize to 6 decimals (USDC standard)
+      // Get EURC result if applicable
+      let eurcBalance = 0n;
+      if (chain.eurc) {
+        const eurcResult = results[resultIdx++];
+        eurcBalance = eurcResult?.status === "success" ? (eurcResult.result as bigint) : 0n;
+      }
+      
+      const combinedBalance = usdcBalance + eurcBalance;
+      
+      // Standardize to 6 decimals
       const adjustedBalance = 
-        chain.usdcDecimals === 6 ? balance : (balance * 1000000n) / (10n ** BigInt(chain.usdcDecimals));
+        chain.usdcDecimals === 6 ? combinedBalance : (combinedBalance * 1000000n) / (10n ** BigInt(chain.usdcDecimals));
 
       totalRawBalance += adjustedBalance;
       balancesByChain[chainKey] = {
-        raw: balance,
-        formatted: parseFloat(formatUnits(balance, chain.usdcDecimals)).toFixed(2)
+        value: combinedBalance,
+        formatted: parseFloat(formatUnits(combinedBalance, chain.usdcDecimals)).toFixed(2)
       };
     });
   }
@@ -54,7 +79,6 @@ export function useUnifiedBalance() {
     totalRawBalance,
     formattedTotal,
     balancesByChain,
-    decimals: 6,
     isLoading,
   };
 }

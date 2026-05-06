@@ -1,4 +1,4 @@
-import { Clock, Check, Loader2, X, RotateCw, ExternalLink } from "lucide-react";
+import { Clock, Check, Loader2, X, RotateCw, ExternalLink, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   type BridgeTransaction,
@@ -8,33 +8,25 @@ import {
 import { BRIDGE_CHAINS, getExplorerTxUrl } from "../config/bridgeConfig";
 
 interface BridgeHistoryProps {
-  onResume: (tx: BridgeTransaction) => void;
+  onSelectTx?: (tx: BridgeTransaction) => void;
+  onResume?: (tx: BridgeTransaction) => void;
 }
 
 function statusLabel(s: BridgeStatus) {
   switch (s) {
-    case "approving":
-      return "Approving";
-    case "burning":
-      return "Burning";
-    case "waiting_attestation":
-      return "Waiting attestation";
-    case "minting":
-      return "Minting";
-    case "complete":
-      return "Complete";
-    case "failed":
-      return "Failed";
-    default:
-      return s;
+    case "approving": return "Approving";
+    case "burning": return "Burning";
+    case "waiting_attestation": return "Waiting for Circle";
+    case "minting": return "Minting on Destination";
+    case "complete": return "Complete";
+    case "failed": return "Failed";
+    default: return s;
   }
 }
 
 function StatusIcon({ status }: { status: BridgeStatus }) {
-  if (status === "complete")
-    return <Check className="h-3.5 w-3.5 text-primary" />;
-  if (status === "failed")
-    return <X className="h-3.5 w-3.5 text-destructive" />;
+  if (status === "complete") return <Check className="h-3.5 w-3.5 text-primary" />;
+  if (status === "failed") return <X className="h-3.5 w-3.5 text-destructive" />;
   return <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />;
 }
 
@@ -43,67 +35,72 @@ function isResumable(tx: BridgeTransaction) {
   return tx.status === "waiting_attestation" || tx.status === "burning" || !!tx.burnTxHash;
 }
 
-export function BridgeHistory({ onResume }: BridgeHistoryProps) {
+export function BridgeHistory({ onSelectTx, onResume }: BridgeHistoryProps) {
   const transactions = loadBridgeTransactions();
 
-  if (transactions.length === 0) return null;
+  if (transactions.length === 0) {
+    return (
+      <div className="p-12 text-center space-y-3">
+        <Clock className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">No transaction history found</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="mt-8 border border-border bg-card p-5 space-y-4">
-      <div className="flex items-center gap-2 mb-1">
-        <Clock className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-xs font-bold uppercase tracking-wider">
-          Bridge History
-        </h3>
-      </div>
-
-      <div className="space-y-3 max-h-64 overflow-y-auto">
-        {transactions.map((tx) => (
-          <div
-            key={tx.id}
-            className="flex items-center gap-3 p-3 border border-border bg-background text-xs"
-          >
-            <StatusIcon status={tx.status} />
-
-            <div className="flex-1 min-w-0 space-y-0.5">
-              <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                <span>{BRIDGE_CHAINS[tx.fromChain]?.label ?? tx.fromChain}</span>
-                <span className="text-muted-foreground">→</span>
-                <span>{BRIDGE_CHAINS[tx.toChain]?.label ?? tx.toChain}</span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <span>{tx.amount} USDC</span>
-                <span>·</span>
-                <span>{statusLabel(tx.status)}</span>
-              </div>
+    <div className="divide-y divide-border">
+      {transactions.map((tx) => (
+        <div
+          key={tx.id}
+          className="group flex items-center justify-between p-4 hover:bg-muted/10 transition-colors cursor-pointer"
+          onClick={() => onSelectTx?.(tx)}
+        >
+          <div className="flex items-center gap-4 flex-1">
+            <div className={`h-8 w-8 rounded-full flex items-center justify-center border ${
+              tx.status === 'complete' ? 'bg-primary/10 border-primary/30' : 'bg-muted border-border'
+            }`}>
+               <StatusIcon status={tx.status} />
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
-              {tx.burnTxHash && (
-                <a
-                  href={getExplorerTxUrl(tx.fromChain, tx.burnTxHash)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:text-primary/80"
-                  title="View burn tx"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              )}
-              {isResumable(tx) && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-[10px] gap-1 px-2"
-                  onClick={() => onResume(tx)}
-                >
-                  <RotateCw className="h-3 w-3" /> Resume
-                </Button>
-              )}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-black uppercase tracking-wider">{BRIDGE_CHAINS[tx.fromChain]?.label}</span>
+                <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                <span className="text-[11px] font-black uppercase tracking-wider">{BRIDGE_CHAINS[tx.toChain]?.label}</span>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                <span>{tx.amount} ASSETS</span>
+                <span>·</span>
+                <span className={tx.status === 'complete' ? 'text-primary' : 'text-yellow-500'}>{statusLabel(tx.status)}</span>
+              </div>
             </div>
           </div>
-        ))}
-      </div>
+
+          <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+            {isResumable(tx) && onResume && (
+              <Button
+                size="sm"
+                className="h-8 text-[9px] font-black uppercase tracking-widest gap-2 bg-primary text-primary-foreground"
+                onClick={() => onResume(tx)}
+              >
+                <RotateCw className="h-3 w-3" /> Resume
+              </Button>
+            )}
+            <button 
+              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => onSelectTx?.(tx)}
+            >
+              <Info className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
+
+const ArrowRight = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+  </svg>
+);

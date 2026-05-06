@@ -20,13 +20,17 @@ export interface BridgeChainConfig {
   label: string;
   domain: number;
   chainId: number;
-  rpcUrl: string;
+  usdc: `0x${string}`;
+  eurc?: `0x${string}`;
   tokenMessenger: `0x${string}`;
   messageTransmitter: `0x${string}`;
-  usdc: `0x${string}`;
+  rpcUrl: string;
   usdcDecimals: number;
   explorerUrl: string;
 }
+
+const SANDBOX_TOKEN_MESSENGER = "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA";
+const SANDBOX_MESSAGE_TRANSMITTER = "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275";
 
 export const BRIDGE_CHAINS: Record<BridgeChainKey, BridgeChainConfig> = {
   ethereum: {
@@ -34,10 +38,11 @@ export const BRIDGE_CHAINS: Record<BridgeChainKey, BridgeChainConfig> = {
     label: "Ethereum Sepolia",
     domain: 0,
     chainId: 11155111,
+    usdc: "0x1c7D4B196Cb0232b3044b337424Aa9603bc1681C",
+    eurc: "0x08210F9170F89Ab7658F0B5E3fF39b0E03C594D4",
+    tokenMessenger: SANDBOX_TOKEN_MESSENGER,
+    messageTransmitter: SANDBOX_MESSAGE_TRANSMITTER,
     rpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
-    tokenMessenger: "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
-    messageTransmitter: "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
-    usdc: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
     usdcDecimals: 6,
     explorerUrl: "https://sepolia.etherscan.io",
   },
@@ -46,10 +51,11 @@ export const BRIDGE_CHAINS: Record<BridgeChainKey, BridgeChainConfig> = {
     label: "Avalanche Fuji",
     domain: 1,
     chainId: 43113,
-    rpcUrl: "https://api.avax-test.network/ext/bc/C/rpc",
-    tokenMessenger: "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
-    messageTransmitter: "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
     usdc: "0x5425890298aed601595a70AB815c96711a31Bc65",
+    eurc: "0x5E44db7996c682E92a960b65AC713a54AD815c6B",
+    tokenMessenger: SANDBOX_TOKEN_MESSENGER,
+    messageTransmitter: SANDBOX_MESSAGE_TRANSMITTER,
+    rpcUrl: "https://avalanche-fuji-c-chain-rpc.publicnode.com",
     usdcDecimals: 6,
     explorerUrl: "https://testnet.snowtrace.io",
   },
@@ -58,10 +64,10 @@ export const BRIDGE_CHAINS: Record<BridgeChainKey, BridgeChainConfig> = {
     label: "Arbitrum Sepolia",
     domain: 3,
     chainId: 421614,
-    rpcUrl: "https://sepolia-rollup.arbitrum.io/rpc",
-    tokenMessenger: "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
-    messageTransmitter: "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
     usdc: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+    tokenMessenger: SANDBOX_TOKEN_MESSENGER,
+    messageTransmitter: SANDBOX_MESSAGE_TRANSMITTER,
+    rpcUrl: "https://sepolia-rollup.arbitrum.io/rpc",
     usdcDecimals: 6,
     explorerUrl: "https://sepolia.arbiscan.io",
   },
@@ -70,10 +76,11 @@ export const BRIDGE_CHAINS: Record<BridgeChainKey, BridgeChainConfig> = {
     label: "Base Sepolia",
     domain: 6,
     chainId: 84532,
-    rpcUrl: "https://sepolia.base.org",
-    tokenMessenger: "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
-    messageTransmitter: "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
     usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    eurc: "0x808456652fdb597867f38412077A9182bf77359F",
+    tokenMessenger: SANDBOX_TOKEN_MESSENGER,
+    messageTransmitter: SANDBOX_MESSAGE_TRANSMITTER,
+    rpcUrl: "https://base-sepolia-rpc.publicnode.com",
     usdcDecimals: 6,
     explorerUrl: "https://sepolia.basescan.org",
   },
@@ -82,10 +89,10 @@ export const BRIDGE_CHAINS: Record<BridgeChainKey, BridgeChainConfig> = {
     label: "Polygon Amoy",
     domain: 7,
     chainId: 80002,
-    rpcUrl: "https://rpc-amoy.polygon.technology",
-    tokenMessenger: "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
-    messageTransmitter: "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
     usdc: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+    tokenMessenger: SANDBOX_TOKEN_MESSENGER,
+    messageTransmitter: SANDBOX_MESSAGE_TRANSMITTER,
+    rpcUrl: "https://rpc-amoy.polygon.technology",
     usdcDecimals: 6,
     explorerUrl: "https://amoy.polygonscan.com",
   },
@@ -94,10 +101,10 @@ export const BRIDGE_CHAINS: Record<BridgeChainKey, BridgeChainConfig> = {
     label: "Arc Testnet",
     domain: 26,
     chainId: 5042002,
-    rpcUrl: "https://rpc.testnet.arc.network",
-    tokenMessenger: "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
-    messageTransmitter: "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
     usdc: "0x3600000000000000000000000000000000000000",
+    tokenMessenger: "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+    messageTransmitter: "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+    rpcUrl: "https://rpc.testnet.arc.network",
     usdcDecimals: 6,
     explorerUrl: "https://testnet.arcscan.app",
   },
@@ -105,13 +112,11 @@ export const BRIDGE_CHAINS: Record<BridgeChainKey, BridgeChainConfig> = {
 
 export const BRIDGE_CHAIN_KEYS = Object.keys(BRIDGE_CHAINS) as BridgeChainKey[];
 
-// CCTP V2 attestation API
 export const IRIS_API_URL = "https://iris-api-sandbox.circle.com";
 
 export const getExplorerTxUrl = (chain: BridgeChainKey, hash: string) =>
   `${BRIDGE_CHAINS[chain].explorerUrl}/tx/${hash}`;
 
-// CCTP V2 ABIs — depositForBurn has 7 params in V2
 export const TOKEN_MESSENGER_ABI = [
   {
     name: "depositForBurn",
@@ -155,28 +160,10 @@ export const ERC20_APPROVE_ABI = [
     outputs: [{ name: "", type: "bool" }],
   },
   {
-    name: "allowance",
-    type: "function",
-    stateMutability: "view",
-    inputs: [
-      { name: "owner", type: "address" },
-      { name: "value", type: "address" },
-    ],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
     name: "balanceOf",
     type: "function",
     stateMutability: "view",
     inputs: [{ name: "account", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
-  },
-] as const;
-
-export const MESSAGE_SENT_EVENT_ABI = [
-  {
-    name: "MessageSent",
-    type: "event",
-    inputs: [{ name: "message", type: "bytes", indexed: false }],
   },
 ] as const;

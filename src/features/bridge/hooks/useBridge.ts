@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useAccount, useWalletClient, useSwitchChain } from "wagmi";
 import { parseUnits, pad, zeroHash, encodeFunctionData, decodeFunctionResult, createPublicClient, http, createWalletClient, custom } from "viem";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import {
   type BridgeTransaction,
   type BridgeStatus,
   saveBridgeTransaction,
+  loadBridgeTransactions,
 } from "../state/bridgeState";
 
 /** Poll CCTP V2 attestation API using domain + txHash */
@@ -69,7 +70,6 @@ function useAttestationV2() {
 
 /**
  * Request wallet to switch to a specific chain using window.ethereum directly.
- * This avoids wagmi's stale chainId issues during multi-step flows.
  */
 async function switchWalletChain(targetChainId: number): Promise<void> {
   const provider = (window as any).ethereum;
@@ -83,22 +83,18 @@ async function switchWalletChain(targetChainId: number): Promise<void> {
       params: [{ chainId: hexChainId }],
     });
   } catch (switchError: any) {
-    // 4902 = chain not added
-    if (switchError?.code === 4902) {
-      throw new Error(
-        `Chain ${targetChainId} not added to your wallet. Please add it manually and retry.`
-      );
+    console.error("Chain switch error:", switchError);
+    if (switchError?.code === 4902 || switchError?.data?.originalError?.code === 4902) {
+      throw new Error(`Chain ${targetChainId} is not in your wallet. Please add it manually.`);
     }
-    throw new Error(
-      `Please switch your wallet to chain ID ${targetChainId} and try again.`
-    );
+    if (switchError?.code === 4001) {
+      throw new Error("Switch request rejected.");
+    }
+    throw new Error(`Please switch to chain ID ${targetChainId} manually.`);
   }
-
-  // Wait for wallet to settle
   await new Promise((r) => setTimeout(r, 2000));
 }
 
-/** Get current wallet chain ID directly from provider */
 async function getWalletChainId(): Promise<number> {
   const provider = (window as any).ethereum;
   if (!provider) return 0;
@@ -132,157 +128,70 @@ export function useBridge() {
     });
   }, []);
 
-  /**
-   * Ensure wallet is on the correct chain. Uses direct provider calls
-   * to avoid stale wagmi state during multi-step bridge flows.
-   */
   const ensureChain = useCallback(
     async (targetChainId: number, label: string) => {
       const currentChainId = await getWalletChainId();
       if (currentChainId === targetChainId) return;
 
-      setStatusMessage(`Switching to ${label}...`);
-      await switchWalletChain(targetChainId);
-
-      // Verify switch succeeded
-      const afterChainId = await getWalletChainId();
-      if (afterChainId !== targetChainId) {
-        throw new Error(
-          `Wallet is still on chain ${afterChainId}. Please switch to ${label} (chain ID: ${targetChainId}) manually.`
-        );
+      setStatusMessage(`Requesting switch to ${label}...`);
+      try {
+        await switchChainAsync({ chainId: targetChainId });
+      } catch (wagmiError: any) {
+        try {
+          await switchWalletChain(targetChainId);
+        } catch (rawError: any) {
+          throw rawError;
+        }
       }
+
+      let afterChainId = 0;
+      for (let i = 0; i < 5; i++) {
+        afterChainId = await getWalletChainId();
+        if (afterChainId === targetChainId) break;
+        await new Promise(r => setTimeout(r, 1000));
+      }
+
+      if (afterChainId !== targetChainId) {
+        throw new Error(`Please switch to ${label} manually to proceed.`);
+      }
+      setStatusMessage("");
     },
-    []
+    [switchChainAsync]
   );
 
-  const startBridge = useCallback(
-    async (amount: string, fromChain: BridgeChainKey, toChain: BridgeChainKey, isFastPath: boolean = false) => {
-      if (!address || !walletClient) {
-        setError("Wallet not connected");
-        return;
-      }
+  /** Restart or Continue a transaction from its current state */
+  const resumeTransaction = useCallback(async (tx: BridgeTransaction) => {
+    setBridgeTx(tx);
+    setStatus(tx.status);
+    setError(null);
+    setStatusMessage("Resuming transaction...");
 
-      if (fromChain === toChain) {
-        setError("Source and destination chains must be different");
-        return;
-      }
+    const from = BRIDGE_CHAINS[tx.fromChain];
+    const to = BRIDGE_CHAINS[tx.toChain];
 
-      const from = BRIDGE_CHAINS[fromChain];
-      const to = BRIDGE_CHAINS[toChain];
-      const fromPublicClient = getChainClient(fromChain);
-      const toPublicClient = getChainClient(toChain);
-      const parsedAmount = parseUnits(amount, from.usdcDecimals);
-
-      const tx: BridgeTransaction = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        fromChain,
-        toChain,
-        amount,
-        status: "approving",
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-
-      setBridgeTx(tx);
-      setStatus("approving");
-      setError(null);
-      setStatusMessage("");
-      saveBridgeTransaction(tx);
-
-      try {
-        // ── Step 0: Ensure wallet is on SOURCE chain ──
-        await ensureChain(from.chainId, from.label);
-
-        // Pre-flight: check USDC balance
-        const balanceOfAbi = [{
-          name: "balanceOf" as const,
-          type: "function" as const,
-          stateMutability: "view" as const,
-          inputs: [{ name: "account", type: "address" as const }],
-          outputs: [{ name: "", type: "uint256" as const }],
-        }] as const;
-
-        const callData = encodeFunctionData({
-          abi: balanceOfAbi,
-          functionName: "balanceOf",
-          args: [address],
-        });
-        const raw = await fromPublicClient.call({ to: from.usdc, data: callData });
-        const balance = decodeFunctionResult({ abi: balanceOfAbi, functionName: "balanceOf", data: raw.data! }) as bigint;
-
-        if (balance < parsedAmount) {
-          throw new Error(
-            `Insufficient USDC balance. You have ${(Number(balance) / 10 ** from.usdcDecimals).toFixed(2)} USDC but tried to bridge ${amount} USDC.`
-          );
+    try {
+      if (tx.status === "approving" || tx.status === "burning" || tx.status === "failed") {
+        // If it failed during burn or earlier, it's safest to check if we have a burn hash
+        if (tx.burnTxHash) {
+          tx.status = "waiting_attestation";
+        } else {
+          // Restart from start
+          return startBridge(tx.amount, tx.fromChain, tx.toChain, false); 
         }
+      }
 
-        // ── Step 1: Approve USDC (on SOURCE chain) ──
-        setStatus("approving");
-        setStatusMessage("Approving USDC spend on " + from.label + "...");
-        updateTx({ status: "approving" });
-
-        // Verify still on source chain before approve
-        await ensureChain(from.chainId, from.label);
-
-        const sourceWalletClient = createWalletClient({
-          account: address as `0x${string}`,
-          transport: custom((window as any).ethereum)
-        });
-
-        const approveHash = await sourceWalletClient.writeContract({
-          address: from.usdc,
-          abi: ERC20_APPROVE_ABI,
-          functionName: "approve",
-          args: [from.tokenMessenger, parsedAmount],
-          account: address,
-          chain: null as any,
-        });
-        await fromPublicClient.waitForTransactionReceipt({ hash: approveHash });
-
-        // ── Step 2: Burn via depositForBurn (on SOURCE chain) ──
-        setStatus("burning");
-        setStatusMessage("Burning USDC on " + from.label + "...");
-        updateTx({ status: "burning" });
-
-        // Verify STILL on source chain — do NOT switch to destination
-        await ensureChain(from.chainId, from.label);
-
-        const mintRecipient = pad(address, { size: 32 });
-        const destinationCaller = zeroHash as `0x${string}`;
-        const maxFee = isFastPath ? (parsedAmount * 10n / 10000n) : 0n; // 10 bps max fee for fast path
-        const minFinalityThreshold = isFastPath ? 1000 : 2000;
-
-        const burnHash = await sourceWalletClient.writeContract({
-          address: from.tokenMessenger,
-          abi: TOKEN_MESSENGER_ABI,
-          functionName: "depositForBurn",
-          args: [parsedAmount, to.domain, mintRecipient, from.usdc, destinationCaller, maxFee, minFinalityThreshold],
-          account: address,
-          chain: null as any,
-        });
-
-        await fromPublicClient.waitForTransactionReceipt({ hash: burnHash });
-
-        // ── Step 3: Switch to DESTINATION chain while waiting for attestation ──
+      if (tx.status === "waiting_attestation" || tx.status === "minting") {
+        if (!tx.burnTxHash) throw new Error("Missing burn transaction hash");
+        
         setStatus("waiting_attestation");
-        setStatusMessage(`Switching to ${to.label}...`);
-        updateTx({
-          status: "waiting_attestation",
-          burnTxHash: burnHash,
-        });
-
-        // Prompt user to switch to destination chain immediately after burn
-        await ensureChain(to.chainId, to.label);
-
         setStatusMessage("Waiting for Circle attestation...");
-        const attResult = await attestationV2.startPolling(from.domain, burnHash);
-        if (!attResult) {
-          throw new Error("Attestation timeout — you can retry minting later from bridge history");
-        }
+        const attResult = await attestationV2.startPolling(from.domain, tx.burnTxHash);
+        if (!attResult) throw new Error("Attestation timeout");
 
-        // ── Step 4: Mint on DESTINATION chain ──
+        await ensureChain(to.chainId, to.label);
+        
         setStatus("minting");
-        setStatusMessage("Minting USDC on " + to.label + "...");
+        setStatusMessage("Minting on " + to.label + "...");
         updateTx({ status: "minting" });
 
         const mintWalletClient = createWalletClient({
@@ -299,94 +208,131 @@ export function useBridge() {
           chain: null as any,
         });
 
-        await toPublicClient.waitForTransactionReceipt({ hash: mintHash });
+        await getChainClient(tx.toChain).waitForTransactionReceipt({ hash: mintHash });
+        
+        setStatus("complete");
+        updateTx({ status: "complete", mintTxHash: mintHash, attestation: attResult.attestation });
+        toast.success("Bridge complete!");
+      }
+    } catch (err: any) {
+      const msg = err?.shortMessage || err?.message || "Resume failed";
+      setStatus("failed");
+      setError(msg);
+      updateTx({ status: "failed", error: msg });
+    }
+  }, [address, ensureChain, updateTx, attestationV2, getChainClient]);
+
+  const startBridge = useCallback(
+    async (amount: string, fromChain: BridgeChainKey, toChain: BridgeChainKey, isFastPath: boolean = false, tokenSymbol: "USDC" | "EURC" = "USDC") => {
+      if (!address || !walletClient) {
+        setError("Wallet not connected");
+        return;
+      }
+
+      const from = BRIDGE_CHAINS[fromChain];
+      const to = BRIDGE_CHAINS[toChain];
+      const fromPublicClient = getChainClient(fromChain);
+      const parsedAmount = parseUnits(amount, from.usdcDecimals);
+      
+      const tokenAddress = tokenSymbol === "EURC" ? from.eurc : from.usdc;
+      if (!tokenAddress) {
+        setError(`${tokenSymbol} is not supported on ${from.label}`);
+        return;
+      }
+
+      const tx: BridgeTransaction = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        fromChain,
+        toChain,
+        amount,
+        status: "approving",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      setBridgeTx(tx);
+      setStatus("approving");
+      setError(null);
+      saveBridgeTransaction(tx);
+
+      try {
+        await ensureChain(from.chainId, from.label);
+
+        // Approve
+        setStatusMessage(`Approving ${tokenSymbol}...`);
+        const sourceWalletClient = createWalletClient({
+          account: address as `0x${string}`,
+          transport: custom((window as any).ethereum)
+        });
+
+        const approveHash = await sourceWalletClient.writeContract({
+          address: tokenAddress,
+          abi: ERC20_APPROVE_ABI,
+          functionName: "approve",
+          args: [from.tokenMessenger, parsedAmount],
+          account: address,
+          chain: null as any,
+        });
+        await fromPublicClient.waitForTransactionReceipt({ hash: approveHash });
+
+        // Burn
+        setStatus("burning");
+        setStatusMessage(`Burning ${tokenSymbol}...`);
+        updateTx({ status: "burning" });
+        
+        const mintRecipient = pad(address, { size: 32 });
+        const maxFee = isFastPath ? (parsedAmount * 10n / 10000n) : 0n;
+        const minFinalityThreshold = isFastPath ? 1000 : 2000;
+
+        const burnHash = await sourceWalletClient.writeContract({
+          address: from.tokenMessenger,
+          abi: TOKEN_MESSENGER_ABI,
+          functionName: "depositForBurn",
+          args: [parsedAmount, to.domain, mintRecipient, tokenAddress, zeroHash, maxFee, minFinalityThreshold],
+          account: address,
+          chain: null as any,
+        });
+        await fromPublicClient.waitForTransactionReceipt({ hash: burnHash });
+
+        // Wait Attestation
+        setStatus("waiting_attestation");
+        updateTx({ status: "waiting_attestation", burnTxHash: burnHash });
+        
+        await ensureChain(to.chainId, to.label);
+        
+        const attResult = await attestationV2.startPolling(from.domain, burnHash);
+        if (!attResult) throw new Error("Attestation timeout");
+
+        // Mint
+        setStatus("minting");
+        updateTx({ status: "minting" });
+        const mintHash = await sourceWalletClient.writeContract({
+          address: to.messageTransmitter,
+          abi: MESSAGE_TRANSMITTER_ABI,
+          functionName: "receiveMessage",
+          args: [attResult.message as `0x${string}`, attResult.attestation as `0x${string}`],
+          account: address,
+          chain: null as any,
+        });
+        await getChainClient(toChain).waitForTransactionReceipt({ hash: mintHash });
 
         setStatus("complete");
-        setStatusMessage("Bridge complete!");
-        updateTx({ 
-          status: "complete", 
-          mintTxHash: mintHash, 
-          attestation: attResult.attestation,
-          amountIn: amount,
-          amountOut: (Number(amount) * (isFastPath ? 0.998 : 0.999)).toFixed(2) // 0.1% extra fee for fast path
-        });
-        toast.success("Bridge complete!", { description: `Received ${(Number(amount) * (isFastPath ? 0.998 : 0.999)).toFixed(2)} USDC on ${to.label}` });
+        updateTx({ status: "complete", mintTxHash: mintHash, amountIn: amount, amountOut: (Number(amount) * (isFastPath ? 0.998 : 0.999)).toFixed(2) });
+        toast.success("Bridge complete!");
       } catch (err: any) {
         const msg = err?.shortMessage || err?.message || "Bridge failed";
         setStatus("failed");
         setError(msg);
-        setStatusMessage("");
         updateTx({ status: "failed", error: msg });
       }
     },
     [address, walletClient, ensureChain, updateTx, attestationV2, getChainClient]
   );
 
-  const completeMint = useCallback(async () => {
-    if (!bridgeTx || !walletClient || !bridgeTx.burnTxHash || !address) return;
-
-    const from = BRIDGE_CHAINS[bridgeTx.fromChain];
-    const to = BRIDGE_CHAINS[bridgeTx.toChain];
-    const toPublicClient = getChainClient(bridgeTx.toChain);
-
-    try {
-      // Re-poll attestation if needed
-      setStatus("waiting_attestation");
-      setStatusMessage("Checking attestation status...");
-      const attResult = await attestationV2.startPolling(from.domain, bridgeTx.burnTxHash);
-      if (!attResult) {
-        throw new Error("Attestation not ready yet");
-      }
-
-      // Switch to destination chain for minting
-      setStatusMessage("Switch to " + to.label + " to complete mint...");
-      await ensureChain(to.chainId, to.label);
-
-      setStatus("minting");
-      setStatusMessage("Minting USDC on " + to.label + "...");
-      updateTx({ status: "minting" });
-
-      const mintWalletClient = createWalletClient({
-        account: address as `0x${string}`,
-        transport: custom((window as any).ethereum)
-      });
-
-      const mintHash = await mintWalletClient.writeContract({
-        address: to.messageTransmitter,
-        abi: MESSAGE_TRANSMITTER_ABI,
-        functionName: "receiveMessage",
-        args: [attResult.message as `0x${string}`, attResult.attestation as `0x${string}`],
-        account: address,
-        chain: null as any,
-      });
-
-      await toPublicClient.waitForTransactionReceipt({ hash: mintHash });
-
-      setStatus("complete");
-      setStatusMessage("Bridge complete!");
-      updateTx({ status: "complete", mintTxHash: mintHash, attestation: attResult.attestation });
-      toast.success("Bridge complete!", { description: "Your USDC has been successfully bridged." });
-    } catch (err: any) {
-      const msg = err?.shortMessage || err?.message || "Mint failed";
-      setStatus("failed");
-      setError(msg);
-      setStatusMessage("");
-      updateTx({ status: "failed", error: msg });
-    }
-  }, [bridgeTx, walletClient, attestationV2, ensureChain, updateTx, address, getChainClient]);
-
   const reset = useCallback(() => {
     setBridgeTx(null);
     setStatus("idle");
     setError(null);
-    setStatusMessage("");
-  }, []);
-
-  const resumeBridge = useCallback((tx: BridgeTransaction) => {
-    setBridgeTx(tx);
-    setStatus(tx.status);
-    setError(tx.error || null);
-    setStatusMessage("");
   }, []);
 
   return {
@@ -396,8 +342,7 @@ export function useBridge() {
     bridgeTx,
     attestation: attestationV2,
     startBridge,
-    completeMint,
+    resumeTransaction,
     reset,
-    resumeBridge,
   };
 }
