@@ -1,0 +1,154 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 96%;
+    --foreground: 0 0% 8%;
+    --card: 0 0% 98%;
+    --card-foreground: 0 0% 8%;
+    --popover: 0 0% 98%;
+    --popover-foreground: 0 0% 8%;
+    --primary: 187 100% 35%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 263 80% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 93%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 95%;
+    --accent-foreground: 0 0% 8%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 187 100% 35%;
+    --radius: 0.5rem;
+    --green: 160 59% 38%;
+    --green-foreground: 0 0% 100%;
+    --purple: 263 80% 55%;
+    --purple-foreground: 0 0% 100%;
+    --teal: 187 100% 35%;
+    --teal-foreground: 0 0% 100%;
+    --surface: 0 0% 96%;
+    --terminal-bg: 120 30% 97%;
+    --terminal-green: 120 80% 30%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 0 0% 8%;
+    --sidebar-primary: 187 100% 35%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 95%;
+    --sidebar-accent-foreground: 0 0% 8%;
+    --sidebar-border: 0 0% 88%;
+    --sidebar-ring: 187 100% 35%;
+  }
+
+  .dark {
+    --background: 0 0% 2%;
+    --foreground: 0 0% 95%;
+    --card: 0 0% 5%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 5%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 187 100% 45%;
+    --primary-foreground: 0 0% 2%;
+    --secondary: 263 90% 66%;
+    --secondary-foreground: 0 0% 2%;
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 50%;
+    --accent: 0 0% 8%;
+    --accent-foreground: 0 0% 95%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 0 0% 14%;
+    --input: 0 0% 14%;
+    --ring: 187 100% 45%;
+    --radius: 0.5rem;
+    --green: 160 59% 45%;
+    --green-foreground: 0 0% 2%;
+    --purple: 263 90% 66%;
+    --purple-foreground: 0 0% 100%;
+    --teal: 187 100% 45%;
+    --teal-foreground: 0 0% 2%;
+    --surface: 0 0% 5%;
+    --terminal-bg: 120 30% 2%;
+    --terminal-green: 120 100% 50%;
+    --sidebar-background: 0 0% 5%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 187 100% 45%;
+    --sidebar-primary-foreground: 0 0% 2%;
+    --sidebar-accent: 0 0% 8%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 0 0% 14%;
+    --sidebar-ring: 187 100% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    font-size: 15px;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+}
+
+.scanline-overlay {
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,65,0.03) 2px, rgba(0,255,65,0.03) 4px);
+  pointer-events: none;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.terminal-cursor {
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.page-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.gradient-teal {
+  background: linear-gradient(135deg, hsl(187 100% 45% / 0.08), hsl(187 100% 45% / 0.02));
+}
+.gradient-purple {
+  background: linear-gradient(135deg, hsl(263 90% 66% / 0.08), hsl(263 90% 66% / 0.02));
+}
+.gradient-teal-solid {
+  background: linear-gradient(135deg, hsl(187 100% 45%), hsl(187 80% 35%));
+}
+.gradient-purple-solid {
+  background: linear-gradient(135deg, hsl(263 90% 66%), hsl(263 70% 50%));
+}
+
+.glow-teal {
+  box-shadow: 0 0 40px -10px hsl(187 100% 45% / 0.3);
+}
+.glow-purple {
+  box-shadow: 0 0 40px -10px hsl(263 90% 66% / 0.3);
+}
+
+.grid-bg {
+  background-image:
+    linear-gradient(hsl(0 0% 14% / 0.5) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(0 0% 14% / 0.5) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+.dark .grid-bg {
+  background-image:
+    linear-gradient(hsl(0 0% 14% / 0.8) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(0 0% 14% / 0.8) 1px, transparent 1px);
+}
