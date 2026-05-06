@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { ArrowRight, Wallet, Loader2, Zap, Info, History as HistoryIcon, ArrowLeftRight, AlertCircle, ExternalLink } from "lucide-react";
+import { ArrowRight, Wallet, Loader2, Zap, Info, History as HistoryIcon, ArrowLeftRight, AlertCircle, ExternalLink, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,7 +20,7 @@ import { parseUnits } from "viem";
 const Bridge = () => {
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
-  const { formattedTotal: globalBalance, isLoading: globalBalanceLoading, balancesByChain } = useUnifiedBalance();
+  const { formattedTotal: globalBalance, isLoading: globalBalanceLoading, balancesByChain, refetch: refetchBalances } = useUnifiedBalance();
   
   const [amount, setAmount] = useState("");
   const [tokenSymbol, setTokenSymbol] = useState<"USDC" | "EURC">("USDC");
@@ -33,6 +33,13 @@ const Bridge = () => {
 
   const bridge = useBridge();
 
+  // Refetch balances when bridge status becomes 'complete'
+  useEffect(() => {
+    if (bridge.status === "complete") {
+      refetchBalances();
+    }
+  }, [bridge.status, refetchBalances]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setPendingTxs(getPendingBridgeTransactions());
@@ -42,7 +49,6 @@ const Bridge = () => {
 
   const sourceChainConfig = BRIDGE_CHAINS[fromChain];
   const sourceBalanceData = balancesByChain[fromChain];
-  const sourceBalance = sourceBalanceData?.formatted || "0.00";
   const sourceDecimals = sourceChainConfig.usdcDecimals;
 
   const eurcSupported = sourceChainConfig.eurc !== undefined && BRIDGE_CHAINS[toChain].eurc !== undefined;
@@ -73,12 +79,6 @@ const Bridge = () => {
     await bridge.startBridge(amount, fromChain, toChain, isFastPath, tokenSymbol);
   };
 
-  const receiveAmount = useMemo(() => {
-    if (!amount || isNaN(Number(amount))) return "";
-    const fee = isFastPath ? 0.998 : 0.999;
-    return (Number(amount) * fee).toFixed(2);
-  }, [amount, isFastPath]);
-
   const isProcessing = bridge.status !== "idle" && bridge.status !== "failed" && bridge.status !== "complete";
   const isActive = bridge.status !== "idle";
 
@@ -99,13 +99,22 @@ const Bridge = () => {
              <Wallet className="h-4 w-4 text-primary" />
              <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Global Unified Balance</span>
           </div>
-          {globalBalanceLoading ? (
-            <Loader2 className="h-3 w-3 animate-spin text-primary" />
-          ) : (
-            <span className="font-mono text-sm font-bold text-primary">
-              {globalBalance} USDC
-            </span>
-          )}
+          <div className="flex items-center gap-4">
+            {globalBalanceLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin text-primary" />
+            ) : (
+              <span className="font-mono text-sm font-bold text-primary">
+                {globalBalance} ASSETS
+              </span>
+            )}
+            <button 
+              onClick={() => refetchBalances()}
+              className="p-1 hover:bg-primary/20 rounded-full transition-colors"
+              title="Refresh Balance"
+            >
+              <RotateCw className={`h-3 w-3 text-primary ${globalBalanceLoading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -174,7 +183,17 @@ const Bridge = () => {
                   }}
                   disabled={isProcessing}
                 />
-                <p className="text-[9px] text-muted-foreground font-mono">Available: {sourceBalance} {tokenSymbol}</p>
+                <div className="flex justify-between items-center px-1">
+                   <p className="text-[9px] text-muted-foreground font-mono uppercase">
+                     Available: {Number(balancesByChain[fromChain]?.formatted || 0).toFixed(2)} {tokenSymbol}
+                   </p>
+                   <button 
+                    onClick={() => refetchBalances()}
+                    className="text-[9px] text-primary hover:underline font-bold uppercase tracking-widest"
+                   >
+                     Refresh
+                   </button>
+                </div>
               </div>
 
               <div className="space-y-3">
@@ -189,13 +208,13 @@ const Bridge = () => {
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold font-mono text-muted-foreground uppercase">{tokenSymbol}</div>
                 </div>
-                {/* Percentage Buttons */}
                 <div className="grid grid-cols-4 gap-2 mt-2">
                    {[25, 55, 75, 100].map((pct) => (
                       <button
                         key={pct}
                         onClick={() => {
-                           const val = (parseFloat(sourceBalance) * (pct / 100)).toFixed(sourceDecimals === 6 ? 6 : 2);
+                           const bal = Number(balancesByChain[fromChain]?.formatted || 0);
+                           const val = (bal * (pct / 100)).toFixed(sourceDecimals === 6 ? 6 : 2);
                            setAmount(val);
                         }}
                         className="py-2 text-[10px] font-black uppercase tracking-widest border border-border bg-muted/10 hover:border-primary hover:text-primary transition-all rounded-sm active:scale-95"
@@ -229,19 +248,6 @@ const Bridge = () => {
                   </div>
                 </div>
                 <Switch checked={isFastPath} onCheckedChange={setIsFastPath} className="data-[state=checked]:bg-primary" />
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 pt-4 border-t border-border">
-                {[
-                   { label: "Bridge Fee", val: isFastPath ? "0.11%" : "0.10%", color: "text-foreground" },
-                   { label: "Execution Model", val: isFastPath ? "Iris V2 Fast Path" : "Circle CCTP Native", color: "text-foreground" },
-                   { label: "Estimated Settlement", val: isFastPath ? "1-2 Minutes" : "5-15 Minutes", color: isFastPath ? "text-primary" : "text-foreground" },
-                ].map((item, i) => (
-                   <div key={i} className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
-                      <span className="text-muted-foreground">{item.label}</span>
-                      <span className={item.color}>{item.val}</span>
-                   </div>
-                ))}
               </div>
 
               {!isConnected ? (
@@ -304,14 +310,13 @@ const Bridge = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Transaction Detail Modal */}
       {selectedTx && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-300">
            <div className="relative border border-border bg-card p-8 max-w-lg w-full rounded-sm shadow-2xl space-y-6">
               <div className="flex justify-between items-center border-b border-border pb-4">
                  <h2 className="text-xl font-black uppercase tracking-widest">Transaction Details</h2>
                  <button onClick={() => setSelectedTx(null)} className="p-2 hover:bg-muted rounded-full transition-colors">
-                    <ArrowLeftRight className="h-5 w-5 rotate-45" />
+                    <X className="h-5 w-5" />
                  </button>
               </div>
 

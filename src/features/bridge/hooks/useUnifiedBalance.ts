@@ -29,11 +29,12 @@ export function useUnifiedBalance() {
     }
   });
 
-  const { data: results, isLoading } = useReadContracts({
+  const { data: results, isLoading, refetch } = useReadContracts({
     contracts,
     query: {
       enabled: !!address,
-      refetchInterval: 10000,
+      refetchInterval: 15000, // Sync every 15s
+      staleTime: 5000,
     },
   });
 
@@ -45,11 +46,9 @@ export function useUnifiedBalance() {
     Object.keys(BRIDGE_CHAINS).forEach((chainKey) => {
       const chain = BRIDGE_CHAINS[chainKey as any];
       
-      // Get USDC result
       const usdcResult = results[resultIdx++];
       const usdcBalance = usdcResult?.status === "success" ? (usdcResult.result as bigint) : 0n;
       
-      // Get EURC result if applicable
       let eurcBalance = 0n;
       if (chain.eurc) {
         const eurcResult = results[resultIdx++];
@@ -57,15 +56,13 @@ export function useUnifiedBalance() {
       }
       
       const combinedBalance = usdcBalance + eurcBalance;
-      
-      // Standardize to 6 decimals
       const adjustedBalance = 
         chain.usdcDecimals === 6 ? combinedBalance : (combinedBalance * 1000000n) / (10n ** BigInt(chain.usdcDecimals));
 
       totalRawBalance += adjustedBalance;
       balancesByChain[chainKey] = {
         value: combinedBalance,
-        formatted: parseFloat(formatUnits(combinedBalance, chain.usdcDecimals)).toFixed(2)
+        formatted: formatUnits(combinedBalance, chain.usdcDecimals)
       };
     });
   }
@@ -80,5 +77,6 @@ export function useUnifiedBalance() {
     formattedTotal,
     balancesByChain,
     isLoading,
+    refetch,
   };
 }

@@ -90,12 +90,21 @@
   * {
     @apply border-border;
   }
-  html {
-    font-size: 15px;
+  html, body {
+    font-family: 'Outfit', sans-serif;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-size: 15px; /* Increased base font size for better accessibility */
   }
-  body {
-    @apply bg-background text-foreground;
-    font-family: 'Space Grotesk', sans-serif;
+
+  /* Remove number input spinners */
+  input[type=number]::-webkit-inner-spin-button, 
+  input[type=number]::-webkit-outer-spin-button { 
+    -webkit-appearance: none; 
+    margin: 0; 
+  }
+  input[type=number] {
+    -moz-appearance: textfield;
   }
 }
 

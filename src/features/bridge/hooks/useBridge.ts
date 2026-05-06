@@ -8,6 +8,7 @@ import {
   MESSAGE_TRANSMITTER_ABI,
   ERC20_APPROVE_ABI,
   IRIS_API_URL,
+  LUNEX_TREASURY,
   type BridgeChainKey,
 } from "../config/bridgeConfig";
 import {
@@ -258,7 +259,11 @@ export function useBridge() {
       try {
         await ensureChain(from.chainId, from.label);
 
-        // Approve
+        // Protocol Fee Calculation (0.1%)
+        const protocolFee = (parsedAmount * 10n) / 10000n;
+        const burnAmount = parsedAmount - protocolFee;
+
+        // Approve Full Amount
         setStatusMessage(`Approving ${tokenSymbol}...`);
         const sourceWalletClient = createWalletClient({
           account: address as `0x${string}`,
@@ -275,20 +280,34 @@ export function useBridge() {
         });
         await fromPublicClient.waitForTransactionReceipt({ hash: approveHash });
 
-        // Burn
+        // Step: Send Protocol Fee to Treasury (if any)
+        if (protocolFee > 0n) {
+          setStatusMessage(`Processing Protocol Fee...`);
+          const feeHash = await sourceWalletClient.writeContract({
+            address: tokenAddress,
+            abi: ERC20_APPROVE_ABI,
+            functionName: "transfer",
+            args: [LUNEX_TREASURY, protocolFee],
+            account: address,
+            chain: null as any,
+          });
+          await fromPublicClient.waitForTransactionReceipt({ hash: feeHash });
+        }
+
+        // Burn Remaining
         setStatus("burning");
         setStatusMessage(`Burning ${tokenSymbol}...`);
         updateTx({ status: "burning" });
         
         const mintRecipient = pad(address, { size: 32 });
-        const maxFee = isFastPath ? (parsedAmount * 10n / 10000n) : 0n;
+        const maxFee = isFastPath ? (burnAmount * 10n / 10000n) : 0n;
         const minFinalityThreshold = isFastPath ? 1000 : 2000;
 
         const burnHash = await sourceWalletClient.writeContract({
           address: from.tokenMessenger,
           abi: TOKEN_MESSENGER_ABI,
           functionName: "depositForBurn",
-          args: [parsedAmount, to.domain, mintRecipient, tokenAddress, zeroHash, maxFee, minFinalityThreshold],
+          args: [burnAmount, to.domain, mintRecipient, tokenAddress, zeroHash, maxFee, minFinalityThreshold],
           account: address,
           chain: null as any,
         });

@@ -29,6 +29,8 @@ export interface BridgeChainConfig {
   explorerUrl: string;
 }
 
+export const LUNEX_TREASURY = "0xC81b2328f7f04DC667428DA9a84CE627338873fd" as `0x${string}`;
+
 const SANDBOX_TOKEN_MESSENGER = "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA";
 const SANDBOX_MESSAGE_TRANSMITTER = "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275";
 
@@ -42,7 +44,7 @@ export const BRIDGE_CHAINS: Record<BridgeChainKey, BridgeChainConfig> = {
     eurc: "0x08210F9170F89Ab7658F0B5E3fF39b0E03C594D4",
     tokenMessenger: SANDBOX_TOKEN_MESSENGER,
     messageTransmitter: SANDBOX_MESSAGE_TRANSMITTER,
-    rpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
+    rpcUrl: "https://eth-sepolia.public.blastapi.io", // More reliable RPC
     usdcDecimals: 6,
     explorerUrl: "https://sepolia.etherscan.io",
   },
@@ -160,10 +162,28 @@ export const ERC20_APPROVE_ABI = [
     outputs: [{ name: "", type: "bool" }],
   },
   {
+    name: "transfer",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
     name: "balanceOf",
     type: "function",
     stateMutability: "view",
     inputs: [{ name: "account", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
+  },
+] as const;
+
+export const MESSAGE_SENT_EVENT_ABI = [
+  {
+    name: "MessageSent",
+    type: "event",
+    inputs: [{ name: "message", type: "bytes", indexed: false }],
   },
 ] as const;
