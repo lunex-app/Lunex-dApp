@@ -40,7 +40,7 @@ const ProtocolStats = () => {
         <div>
           <BackButton />
           <h1 className="text-4xl font-bold tracking-tight mt-6">Protocol Analytics</h1>
-          <p className="text-muted-foreground mt-2 font-mono text-sm uppercase tracking-wider">Verified on-chain data distribution</p>
+          <p className="text-muted-foreground mt-2 font-mono text-sm uppercase tracking-wider">Verified onchain data distribution</p>
         </div>
         <div className="flex items-center gap-4 mt-6 md:mt-0">
           <div className="text-right">
@@ -90,7 +90,7 @@ const ProtocolStats = () => {
                   </div>
                   <div className="pl-6 font-mono">
                     <p className="text-2xl font-bold">{fmt(pool.usdcReserve)}</p>
-                    <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-widest font-bold">Verified on-chain</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-widest font-bold">Verified onchain</p>
                   </div>
                 </div>
                 <div className="space-y-4">
@@ -100,7 +100,7 @@ const ProtocolStats = () => {
                   </div>
                   <div className="pl-12 border-l border-border font-mono">
                     <p className="text-2xl font-bold pl-6">{fmt(pool.eurcReserve)}</p>
-                    <p className="text-[10px] text-muted-foreground mt-1 pl-6 uppercase tracking-widest font-bold">Verified on-chain</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 pl-6 uppercase tracking-widest font-bold">Verified onchain</p>
                   </div>
                 </div>
               </div>
@@ -115,7 +115,7 @@ const ProtocolStats = () => {
               {[
                 { label: 'Total LP Units', val: `${fmt(pool.lpTotalSupply)}`, sub: 'Total supply of Pool Liquidity Tokens' },
                 { label: 'Admin Fee', val: `${pool.feePercent}%`, sub: 'Protocol revenue share per exchange' },
-                { label: 'Contract Integrity', val: 'Verified', sub: 'On-chain source code verified on ArcScan' },
+                { label: 'Contract Integrity', val: 'Verified', sub: 'onchain source code verified on ArcScan' },
               ].map((item, i) => (
                 <div key={i} className="py-4 flex items-center justify-between">
                   <div>
@@ -148,9 +148,9 @@ const ProtocolStats = () => {
           </section>
 
           <div className="p-6 border border-border rounded-sm bg-primary/5">
-             <h4 className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-4">On-Chain Oracle</h4>
+             <h4 className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-4">onchain Oracle</h4>
              <p className="text-[10px] leading-relaxed text-muted-foreground">
-               Real-time volume data is sourced from on-chain event analysis of Lunex protocol contracts and tracked in the protocol stats database.
+               Real-time volume data is sourced from onchain event analysis of Lunex protocol contracts and tracked in the protocol stats database.
              </p>
           </div>
         </div>

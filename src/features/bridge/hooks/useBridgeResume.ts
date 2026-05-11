@@ -288,9 +288,9 @@ export function useBridgeResume() {
       // Wait for actual transaction receipt
       const receipt = await client.waitForTransactionReceipt({ hash });
 
-      // Verify it succeeded on-chain (status 1 = success)
+      // Verify it succeeded onchain (status 1 = success)
       if (receipt.status !== "success") {
-        throw new Error("Minting transaction was submitted but reverted on-chain. Check the explorer for details.");
+        throw new Error("Minting transaction was submitted but reverted onchain. Check the explorer for details.");
       }
 
       // Link to Bridge History: find the matching pending tx and set to complete

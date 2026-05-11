@@ -29,7 +29,7 @@ const docs: DocCategory[] = [
 Key capabilities:
   Near-zero slippage swaps between USDC and EURC
   ERC-4626 compliant yield vaults with auto-compounding
-  On-chain transparency on Arc Testnet explorer
+  onchain transparency on Arc Testnet explorer
   Cross-chain bridging via Circle CCTP
   RESTful DEX adapter (Lunex SDK) for aggregator integrations
 
@@ -67,7 +67,7 @@ Currently live on Arc Network Testnet (Chain ID: 5042002).`,
 
 Steps:
 1. Select the token to sell (From) and receive (To)
-2. Enter the amount. Output is calculated using live on-chain pricing
+2. Enter the amount. Output is calculated using live onchain pricing
 3. Review exchange rate, price impact, and minimum received
 4. Click "Approve" to grant token spending permission (first time only)
 5. Click "Swap" to execute
@@ -295,7 +295,7 @@ When exceeded, the API returns HTTP 429 with a JSON error body.`,
       {
         id: "sdk-quote",
         title: "GET /dex-quote",
-        content: `Get a real-time swap quote from the on-chain pool.
+        content: `Get a real-time swap quote from the onchain pool.
 
 Parameters:
   tokenIn   (required): Token address to sell
@@ -544,7 +544,7 @@ Key functions:
   totalAssets(): Total underlying held by vault
   previewDeposit(assets) / previewWithdraw(assets): Simulate operations
 
-Benefits: Composability with any DeFi protocol, full on-chain transparency, standardised interface reduces integration risk.`,
+Benefits: Composability with any DeFi protocol, full onchain transparency, standardised interface reduces integration risk.`,
       },
       {
         id: "network",

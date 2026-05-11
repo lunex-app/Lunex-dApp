@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Copy, Check } from "lucide-react";
 
 const AVAILABLE_SERVICES = [
   { id: "quote", label: "Quote", description: "Get real-time swap quotes with expected output amounts" },
-  { id: "swap", label: "Swap", description: "Generate unsigned swap transactions for on-chain execution" },
+  { id: "swap", label: "Swap", description: "Generate unsigned swap transactions for onchain execution" },
   { id: "liquidity", label: "Liquidity", description: "Query pool reserves, TVL, and token balances" },
   { id: "price", label: "Price", description: "Get exchange rates with 24h change data" },
   { id: "webhook", label: "Webhook", description: "Register webhooks for pool reserve change notifications" },
@@ -124,7 +124,7 @@ x-api-key: lnx_your_api_key`} />
       </Section>
 
       <Section title="5. POST /dex-swap — Execute Swap">
-        <p className="mb-2">Generates an unsigned transaction for executing a swap on-chain.</p>
+        <p className="mb-2">Generates an unsigned transaction for executing a swap onchain.</p>
         <CodeBlock language="bash" code={`curl -X POST "${baseUrl || ""}/functions/v1/dex-swap" \\
   -H "x-api-key: lnx_your_api_key" \\
   -H "Content-Type: application/json" \\

@@ -64,7 +64,7 @@ export function usePointsLeaderboard() {
         setLeaderboard(sorted.slice(0, 50));
         setTotalParticipants(walletMap.size);
       } catch (err) {
-        console.error("Failed to fetch on-chain leaderboard:", err);
+        console.error("Failed to fetch onchain leaderboard:", err);
       } finally {
         setLoading(false);
       }

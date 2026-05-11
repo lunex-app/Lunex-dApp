@@ -53,7 +53,7 @@ Lunex marries secure smart contract infrastructure with a world-class frontend.
 
 ### 4.2. Web3 & Data Integrations
 *   **Wallet Connectivity:** Handled via **RainbowKit**, **Wagmi**, and **Viem**, guaranteeing secure and rapid decentralized reads/writes to the blockchain.
-*   **State & Querying:** Managed via **React Query (@tanstack)** to seamlessly cache and sync on-chain data with the UI.
+*   **State & Querying:** Managed via **React Query (@tanstack)** to seamlessly cache and sync onchain data with the UI.
 *   **Database & Logging:** We use **Supabase** acting as an indexed data layer. This off-chain ledger powers our protocol statistics dashboard—rapidly serving historical volumes and transaction logs without requiring taxing RPC calls.
 
 ---

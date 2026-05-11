@@ -13,7 +13,7 @@ const Points = () => {
         <div className="space-y-4">
           <h1 className="text-4xl font-bold tracking-tighter uppercase italic">Lunex Points</h1>
           <p className="text-muted-foreground font-mono text-sm max-w-sm mx-auto leading-relaxed">
-            Standardizing loyalty and protocol participation. Our upcoming reward engine is currently under development to ensure fair distribution and on-chain verification.
+            Standardizing loyalty and protocol participation. Our upcoming reward engine is currently under development to ensure fair distribution and onchain verification.
           </p>
         </div>
 

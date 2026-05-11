@@ -12,7 +12,7 @@ Lunex is a next-gen decentralized application (dApp) that provides an advanced m
 - **Cross-Chain Bridge (CCTP)**: Effortlessly bridge USDC across multiple supported blockchains (Ethereum, Base, Arbitrum, Avalanche, Polygon, Optimism) without slippage via Circle's natively integrated Cross-Chain Transfer Protocol.
 - **Yield Aggregator**: Automatically compound your yields natively via streamlined smart contracts. Claim your accrued LUNEX rewards right from the interface.
 - **Liquidity Pools (LP)**: Provide stablecoin liquidity (e.g., USDC, EURC) to earn real-time swap fees. The transparent pool tracking dashboard estimates your real-time revenue splits seamlessly.
-- **Protocol Statistics**: View live on-chain volume, total value locked (TVL), and liquidity reserve metrics directly synced with Supabase datastores.
+- **Protocol Statistics**: View live onchain volume, total value locked (TVL), and liquidity reserve metrics directly synced with Supabase datastores.
 - **Premium User Experience**: Designed to meet high-end aesthetics, Lunex uses dynamic Radix UI components, smooth Framer Motion transitions, responsive TailwindCSS styling, and integrated seamless Light/Dark mode themes.
 
 ## Technology Stack

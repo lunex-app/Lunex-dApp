@@ -71,7 +71,7 @@ export function TransactionModal({ stage, approveLabel, actionLabel, successSumm
           <>
             <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-4" />
             <h3 className="text-lg font-bold mb-2">Verifying Approval</h3>
-            <p className="text-sm text-muted-foreground mb-2">Transaction confirmed! Synchronizing on-chain state...</p>
+            <p className="text-sm text-muted-foreground mb-2">Transaction confirmed! Synchronizing onchain state...</p>
           </>
         )}
         {stage === "approve-success" && (
