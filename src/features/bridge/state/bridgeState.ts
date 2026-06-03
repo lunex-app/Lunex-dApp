@@ -13,7 +13,10 @@ export interface BridgeTransaction {
   id: string;
   fromChain: BridgeChainKey;
   toChain: BridgeChainKey;
+  tokenSymbol?: "USDC" | "EURC";
   amount: string;
+  gasTopUpAmount?: string;
+  gasTopUpStatus?: "not_requested" | "requested" | "relayer_pending" | "unsupported" | "completed" | "failed";
   status: BridgeStatus;
   burnTxHash?: string;
   messageBytes?: string;

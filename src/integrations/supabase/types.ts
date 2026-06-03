@@ -57,7 +57,10 @@ export type Database = {
           created_by: string | null
           id: string
           is_active: boolean
-          key_value: string
+          key_hash: string | null
+          key_last4: string | null
+          key_prefix: string | null
+          key_value: string | null
           label: string
           revoked_at: string | null
         }
@@ -67,7 +70,10 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_active?: boolean
-          key_value: string
+          key_hash?: string | null
+          key_last4?: string | null
+          key_prefix?: string | null
+          key_value?: string | null
           label?: string
           revoked_at?: string | null
         }
@@ -77,7 +83,10 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_active?: boolean
-          key_value?: string
+          key_hash?: string | null
+          key_last4?: string | null
+          key_prefix?: string | null
+          key_value?: string | null
           label?: string
           revoked_at?: string | null
         }

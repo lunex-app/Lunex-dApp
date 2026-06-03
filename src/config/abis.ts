@@ -10,6 +10,16 @@ export const erc20Abi = [
     outputs: [{ name: "", type: "bool" }],
   },
   {
+    name: "transfer",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
     name: "allowance",
     type: "function",
     stateMutability: "view",
@@ -111,6 +121,16 @@ export const stableSwapAbi = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
+    name: "calc_withdraw_one_coin",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "amount", type: "uint256" },
+      { name: "i", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
     name: "balances",
     type: "function",
     stateMutability: "view",
@@ -147,6 +167,229 @@ export const stableSwapAbi = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ name: "", type: "address" }],
+  },
+] as const;
+
+export const lunexLimitOrderKeeperAbi = [
+  {
+    name: "OrderCreated",
+    type: "event",
+    inputs: [
+      { name: "orderId", type: "uint256", indexed: true },
+      { name: "owner", type: "address", indexed: true },
+      { name: "tokenIn", type: "address", indexed: false },
+      { name: "tokenOut", type: "address", indexed: false },
+      { name: "amountIn", type: "uint256", indexed: false },
+      { name: "targetRateE18", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    name: "OrderCancelled",
+    type: "event",
+    inputs: [{ name: "orderId", type: "uint256", indexed: true }],
+  },
+  {
+    name: "OrderExecuted",
+    type: "event",
+    inputs: [
+      { name: "orderId", type: "uint256", indexed: true },
+      { name: "keeper", type: "address", indexed: true },
+      { name: "amountOut", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    name: "createOrder",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "tokenInIndex", type: "uint8" },
+      { name: "tokenOutIndex", type: "uint8" },
+      { name: "tokenIn", type: "address" },
+      { name: "tokenOut", type: "address" },
+      { name: "amountIn", type: "uint256" },
+      { name: "minAmountOut", type: "uint256" },
+      { name: "targetRateE18", type: "uint256" },
+      { name: "direction", type: "uint8" },
+    ],
+    outputs: [{ name: "orderId", type: "uint256" }],
+  },
+  {
+    name: "cancelOrder",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "orderId", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    name: "executeOrder",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "orderId", type: "uint256" }],
+    outputs: [{ name: "amountOut", type: "uint256" }],
+  },
+  {
+    name: "canExecute",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "orderId", type: "uint256" }],
+    outputs: [
+      { name: "", type: "bool" },
+      { name: "quote", type: "uint256" },
+      { name: "rateE18", type: "uint256" },
+    ],
+  },
+  {
+    name: "nextOrderId",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "orders",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "uint256" }],
+    outputs: [
+      { name: "owner", type: "address" },
+      { name: "tokenInIndex", type: "uint8" },
+      { name: "tokenOutIndex", type: "uint8" },
+      { name: "tokenIn", type: "address" },
+      { name: "tokenOut", type: "address" },
+      { name: "amountIn", type: "uint256" },
+      { name: "minAmountOut", type: "uint256" },
+      { name: "targetRateE18", type: "uint256" },
+      { name: "direction", type: "uint8" },
+      { name: "active", type: "bool" },
+    ],
+  },
+] as const;
+
+export const lunexStreamAbi = [
+  {
+    name: "StreamCreated",
+    type: "event",
+    inputs: [
+      { name: "streamId", type: "uint256", indexed: true },
+      { name: "sender", type: "address", indexed: true },
+      { name: "recipient", type: "address", indexed: true },
+      { name: "token", type: "address", indexed: false },
+      { name: "amount", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    name: "StreamBatchCreated",
+    type: "event",
+    inputs: [
+      { name: "sender", type: "address", indexed: true },
+      { name: "count", type: "uint256", indexed: false },
+      { name: "totalAmount", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    name: "createStream",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "recipient", type: "address" },
+      { name: "token", type: "address" },
+      { name: "totalAmount", type: "uint256" },
+      { name: "startTime", type: "uint64" },
+      { name: "endTime", type: "uint64" },
+      { name: "cliffTime", type: "uint64" },
+      { name: "releaseFrequency", type: "uint64" },
+      { name: "streamType", type: "uint8" },
+      { name: "cancelable", type: "bool" },
+      { name: "transferable", type: "bool" },
+      { name: "recipientCanClaimAnytime", type: "bool" },
+    ],
+    outputs: [{ name: "streamId", type: "uint256" }],
+  },
+  {
+    name: "createStreams",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "recipients", type: "address[]" },
+      { name: "amounts", type: "uint256[]" },
+      { name: "token", type: "address" },
+      { name: "startTime", type: "uint64" },
+      { name: "endTime", type: "uint64" },
+      { name: "cliffTime", type: "uint64" },
+      { name: "releaseFrequency", type: "uint64" },
+      { name: "streamType", type: "uint8" },
+      { name: "cancelable", type: "bool" },
+      { name: "transferable", type: "bool" },
+      { name: "recipientCanClaimAnytime", type: "bool" },
+    ],
+    outputs: [{ name: "streamIds", type: "uint256[]" }],
+  },
+  {
+    name: "claim",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "streamId", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    name: "claimable",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "streamId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "cancel",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "streamId", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    name: "transferRecipient",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "streamId", type: "uint256" },
+      { name: "newRecipient", type: "address" },
+    ],
+    outputs: [],
+  },
+] as const;
+
+export const lunexNativeTopUpRelayerAbi = [
+  {
+    name: "deliverTopUp",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "requestId", type: "bytes32" },
+      { name: "token", type: "address" },
+      { name: "recipient", type: "address" },
+      { name: "recipientTokenAmount", type: "uint256" },
+      { name: "treasuryTokenAmount", type: "uint256" },
+      { name: "nativeAmount", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "deliveredRequests",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "bytes32" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "TopUpDelivered",
+    type: "event",
+    inputs: [
+      { name: "requestId", type: "bytes32", indexed: true },
+      { name: "recipient", type: "address", indexed: true },
+      { name: "token", type: "address", indexed: true },
+      { name: "recipientTokenAmount", type: "uint256", indexed: false },
+      { name: "treasuryTokenAmount", type: "uint256", indexed: false },
+      { name: "nativeAmount", type: "uint256", indexed: false },
+    ],
   },
 ] as const;
 

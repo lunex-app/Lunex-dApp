@@ -108,6 +108,8 @@ export function usePoolData() {
     lpBalanceRaw: lpBalanceRawBigInt,
     lpTotalSupply,
     lpTotalSupplyRaw: lpTotalSupplyRawBigInt,
+    usdcReserveRaw: (usdcReserveRaw as bigint | undefined) ?? 0n,
+    eurcReserveRaw: (eurcReserveRaw as bigint | undefined) ?? 0n,
     poolShare,
     lpTokenAddress,
     lpDecimals,

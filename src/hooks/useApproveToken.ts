@@ -32,6 +32,7 @@ export function useApproveToken(
 
   const { isLoading: isApproveConfirming, isSuccess: isApproved } = useWaitForTransactionReceipt({
     hash: approveTxHash,
+    chainId: arcTestnet.id,
   });
 
   const isApproving = isApprovePending || isApproveConfirming;

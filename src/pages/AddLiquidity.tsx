@@ -11,6 +11,7 @@ import { useSectionHistory } from "@/hooks/useSectionHistory";
 import BackButton from "@/components/BackButton";
 import { hasInsufficientTokenBalance, parseTokenAmount } from "@/lib/tokenAmounts";
 import { TokenIcon } from "@/components/TokenIcon";
+import { DEFAULT_SLIPPAGE_PERCENT } from "@/lib/slippage";
 
 const AddLiquidity = () => {
   const { isConnected } = useAccount();
@@ -21,7 +22,7 @@ const AddLiquidity = () => {
   const [usdcAmount, setUsdcAmount] = useState("");
   const [eurcAmount, setEurcAmount] = useState("");
 
-  const liq = useAddLiquidity(usdcAmount, eurcAmount);
+  const liq = useAddLiquidity(usdcAmount, eurcAmount, String(DEFAULT_SLIPPAGE_PERCENT));
 
   useEffect(() => {
     if (liq.isConfirmed && liq.actionTxHash) {
@@ -69,6 +70,7 @@ const AddLiquidity = () => {
   const getButtonText = () => {
     if (!isConnected) return "CONNECT WALLET";
     if (!hasAmount) return "ENTER AMOUNTS";
+    if (!liq.isSlippageValid) return "INVALID SLIPPAGE";
     if (hasInsufficientUsdc) return "INSUFFICIENT USDC";
     if (hasInsufficientEurc) return "INSUFFICIENT EURC";
     if (liq.isApproving) return "APPROVING...";
@@ -160,7 +162,7 @@ const AddLiquidity = () => {
           <Button 
             className="w-full h-14 bg-primary text-primary-foreground font-bold tracking-[0.2em] uppercase text-sm shadow-sm active:scale-[0.98] transition-all" 
             onClick={handleClick} 
-            disabled={liq.isBusy || !hasAmount || hasInsufficientBalance}
+            disabled={liq.isBusy || !hasAmount || hasInsufficientBalance || !liq.isSlippageValid}
           >
             {liq.isBusy && <Loader2 className="h-4 w-4 animate-spin mr-3" />}
             {getButtonText()}

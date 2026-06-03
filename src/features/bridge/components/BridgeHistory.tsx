@@ -1,11 +1,11 @@
-import { Clock, Check, Loader2, X, RotateCw, ExternalLink, Info } from "lucide-react";
+import { Clock, Check, Loader2, X, RotateCw, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   type BridgeTransaction,
   type BridgeStatus,
   loadBridgeTransactions,
 } from "../state/bridgeState";
-import { BRIDGE_CHAINS, getExplorerTxUrl } from "../config/bridgeConfig";
+import { BRIDGE_CHAINS } from "../config/bridgeConfig";
 
 interface BridgeHistoryProps {
   onSelectTx?: (tx: BridgeTransaction) => void;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 
 export function useMaintenance(key: "maintenance_all" | "maintenance_swap" | "maintenance_bridge" | "maintenance_yield" | "maintenance_pool" = "maintenance_all") {
   const [isMaintenance, setIsMaintenance] = useState(false);
@@ -11,8 +11,9 @@ export function useMaintenance(key: "maintenance_all" | "maintenance_swap" | "ma
         let isMaint = false;
         let dbResponded = false;
 
-        // Fetch from Supabase as the ultimate source of truth
-        try {
+        // Fetch from Supabase as the ultimate source of truth when configured.
+        if (isSupabaseConfigured) {
+          try {
             const { data, error } = await supabase
               .from("protocol_settings" as any)
               .select("value, key")
@@ -29,8 +30,9 @@ export function useMaintenance(key: "maintenance_all" | "maintenance_swap" | "ma
                  localStorage.setItem(key, exactKeyData.value === true || exactKeyData.value === "true" ? "true" : "false");
                }
             }
-        } catch (dbErr) {
+          } catch (dbErr) {
             // Ignore DB errors if table doesn't exist
+          }
         }
 
         // If DB didn't respond (e.g. no table or offline), fallback to optimistic local storage
@@ -57,18 +59,19 @@ export function useMaintenance(key: "maintenance_all" | "maintenance_swap" | "ma
     window.addEventListener("storage", handleStorage);
     window.addEventListener("maintenance_change", handleStorage);
 
-    // Subscribe to DB changes
-    const channel = supabase
-      .channel("maintenance_changes")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "protocol_settings" }, () => {
-        checkMaintenance();
-      })
-      .subscribe();
+    const channel = isSupabaseConfigured
+      ? supabase
+          .channel("maintenance_changes")
+          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "protocol_settings" }, () => {
+            checkMaintenance();
+          })
+          .subscribe()
+      : null;
 
     return () => {
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("maintenance_change", handleStorage);
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
     };
   }, [key]);
 

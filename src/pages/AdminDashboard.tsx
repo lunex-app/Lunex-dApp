@@ -16,7 +16,10 @@ import SDKDeveloperGuide, { AVAILABLE_SERVICES } from "@/components/SDKDeveloper
 
 interface ApiKey {
   id: string;
-  key_value: string;
+  key_value?: string;
+  display_key?: string;
+  key_prefix?: string;
+  key_last4?: string;
   label: string;
   is_active: boolean;
   created_at: string;
@@ -339,7 +342,7 @@ const AdminDashboard = () => {
                   <span className="text-sm font-semibold">{key.label}</span>
                   <Button variant="ghost" size="sm" onClick={() => deleteKey(key.id)} className="h-7 px-2 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
-                <code className="text-[10px] font-mono text-muted-foreground">{key.key_value}</code>
+                <code className="text-[10px] font-mono text-muted-foreground">{key.key_value || key.display_key || `${key.key_prefix || "lnx_****"}...${key.key_last4 || "****"}`}</code>
               </div>
             ))}
           </div>

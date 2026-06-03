@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
 interface AuthContextType {
@@ -32,6 +32,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const isDeveloper = roles.includes("developer");
 
   const checkRoles = async (userId: string) => {
+    if (!isSupabaseConfigured) {
+      setRoles([]);
+      return;
+    }
+
     const { data } = await supabase
       .from("user_roles")
       .select("role")
@@ -40,6 +45,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setIsLoading(false);
+      return;
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
@@ -66,11 +76,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    if (!isSupabaseConfigured) return { error: "Supabase is not configured." };
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error?.message ?? null };
   };
 
   const signUp = async (email: string, password: string, displayName: string) => {
+    if (!isSupabaseConfigured) return { error: "Supabase is not configured." };
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -80,6 +94,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
+    if (!isSupabaseConfigured) return;
+
     await supabase.auth.signOut();
   };
 

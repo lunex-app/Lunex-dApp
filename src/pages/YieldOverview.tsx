@@ -9,6 +9,7 @@ import EmptyState from "@/components/EmptyState";
 import BackButton from "@/components/BackButton";
 import { useUnifiedBalance } from "@/features/bridge/hooks/useUnifiedBalance";
 import { Wallet, Loader2 } from "lucide-react";
+import { formatApy, useDynamicApy } from "@/hooks/useApy";
 
 const YIELD_COLUMNS = [
   { key: "action", label: "Action" },
@@ -23,12 +24,14 @@ const YieldOverview = () => {
   const eurcVault = useVaultData("EURC");
   const history = useSectionHistory("yield");
   const { formattedTotal: globalBalance, isLoading: globalBalanceLoading } = useUnifiedBalance();
+  const usdcApy = useDynamicApy("vault-usdc-share-price", usdcVault.sharePrice, 0);
+  const eurcApy = useDynamicApy("vault-eurc-share-price", eurcVault.sharePrice, 0);
   const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const hasPositions = usdcVault.userShares > 0 || eurcVault.userShares > 0;
 
   const vaults = [
-    { token: "USDC" as const, share: "luneUSDC", tvl: usdcVault.totalAssets, sharePrice: usdcVault.sharePrice, userShares: usdcVault.userShares, userDeposited: usdcVault.userDeposited, route: "/yield/usdc", accent: "teal" },
-    { token: "EURC" as const, share: "luneEURC", tvl: eurcVault.totalAssets, sharePrice: eurcVault.sharePrice, userShares: eurcVault.userShares, userDeposited: eurcVault.userDeposited, route: "/yield/eurc", accent: "purple" },
+    { token: "USDC" as const, share: "luneUSDC", tvl: usdcVault.totalAssets, sharePrice: usdcVault.sharePrice, userShares: usdcVault.userShares, userDeposited: usdcVault.userDeposited, route: "/yield/usdc", accent: "teal", apy: usdcApy },
+    { token: "EURC" as const, share: "luneEURC", tvl: eurcVault.totalAssets, sharePrice: eurcVault.sharePrice, userShares: eurcVault.userShares, userDeposited: eurcVault.userDeposited, route: "/yield/eurc", accent: "purple", apy: eurcApy },
   ];
 
   const [claimedRewards, setClaimedRewards] = useState(false);
@@ -63,7 +66,7 @@ const YieldOverview = () => {
                <div className="border border-border bg-card rounded-sm overflow-hidden shadow-sm">
                   <div className="px-6 py-4 border-b border-border bg-muted/30 flex justify-between items-center">
                      <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Your Yield Distribution</span>
-                     <span className="px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-[8px] font-bold tracking-widest uppercase">Auto-Compounding</span>
+                     <span className="px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-[8px] font-bold tracking-widest uppercase">Share-price tracked</span>
                   </div>
                   <div className="grid md:grid-cols-2 divide-x divide-border">
                      {vaults.filter(v => v.userShares > 0).map(v => (
@@ -106,8 +109,8 @@ const YieldOverview = () => {
                 <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">ERC-4626 Vault</p>
               </div>
               <div className="text-right">
-                <p className="text-xs font-bold text-primary font-mono">{v.token === "USDC" ? "8.50%" : "7.20%"} APY</p>
-                <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-tighter">Standard Return</p>
+                <p className="text-xs font-bold text-primary font-mono">{formatApy(v.apy)}</p>
+                <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-tighter">Share-price APY</p>
               </div>
             </div>
             

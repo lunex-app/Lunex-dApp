@@ -6,6 +6,8 @@ import { CONTRACTS, TOKEN_INDEX, TOKENS, arcTestnet, getExplorerTxUrl } from "@/
 import { useApproveToken } from "./useApproveToken";
 import { useVolumeTracker } from "./useVolumeTracker";
 import { toast } from "sonner";
+import { applySlippage, parseSlippageBps } from "@/lib/slippage";
+import { recordPointEvent } from "@/lib/points";
 
 interface UseSwapParams {
   fromSymbol: string;
@@ -42,6 +44,8 @@ export function useSwap({ fromSymbol, toSymbol, amount, slippage }: UseSwapParam
   const spotRate = spotRateRaw ? parseFloat(formatUnits(spotRateRaw as bigint, toToken.decimals)) : 0;
   const swapRate = parsedInput > 0n && outputAmount > 0 ? outputAmount / parseFloat(amount || "1") : 0;
   const priceImpact = spotRate > 0 && swapRate > 0 ? ((spotRate - swapRate) / spotRate) * 100 : 0;
+  const slippageBps = parseSlippageBps(slippage);
+  const isSlippageValid = slippageBps !== null;
 
   const approval = useApproveToken(fromToken.address, CONTRACTS.LUNEX_SWAP_POOL, fromToken.decimals);
   const { recordVolume } = useVolumeTracker();
@@ -58,6 +62,13 @@ export function useSwap({ fromSymbol, toSymbol, amount, slippage }: UseSwapParam
       const amountUsd = parseFloat(amount || "0");
       if (amountUsd > 0) {
         recordVolume({ txHash: swapTxHash, eventType: "swap", amountUsd, contract: CONTRACTS.LUNEX_SWAP_POOL });
+        recordPointEvent({
+          wallet: address,
+          action: "swap",
+          volumeUsd: amountUsd,
+          txHash: swapTxHash,
+          description: `Swapped ${amount} ${fromSymbol} to ${toSymbol}`,
+        });
       }
     }
   }, [isConfirmed, swapTxHash]);
@@ -68,13 +79,21 @@ export function useSwap({ fromSymbol, toSymbol, amount, slippage }: UseSwapParam
 
   const executeSwap = useCallback(() => {
     if (!isConnected || !address || !amount) return;
+    if (!isSlippageValid) {
+      toast.error("Invalid slippage", { description: "Use a value from 0% to 5%." });
+      return;
+    }
+    if (!dyRaw || (dyRaw as bigint) <= 0n) {
+      toast.error("Quote unavailable", { description: "Wait for a valid quote before swapping." });
+      return;
+    }
     if (approval.needsApproval(amount)) { approval.requestApproval(amount); return; }
-    const minDy = dyRaw ? ((dyRaw as bigint) * BigInt(Math.floor((1 - parseFloat(slippage) / 100) * 10000))) / 10000n : 0n;
+    const minDy = applySlippage(dyRaw as bigint, slippageBps);
     writeContract({
       address: CONTRACTS.LUNEX_SWAP_POOL, abi: stableSwapAbi, functionName: "exchange",
       args: [i, j, parsedInput, minDy], chain: arcTestnet, account: address,
     });
-  }, [isConnected, address, amount, parsedInput, dyRaw, slippage, i, j, approval, writeContract]);
+  }, [isConnected, address, amount, parsedInput, dyRaw, slippageBps, isSlippageValid, i, j, approval, writeContract]);
 
   const resetAll = useCallback(() => { resetSwap(); approval.resetApprove(); }, [resetSwap, approval.resetApprove]);
 
@@ -100,6 +119,7 @@ export function useSwap({ fromSymbol, toSymbol, amount, slippage }: UseSwapParam
     isConfirmed, swapError,
     needsApproval: approval.needsApproval(amount),
     outputAmount, spotRate, priceImpact, resetAll,
+    isSlippageValid,
     isApproved: approval.isApproved,
     isAllowanceLoading: approval.isAllowanceLoading,
   };

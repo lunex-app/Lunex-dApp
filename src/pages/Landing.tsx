@@ -4,7 +4,7 @@ import FaucetBanner from "@/components/FaucetBanner";
 import { usePoolData } from "@/hooks/usePoolData";
 import { useVaultData } from "@/hooks/useVaultData";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 
 const Landing = () => {
   const pool = usePoolData();
@@ -16,9 +16,11 @@ const Landing = () => {
   const { data: stats } = useQuery({
     queryKey: ["protocol-stats"],
     queryFn: async () => {
+      if (!isSupabaseConfigured) return null;
       const { data } = await supabase.from("protocol_stats").select("*").eq("id", 1).single();
       return data;
     },
+    enabled: isSupabaseConfigured,
     refetchInterval: 10000,
   });
 

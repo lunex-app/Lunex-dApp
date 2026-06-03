@@ -15,6 +15,7 @@ import { CONTRACTS, arcTestnet } from "@/config/wagmi";
 import BackButton from "@/components/BackButton";
 import { hasInsufficientRawBalance, hasInsufficientTokenBalance, parseTokenAmount } from "@/lib/tokenAmounts";
 import { TokenIcon } from "@/components/TokenIcon";
+import { formatApy, useDynamicApy } from "@/hooks/useApy";
 
 const VaultDetail = () => {
   const { token } = useParams<{ token: string }>();
@@ -28,6 +29,7 @@ const VaultDetail = () => {
   const { openConnectModal } = useConnectModal();
   const balance = useTokenBalance(tokenName);
   const vault = useVaultData(tokenName);
+  const dynamicApy = useDynamicApy(`vault-${tokenName.toLowerCase()}-share-price`, vault.sharePrice, 0);
   const history = useSectionHistory("yield");
 
   const [tab, setTab] = useState<"deposit" | "withdraw">("deposit");
@@ -161,8 +163,8 @@ const VaultDetail = () => {
 
       <div className="grid grid-cols-2 gap-4 mb-8">
          <div className="p-4 border border-border bg-card rounded-sm text-center">
-            <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest mb-1">Standard APY</p>
-            <p className="text-lg font-bold font-mono text-primary">{tokenName === "USDC" ? "8.50%" : "7.20%"}</p>
+            <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest mb-1">Observed APY</p>
+            <p className="text-lg font-bold font-mono text-primary">{formatApy(dynamicApy)}</p>
          </div>
          <div className="p-4 border border-border bg-card rounded-sm text-center">
             <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest mb-1">Share Valuation</p>
@@ -270,7 +272,7 @@ const VaultDetail = () => {
         
         <div className="p-4 bg-muted/20 border-t border-border text-center">
            <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest leading-relaxed">
-              ERC-4626 standard compliant yield generation protocol
+              ERC-4626 vault yield is derived from observed share price movement
            </p>
         </div>
       </div>

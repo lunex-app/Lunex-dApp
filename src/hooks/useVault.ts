@@ -6,6 +6,7 @@ import { CONTRACTS, TOKENS, arcTestnet, getExplorerTxUrl } from "@/config/wagmi"
 import { useApproveToken } from "./useApproveToken";
 import { useVolumeTracker } from "./useVolumeTracker";
 import { toast } from "sonner";
+import { recordPointEvent } from "@/lib/points";
 
 export function useVaultDeposit(tokenSymbol: "USDC" | "EURC", amount: string) {
   const { address, isConnected } = useAccount();
@@ -26,6 +27,13 @@ export function useVaultDeposit(tokenSymbol: "USDC" | "EURC", amount: string) {
       const amountUsd = parseFloat(amount || "0");
       if (amountUsd > 0) {
         recordVolume({ txHash, eventType: "vault_deposit", amountUsd, contract: vaultAddress });
+        recordPointEvent({
+          wallet: address,
+          action: "vault",
+          volumeUsd: amountUsd,
+          txHash,
+          description: `Deposited ${amount} ${tokenSymbol} into ${tokenSymbol} vault`,
+        });
       }
     }
   }, [isConfirmed, txHash]);
@@ -80,6 +88,13 @@ export function useVaultWithdraw(tokenSymbol: "USDC" | "EURC", sharesRaw: bigint
         action: { label: "View on ArcScan →", onClick: () => window.open(getExplorerTxUrl(txHash), "_blank") },
       });
       recordVolume({ txHash, eventType: "vault_withdraw", amountUsd: 0, contract: vaultAddress });
+      recordPointEvent({
+        wallet: address,
+        action: "vault",
+        volumeUsd: 0,
+        txHash,
+        description: `Withdrew ${tokenSymbol} vault shares`,
+      });
     }
   }, [isConfirmed, txHash]);
 

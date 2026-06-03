@@ -27,30 +27,15 @@ export interface BridgeDetails {
   toChain: string;
   toChainKey?: BridgeChainKey;
   amount: string;
+  status?: "pending" | "attested" | "completed";
+  attestationStatus?: string;
+  completionTxHash?: string | null;
 }
 
 // Map CCTP domain IDs to chain keys
 const DOMAIN_TO_KEY: Record<number, BridgeChainKey> = {};
 for (const key of BRIDGE_CHAIN_KEYS) {
   DOMAIN_TO_KEY[BRIDGE_CHAINS[key].domain] = key;
-}
-
-// ERC20 Transfer event signature
-const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
-
-/**
- * Extract amount from ERC20 Transfer logs in the receipt.
- */
-function extractAmountFromLogs(logs: any[]): string {
-  for (const log of logs) {
-    if (log.topics?.[0]?.toLowerCase() === TRANSFER_TOPIC.toLowerCase() && log.data) {
-      try {
-        const rawAmount = hexToBigInt(log.data);
-        return formatUnits(rawAmount, 6); // USDC = 6 decimals
-      } catch { continue; }
-    }
-  }
-  return "0.00";
 }
 
 /**
@@ -74,10 +59,47 @@ function extractChains(messageBytes: `0x${string}`): { fromChain: string; toChai
   }
 }
 
+function extractBurnAmountFromMessage(messageBytes: `0x${string}`): string {
+  try {
+    const rawAmount = hexToBigInt(slice(messageBytes, 216, 248));
+    return formatUnits(rawAmount, 6);
+  } catch {
+    return "0.00";
+  }
+}
+
 function createChainClient(chainKey: BridgeChainKey) {
   return createPublicClient({
     transport: http(BRIDGE_CHAINS[chainKey].rpcUrl),
   });
+}
+
+async function getIrisMessage(sourceDomain: number, txHash: string) {
+  const res = await fetch(`${IRIS_API_URL}/v2/messages/${sourceDomain}?transactionHash=${txHash}`);
+  const body = await res.text();
+  if (!res.ok) {
+    const detail = body.trim().slice(0, 240);
+    throw new Error(`Circle Iris returned HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
+  }
+
+  try {
+    const data = JSON.parse(body);
+    return data?.messages?.[0] ?? null;
+  } catch {
+    throw new Error("Circle Iris returned an unreadable response.");
+  }
+}
+
+async function checkAlreadyMinted(toChainKey: BridgeChainKey | undefined, message: `0x${string}`) {
+  if (!toChainKey) return false;
+  const targetChain = BRIDGE_CHAINS[toChainKey];
+  const client = createChainClient(toChainKey);
+  return await client.readContract({
+    address: targetChain.messageTransmitter,
+    abi: MESSAGE_TRANSMITTER_ABI,
+    functionName: "usedMessages",
+    args: [keccak256(message)],
+  }) as boolean;
 }
 
 export function useBridgeResume() {
@@ -176,18 +198,20 @@ export function useBridgeResume() {
         throw new Error("This is not a valid CCTP bridge transaction. No MessageSent event found.");
       }
 
-      // Extract chain info from message bytes, amount from Transfer logs
+      // Extract chain info and the CCTP burn amount from message bytes.
       const chains = extractChains(foundMessageBytes);
-      const amount = extractAmountFromLogs(receipt.logs);
+      const amount = extractBurnAmountFromMessage(foundMessageBytes);
+      const alreadyMinted = await checkAlreadyMinted(chains.toChainKey, foundMessageBytes);
 
       setMessageBytes(foundMessageBytes);
       setMessageHash(keccak256(foundMessageBytes));
       setSourceTxHash(inputTxHash);
       setSourceDomain(BRIDGE_CHAINS[matchedChain].domain);
       setDetectedChain(BRIDGE_CHAINS[matchedChain].label);
-      setBridgeDetails({ ...chains, amount });
+      setBridgeDetails({ ...chains, amount, status: alreadyMinted ? "completed" : "pending" });
       setTxSender(sender || null);
-      setStage("tx-found");
+      setStage(alreadyMinted ? "success" : "tx-found");
+      if (alreadyMinted) toast.success("This CCTP message has already been completed on the destination chain.");
 
     } catch (err: any) {
       setErrorVisible(err.message || "Unknown error");
@@ -204,17 +228,42 @@ export function useBridgeResume() {
     setStage("polling-attestation");
 
     try {
-      // Use the verified Circle Iris V2 API by domain and tx hash
-      const res = await fetch(`${IRIS_API_URL}/v2/messages/${sourceDomain}?transactionHash=${sourceTxHash}`);
-      
-      if (!res.ok) {
-        throw new Error("Attestation API is unreachable or the transaction does not exist on Circle's end.");
+      const messageObj = await getIrisMessage(sourceDomain, sourceTxHash);
+      if (!messageObj) {
+        throw new Error("Circle Iris found no CCTP message for this transaction yet.");
       }
-      
-      const data = await res.json();
-      
-      const messageObj = data?.messages?.[0];
-      if (messageObj?.status === "complete" && messageObj?.attestation) {
+
+      const messageFromIris = messageObj.message as `0x${string}` | undefined;
+      const decoded = messageObj.decodedMessage;
+      const decodedBody = decoded?.decodedMessageBody;
+      const srcKey = DOMAIN_TO_KEY[Number(decoded?.sourceDomain)];
+      const dstKey = DOMAIN_TO_KEY[Number(decoded?.destinationDomain)];
+      const amount = decodedBody?.amount ? formatUnits(BigInt(decodedBody.amount), 6) : (messageFromIris ? extractBurnAmountFromMessage(messageFromIris) : bridgeDetails?.amount ?? "0.00");
+      const nextDetails = {
+        fromChain: srcKey ? BRIDGE_CHAINS[srcKey].label : decoded?.sourceDomain ? `Domain ${decoded.sourceDomain}` : bridgeDetails?.fromChain ?? "Unknown",
+        toChain: dstKey ? BRIDGE_CHAINS[dstKey].label : decoded?.destinationDomain ? `Domain ${decoded.destinationDomain}` : bridgeDetails?.toChain ?? "Unknown",
+        toChainKey: dstKey ?? bridgeDetails?.toChainKey,
+        amount,
+        attestationStatus: messageObj.status,
+        completionTxHash: messageObj.forwardTxHash ?? null,
+      };
+
+      if (messageFromIris) {
+        const alreadyMinted = await checkAlreadyMinted(nextDetails.toChainKey, messageFromIris);
+        if (alreadyMinted || messageObj.forwardState === "CONFIRMED" || messageObj.forwardState === "COMPLETE") {
+          setMessageBytes(messageFromIris);
+          setAttestation((messageObj.attestation ?? null) as `0x${string}` | null);
+          setBridgeDetails({ ...nextDetails, status: "completed" });
+          setStage("success");
+          toast.success("This bridge has already been completed.");
+          return;
+        }
+      }
+
+      setBridgeDetails({ ...nextDetails, status: messageObj?.status === "complete" ? "attested" : "pending" });
+
+      if (messageObj?.status === "complete" && messageObj?.attestation && messageObj?.message) {
+        setMessageBytes(messageObj.message as `0x${string}`);
         setAttestation(messageObj.attestation as `0x${string}`);
         setStage("ready-to-mint");
       } else {
@@ -267,7 +316,7 @@ export function useBridgeResume() {
             const history = loadBridgeTransactions();
             const pendingTx = history.find(t => t.burnTxHash?.toLowerCase() === sourceTxHash.toLowerCase() || t.id === sourceTxHash);
             if (pendingTx) {
-               pendingTx.status = "minted";
+               pendingTx.status = "complete";
                pendingTx.updatedAt = Date.now();
                saveBridgeTransaction(pendingTx);
             }
@@ -301,7 +350,7 @@ export function useBridgeResume() {
           t.id === sourceTxHash
         );
         if (pendingTx) {
-          pendingTx.status = "minted";
+          pendingTx.status = "complete";
           pendingTx.mintTxHash = hash;
           pendingTx.updatedAt = Date.now();
           saveBridgeTransaction(pendingTx);

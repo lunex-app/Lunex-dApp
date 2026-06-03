@@ -3,7 +3,8 @@ import { DollarSign, Droplets, Shield, BarChart3, TrendingUp, Loader2 } from "lu
 import { usePoolData } from "@/hooks/usePoolData";
 import { useVaultData } from "@/hooks/useVaultData";
 import BackButton from "@/components/BackButton";
-import { supabase } from "@/integrations/supabase/client";
+import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
+import { estimatePoolApy, formatApy, useDynamicApy } from "@/hooks/useApy";
 
 const ProtocolStats = () => {
   const pool = usePoolData();
@@ -14,10 +15,17 @@ const ProtocolStats = () => {
 
   const totalTvl = pool.totalLiquidity + usdcVault.totalAssets + eurcVault.totalAssets;
   const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const poolApy = estimatePoolApy(pool.totalLiquidity, totalVolume, pool.feePercent);
+  const usdcApy = useDynamicApy("vault-usdc-share-price", usdcVault.sharePrice, 0);
+  const eurcApy = useDynamicApy("vault-eurc-share-price", eurcVault.sharePrice, 0);
 
   useEffect(() => {
     async function fetchStats() {
       setLoadingMetrics(true);
+      if (!isSupabaseConfigured) {
+        setLoadingMetrics(false);
+        return;
+      }
       try {
         const { data } = await supabase.from("protocol_stats").select("*").eq("id", 1).single();
         if (data?.total_volume_usd != null) {
@@ -58,7 +66,7 @@ const ProtocolStats = () => {
           { label: 'Total Value Locked', val: `$${fmt(totalTvl)}`, icon: DollarSign },
           { label: 'Total Volume', val: loadingMetrics ? "..." : `$${fmt(totalVolume)}`, icon: BarChart3 },
           { label: 'Estimated Fees', val: loadingMetrics ? "..." : `$${fmt(dailyFees)}`, icon: Shield },
-          { label: 'Pool APY', val: "12.45%", icon: TrendingUp },
+          { label: 'Pool APY', val: formatApy(poolApy), icon: TrendingUp },
         ].map((kpi, i) => (
           <div key={i} className="border border-border bg-card p-6 rounded-sm relative overflow-hidden group">
             <kpi.icon className="absolute -bottom-2 -right-2 h-16 w-16 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity" />
@@ -135,13 +143,13 @@ const ProtocolStats = () => {
              <div className="space-y-8">
                 <div className="text-center">
                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">luneUSDC Vault</p>
-                   <p className="text-4xl font-bold font-mono text-primary">8.50%</p>
+                   <p className="text-4xl font-bold font-mono text-primary">{formatApy(usdcApy)}</p>
                    <p className="text-[8px] font-bold uppercase text-muted-foreground mt-1 tracking-widest">Annual Percentage Yield</p>
                 </div>
                 <div className="h-px bg-border w-12 mx-auto" />
                 <div className="text-center">
                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">luneEURC Vault</p>
-                   <p className="text-4xl font-bold font-mono text-secondary">7.20%</p>
+                   <p className="text-4xl font-bold font-mono text-secondary">{formatApy(eurcApy)}</p>
                    <p className="text-[8px] font-bold uppercase text-muted-foreground mt-1 tracking-widest">Annual Percentage Yield</p>
                 </div>
              </div>

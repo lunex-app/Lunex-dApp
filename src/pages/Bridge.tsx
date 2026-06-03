@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { ArrowRight, Wallet, Loader2, Zap, Info, History as HistoryIcon, ArrowLeftRight, AlertCircle, ExternalLink, RotateCw } from "lucide-react";
+import { ArrowRight, Loader2, Zap, Info, ArrowLeftRight, ExternalLink, Fuel } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,23 +10,30 @@ import { useUnifiedBalance } from "@/features/bridge/hooks/useUnifiedBalance";
 import { ChainSelector } from "@/features/bridge/components/ChainSelector";
 import { BridgeProgress } from "@/features/bridge/components/BridgeProgress";
 import { BridgeHistory } from "@/features/bridge/components/BridgeHistory";
+import { BridgeRecoveryPanel } from "@/features/bridge/components/BridgeRecoveryPanel";
+import { GatewayPanel } from "@/features/bridge/components/GatewayPanel";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type BridgeChainKey, BRIDGE_CHAINS, getExplorerTxUrl } from "@/features/bridge/config/bridgeConfig";
 import { getPendingBridgeTransactions, type BridgeTransaction } from "@/features/bridge/state/bridgeState";
 import BackButton from "@/components/BackButton";
-import { parseUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
 
 const Bridge = () => {
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
-  const { formattedTotal: globalBalance, isLoading: globalBalanceLoading, balancesByChain, refetch: refetchBalances } = useUnifiedBalance();
+  const {
+    balancesByChain,
+    refetch: refetchBalances,
+  } = useUnifiedBalance();
   
   const [amount, setAmount] = useState("");
   const [tokenSymbol, setTokenSymbol] = useState<"USDC" | "EURC">("USDC");
   const [fromChain, setFromChain] = useState<BridgeChainKey>("base");
   const [toChain, setToChain] = useState<BridgeChainKey>("arc");
   const [isFastPath, setIsFastPath] = useState(false);
+  const [gasTopUpEnabled, setGasTopUpEnabled] = useState(false);
+  const [gasTopUpAmount, setGasTopUpAmount] = useState("");
   const [activeTab, setActiveTab] = useState("bridge");
   const [pendingTxs, setPendingTxs] = useState(getPendingBridgeTransactions());
   const [selectedTx, setSelectedTx] = useState<BridgeTransaction | null>(null);
@@ -50,6 +57,8 @@ const Bridge = () => {
   const sourceChainConfig = BRIDGE_CHAINS[fromChain];
   const sourceBalanceData = balancesByChain[fromChain];
   const sourceDecimals = sourceChainConfig.usdcDecimals;
+  const sourceTokenBalance = tokenSymbol === "EURC" ? (sourceBalanceData?.eurc ?? 0n) : (sourceBalanceData?.usdc ?? 0n);
+  const sourceTokenBalanceFormatted = formatUnits(sourceTokenBalance, sourceDecimals);
 
   const eurcSupported = sourceChainConfig.eurc !== undefined && BRIDGE_CHAINS[toChain].eurc !== undefined;
 
@@ -68,15 +77,19 @@ const Bridge = () => {
   }, [amount, sourceDecimals]);
 
   const insufficientBalance = useMemo(() => {
-    if (!sourceBalanceData) return false;
-    return parsedAmount > sourceBalanceData.value;
-  }, [parsedAmount, sourceBalanceData]);
+    return parsedAmount > sourceTokenBalance;
+  }, [parsedAmount, sourceTokenBalance]);
 
   const sameChain = fromChain === toChain;
 
   const handleBridge = async () => {
     if (!amount || parsedAmount <= 0n || insufficientBalance || sameChain) return;
-    await bridge.startBridge(amount, fromChain, toChain, isFastPath, tokenSymbol);
+    if (gasTopUpEnabled && gasTopUpAmount) {
+      const topUp = Number(gasTopUpAmount);
+      const total = Number(amount);
+      if (!Number.isFinite(topUp) || topUp <= 0 || topUp >= total) return;
+    }
+    await bridge.startBridge(amount, fromChain, toChain, isFastPath, tokenSymbol, gasTopUpEnabled ? gasTopUpAmount : undefined);
   };
 
   const isProcessing = bridge.status !== "idle" && bridge.status !== "failed" && bridge.status !== "complete";
@@ -92,31 +105,6 @@ const Bridge = () => {
         </div>
         <p className="text-muted-foreground text-sm font-mono mt-2">Native Asset Protocol via Circle CCTP</p>
       </div>
-
-      {isConnected && (
-        <div className="flex items-center justify-between px-6 py-4 mb-8 bg-primary/10 border border-primary/30 rounded-sm">
-          <div className="flex items-center gap-3">
-             <Wallet className="h-4 w-4 text-primary" />
-             <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Global Unified Balance</span>
-          </div>
-          <div className="flex items-center gap-4">
-            {globalBalanceLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin text-primary" />
-            ) : (
-              <span className="font-mono text-sm font-bold text-primary">
-                {globalBalance} ASSETS
-              </span>
-            )}
-            <button 
-              onClick={() => refetchBalances()}
-              className="p-1 hover:bg-primary/20 rounded-full transition-colors"
-              title="Refresh Balance"
-            >
-              <RotateCw className={`h-3 w-3 text-primary ${globalBalanceLoading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Pending Transactions Alert */}
       {pendingTxs.length > 0 && !isActive && (
@@ -140,8 +128,10 @@ const Bridge = () => {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-8 bg-muted/20 border border-border p-1 rounded-sm h-12">
+        <TabsList className="grid w-full grid-cols-4 mb-8 bg-muted/20 border border-border p-1 rounded-sm h-12">
           <TabsTrigger value="bridge" className="data-[state=active]:bg-background data-[state=active]:text-primary rounded-sm font-bold uppercase tracking-widest text-[10px]">Transfer Assets</TabsTrigger>
+          <TabsTrigger value="gateway" className="data-[state=active]:bg-background data-[state=active]:text-primary rounded-sm font-bold uppercase tracking-widest text-[10px]">Gateway</TabsTrigger>
+          <TabsTrigger value="recovery" className="data-[state=active]:bg-background data-[state=active]:text-primary rounded-sm font-bold uppercase tracking-widest text-[10px]">Recovery</TabsTrigger>
           <TabsTrigger value="history" className="data-[state=active]:bg-background data-[state=active]:text-primary rounded-sm font-bold uppercase tracking-widest text-[10px]">Bridge History</TabsTrigger>
         </TabsList>
 
@@ -185,7 +175,7 @@ const Bridge = () => {
                 />
                 <div className="flex justify-between items-center px-1">
                    <p className="text-[9px] text-muted-foreground font-mono uppercase">
-                     Available: {Number(balancesByChain[fromChain]?.formatted || 0).toFixed(2)} {tokenSymbol}
+                     Available: {Number(sourceTokenBalanceFormatted || 0).toFixed(2)} {tokenSymbol}
                    </p>
                    <button 
                     onClick={() => refetchBalances()}
@@ -213,7 +203,7 @@ const Bridge = () => {
                       <button
                         key={pct}
                         onClick={() => {
-                           const bal = Number(balancesByChain[fromChain]?.formatted || 0);
+                           const bal = Number(sourceTokenBalanceFormatted || 0);
                            const val = (bal * (pct / 100)).toFixed(sourceDecimals === 6 ? 6 : 2);
                            setAmount(val);
                         }}
@@ -250,13 +240,56 @@ const Bridge = () => {
                 <Switch checked={isFastPath} onCheckedChange={setIsFastPath} className="data-[state=checked]:bg-primary" />
               </div>
 
+              <div className="space-y-4 p-4 bg-muted/20 border border-border rounded-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-full ${gasTopUpEnabled ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+                      <Fuel className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-widest">Destination Gas Top-Up</span>
+                      <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-tighter mt-0.5">
+                        Uses Circle forwarding on fast CCTP routes
+                      </p>
+                    </div>
+                  </div>
+                  <Switch checked={gasTopUpEnabled} onCheckedChange={setGasTopUpEnabled} className="data-[state=checked]:bg-primary" />
+                </div>
+                {gasTopUpEnabled && (
+                  <div className="space-y-2 animate-in fade-in duration-200">
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        value={gasTopUpAmount}
+                        onChange={(event) => setGasTopUpAmount(event.target.value)}
+                        placeholder="0.00"
+                        className="h-11 font-mono"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-muted-foreground">{tokenSymbol}</span>
+                    </div>
+                    <p className="text-[10px] text-yellow-500 leading-relaxed">
+                      Gas top-up sends the destination mint to the Lunex relayer so a funded operator can split settlement and deliver native gas. Fast path must stay enabled; destination relayer liquidity is required.
+                    </p>
+                    {BRIDGE_CHAINS[toChain].topUpRelayer ? (
+                      <p className="text-[9px] text-muted-foreground font-mono break-all">
+                        Relayer: {BRIDGE_CHAINS[toChain].topUpRelayer}
+                      </p>
+                    ) : (
+                      <p className="text-[9px] text-destructive font-bold uppercase tracking-widest">
+                        No top-up relayer configured for {BRIDGE_CHAINS[toChain].label}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {!isConnected ? (
                 <Button className="w-full h-14 bg-primary text-primary-foreground font-bold uppercase tracking-[0.2em] text-sm" onClick={openConnectModal}>Connect Wallet</Button>
               ) : (
                 <Button 
                   className="w-full h-14 bg-primary text-primary-foreground font-bold uppercase tracking-[0.2em] text-sm disabled:opacity-50 shadow-lg shadow-primary/20 active:scale-[0.98] transition-all" 
                   onClick={handleBridge}
-                  disabled={!amount || parsedAmount <= 0n || insufficientBalance || isProcessing || sameChain}
+                  disabled={!amount || parsedAmount <= 0n || insufficientBalance || isProcessing || sameChain || (gasTopUpEnabled && (!isFastPath || !BRIDGE_CHAINS[toChain].topUpRelayer))}
                 >
                   {isProcessing ? (
                     <><Loader2 className="h-4 w-4 animate-spin mr-3" /> {bridge.statusMessage || "Protocol Active..."}</>
@@ -264,6 +297,10 @@ const Bridge = () => {
                     "Select Target Chain"
                   ) : insufficientBalance ? (
                     "Insufficient Balance"
+                  ) : gasTopUpEnabled && !isFastPath ? (
+                    "Enable Fast Path for Top-Up"
+                  ) : gasTopUpEnabled && !BRIDGE_CHAINS[toChain].topUpRelayer ? (
+                    "Relayer Unavailable"
                   ) : (
                     "Initialize Transfer"
                   )}
@@ -303,9 +340,17 @@ const Bridge = () => {
           </div>
         </TabsContent>
 
+        <TabsContent value="gateway">
+          <GatewayPanel />
+        </TabsContent>
+
+        <TabsContent value="recovery">
+          <BridgeRecoveryPanel />
+        </TabsContent>
+
         <TabsContent value="history">
           <div className="bg-card border border-border rounded-sm overflow-hidden">
-             <BridgeHistory onSelectTx={(tx) => setSelectedTx(tx)} />
+             <BridgeHistory onSelectTx={(tx) => setSelectedTx(tx)} onResume={(tx) => bridge.resumeTransaction(tx)} />
           </div>
         </TabsContent>
       </Tabs>
@@ -323,7 +368,7 @@ const Bridge = () => {
               <div className="grid grid-cols-2 gap-6">
                  <div>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Amount</p>
-                    <p className="text-xl font-black font-mono mt-1">{selectedTx.amount} USDC</p>
+                    <p className="text-xl font-black font-mono mt-1">{selectedTx.amount} {selectedTx.tokenSymbol ?? "USDC"}</p>
                  </div>
                  <div>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Status</p>
@@ -334,6 +379,15 @@ const Bridge = () => {
                     </p>
                  </div>
               </div>
+
+              {selectedTx.gasTopUpAmount && (
+                <div className="border border-yellow-500/30 bg-yellow-500/10 p-4 rounded-sm">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-500">Destination gas top-up</p>
+                  <p className="text-xs font-mono mt-1">
+                    {selectedTx.gasTopUpAmount} {selectedTx.tokenSymbol ?? "USDC"} · {selectedTx.gasTopUpStatus ?? "requested"}
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-4 pt-4">
                  <div className="flex justify-between items-center">

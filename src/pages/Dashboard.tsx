@@ -9,6 +9,8 @@ import EmptyState from "@/components/EmptyState";
 import BackButton from "@/components/BackButton";
 import { useUnifiedBalance } from "@/features/bridge/hooks/useUnifiedBalance";
 import { Loader2 } from "lucide-react";
+import { NotifyPanel } from "@/components/NotifyPanel";
+import { UnifiedBalanceCard } from "@/features/bridge/components/UnifiedBalanceCard";
 
 const ACTIVITY_COLUMNS = [
   { key: "action", label: "Action" },
@@ -31,7 +33,17 @@ const Dashboard = () => {
     .slice(0, 5)
     .map(tx => ({ ...tx, data: { ...tx.data, action: tx.type.replace("_", " ").toUpperCase(), detail: Object.entries(tx.data).filter(([k]) => k !== "action").map(([k, v]) => `${k}: ${v}`).join(", ") } }));
 
-  const { formattedTotal: globalBalance, isLoading: globalBalanceLoading } = useUnifiedBalance();
+  const {
+    formattedTotal: globalBalance,
+    isLoading: globalBalanceLoading,
+    balancesByChain,
+    gatewayByChain,
+    gatewayTotal,
+    gatewayPendingTotal,
+    gatewayError,
+    isGatewayLoading,
+    refetch: refetchUnifiedBalance,
+  } = useUnifiedBalance();
 
   const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const hasPoolPosition = pool.lpBalanceRaw > 0n;
@@ -58,6 +70,18 @@ const Dashboard = () => {
 
       <div className="grid lg:grid-cols-4 gap-8">
          <div className="lg:col-span-3 space-y-8">
+            <UnifiedBalanceCard
+              walletTotal={globalBalance}
+              gatewayTotal={gatewayTotal}
+              gatewayPendingTotal={gatewayPendingTotal}
+              balancesByChain={balancesByChain}
+              gatewayByChain={gatewayByChain}
+              loading={globalBalanceLoading}
+              gatewayLoading={isGatewayLoading}
+              gatewayError={gatewayError}
+              onRefresh={refetchUnifiedBalance}
+            />
+
             {/* Asset Allocation */}
             <section className="border border-border bg-card rounded-sm overflow-hidden shadow-sm">
                <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center justify-between">
@@ -135,7 +159,7 @@ const Dashboard = () => {
                               <div className="flex justify-between items-center bg-muted/20 p-4 border border-border rounded-sm">
                                  <div>
                                     <p className="text-[10px] font-bold">LUNE-USDC</p>
-                                    <p className="text-[8px] text-muted-foreground font-bold uppercase mt-1">Auto-Compounding</p>
+                                    <p className="text-[8px] text-muted-foreground font-bold uppercase mt-1">Share-price tracked</p>
                                  </div>
                                  <div className="text-right">
                                     <p className="text-sm font-bold font-mono">${fmt(usdcVault.userDeposited)}</p>
@@ -147,7 +171,7 @@ const Dashboard = () => {
                               <div className="flex justify-between items-center bg-muted/20 p-4 border border-border rounded-sm">
                                  <div>
                                     <p className="text-[10px] font-bold">LUNE-EURC</p>
-                                    <p className="text-[8px] text-muted-foreground font-bold uppercase mt-1">Auto-Compounding</p>
+                                    <p className="text-[8px] text-muted-foreground font-bold uppercase mt-1">Share-price tracked</p>
                                  </div>
                                  <div className="text-right">
                                     <p className="text-sm font-bold font-mono">€{fmt(eurcVault.userDeposited)}</p>
@@ -168,6 +192,8 @@ const Dashboard = () => {
                </div>
                <SectionHistory transactions={recentActivity} columns={ACTIVITY_COLUMNS} section="all" />
             </section>
+
+            <NotifyPanel />
          </div>
 
          <div className="space-y-6">
