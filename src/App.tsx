@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { WagmiProvider } from "wagmi";
+import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
+import "@rainbow-me/rainbowkit/styles.css";
 import { WalletProvider } from "@/context/WalletProvider";
 import { AnimatePresence } from "framer-motion";
 import { Analytics } from "@vercel/analytics/react";
@@ -79,16 +81,18 @@ const AppContent = () => (
 const App = () => (
   <WagmiProvider config={wagmiConfig}>
     <QueryClientProvider client={queryClient}>
-      <WalletProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner position="top-right" theme="dark" offset="72px" />
-          <BrowserRouter>
-            <AppContent />
-          </BrowserRouter>
-          <Analytics />
-        </TooltipProvider>
-      </WalletProvider>
+      <RainbowKitProvider theme={darkTheme({ accentColor: "#19E0E6", accentColorForeground: "#04070F" })} modalSize="compact">
+        <WalletProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner position="top-right" theme="dark" offset="72px" />
+            <BrowserRouter>
+              <AppContent />
+            </BrowserRouter>
+            <Analytics />
+          </TooltipProvider>
+        </WalletProvider>
+      </RainbowKitProvider>
     </QueryClientProvider>
   </WagmiProvider>
 );

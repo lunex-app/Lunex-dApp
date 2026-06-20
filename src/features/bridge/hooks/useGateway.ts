@@ -18,17 +18,13 @@ export type GatewayTransferMode = "instant" | "manual";
 // analytics endpoint on every op.
 const gatewayKit = new UnifiedBalanceKit({ disableAnalytics: true, disableErrorReporting: true });
 
-async function getProvider() {
-  const provider = (window as { ethereum?: unknown }).ethereum;
-  if (!provider) throw new Error("Gateway needs a browser wallet (e.g. MetaMask). Connect an injected wallet to use Gateway.");
-  return provider;
-}
-
 export function useGateway() {
-  // Gateway burn-intents are signed via the injected EOA's viem adapter and the
-  // deposit is an on-chain tx — so this flow uses the injected wallet, like the
-  // CCTP bridge. (Circle smart accounts can't drive the adapter here.)
-  const { address } = useAccount();
+  // Gateway burn-intents are signed via the connected EOA's viem adapter and the
+  // deposit is an on-chain tx — driven through the active wagmi connector
+  // (RainbowKit: injected or WalletConnect/mobile), NOT window.ethereum, so it
+  // works for mobile WalletConnect sessions too. (Circle smart accounts are
+  // Arc-only and can't drive the multi-chain adapter here.)
+  const { address, connector } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const [status, setStatus] = useState<GatewayStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -39,10 +35,14 @@ export function useGateway() {
   const [gatewayBalance, setGatewayBalance] = useState<number | null>(null);
 
   const createAdapter = useCallback(async () => {
-    const provider = await getProvider();
-     
+    // EIP-1193 provider from the active wagmi connector (works for injected and
+    // WalletConnect alike); fall back to window.ethereum for plain injected.
+    const provider =
+      (await connector?.getProvider?.().catch(() => undefined)) ?? (window as { ethereum?: unknown }).ethereum;
+    if (!provider) throw new Error("Connect a wallet to use Gateway.");
+
     return createViemAdapterFromProvider({ provider } as any);
-  }, []);
+  }, [connector]);
 
   const ensureChain = useCallback(
     async (chainKey: BridgeChainKey) => {

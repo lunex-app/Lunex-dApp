@@ -1,5 +1,5 @@
-import { createConfig, http } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { http } from "wagmi";
+import { getDefaultConfig } from "@rainbow-me/rainbowkit";
 import { defineChain } from "viem";
 import { baseSepolia as viemBaseSepolia, sepolia, arbitrumSepolia, avalancheFuji, polygonAmoy } from "viem/chains";
 
@@ -59,12 +59,19 @@ export const EXPLORER_URL = "https://testnet.arcscan.app";
 export const getExplorerTxUrl = (hash: string) => `${EXPLORER_URL}/tx/${hash}`;
 export const getExplorerAddressUrl = (addr: string) => `${EXPLORER_URL}/address/${addr}`;
 
-// Circle wallets (passkey + email/PIN) are the primary login; wagmi keeps an
-// injected-EOA connector as a fallback (and for the cross-chain bridge). No
-// WalletConnect connector — reads use the per-chain http transports below.
-export const wagmiConfig = createConfig({
+// Circle wallets (passkey + email/PIN) are the primary app login. For the Gateway
+// (and cross-chain bridge) we need a real multi-chain EOA, so wagmi uses
+// RainbowKit's connector set — injected + WalletConnect (mobile QR) — via
+// getDefaultConfig. The WalletConnect projectId is a public, non-secret value
+// (it ships in the bundle); read from env, with the registered id as a fallback.
+const WC_PROJECT_ID =
+  (import.meta as { env?: Record<string, string> }).env?.VITE_WALLETCONNECT_PROJECT_ID ||
+  "f0d6f8162be1beccf221b4e2f8bd7026";
+
+export const wagmiConfig = getDefaultConfig({
+  appName: "Lunex",
+  projectId: WC_PROJECT_ID,
   chains: [arcTestnet, viemBaseSepolia, sepolia, arbitrumSepolia, avalancheFuji, polygonAmoy],
-  connectors: [injected()],
   transports: {
     [arcTestnet.id]: http(),
     [viemBaseSepolia.id]: http(),
@@ -73,4 +80,5 @@ export const wagmiConfig = createConfig({
     [avalancheFuji.id]: http(),
     [polygonAmoy.id]: http(),
   },
+  ssr: false,
 });
