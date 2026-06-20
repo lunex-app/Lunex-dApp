@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useConnect } from "wagmi";
+import { injected as injectedConnector } from "wagmi/connectors";
 import { arcTestnet } from "@/config/wagmi";
 import {
   circleEnabled,
@@ -50,6 +51,13 @@ type Ctx = {
   signer: CircleSession | UcSession | null;
   /** True when only an injected EOA is connected (no Circle session). */
   isInjectedOnly: boolean;
+  /** The injected EOA address (independent of the active Circle session). */
+  injectedAddress?: `0x${string}`;
+  /** True once a browser wallet (injected EOA) is connected — needed for Gateway/CCTP. */
+  hasInjected: boolean;
+  /** Connect a browser wallet (MetaMask/injected) on demand, e.g. for Gateway. */
+  connectInjected: () => Promise<void>;
+  connectingInjected: boolean;
   circleEnabled: boolean;
   ucEnabled: boolean;
   connecting: boolean;
@@ -75,6 +83,8 @@ const WalletCtx = createContext<Ctx | null>(null);
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const { address: injected, chain: injectedChain } = useAccount();
+  const { connectAsync, connectors } = useConnect();
+  const [connectingInjected, setConnectingInjected] = useState(false);
   const [circle, setCircle] = useState<CircleSession | null>(null);
   const [uc, setUc] = useState<UcSession | null>(() => loadUcSession());
   const [connecting, setConnecting] = useState(false);
@@ -148,6 +158,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
      
   }, []);
 
+  // Connect a browser wallet (injected EOA) on demand. Circle wallets are
+  // Arc-only, so Gateway/CCTP (multi-chain) need an injected wallet; a Circle
+  // user can attach one here without losing their Circle session.
+  const connectInjected = useCallback(async () => {
+    if (injected) return; // already connected
+    setConnectingInjected(true);
+    try {
+      const connector =
+        connectors.find((c) => c.type === "injected" || c.id === "injected") ??
+        connectors[0] ??
+        injectedConnector();
+      await connectAsync({ connector });
+    } finally {
+      setConnectingInjected(false);
+    }
+  }, [connectAsync, connectors, injected]);
+
   const refreshBalance = useCallback(() => {
     if (circle) {
       circleUsdcBalance(circle).then(setBalance).catch(() => setBalance(null));
@@ -176,6 +203,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     uc,
     signer: circle ?? uc,
     isInjectedOnly: Boolean(!circle && !uc && injected),
+    injectedAddress: injected as `0x${string}` | undefined,
+    hasInjected: Boolean(injected),
+    connectInjected,
+    connectingInjected,
     circleEnabled: circleEnabled(),
     ucEnabled: ucWalletEnabled(),
     connecting,

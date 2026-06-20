@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
-  Home,
   Repeat,
   Droplets,
   Sprout,
@@ -11,6 +10,7 @@ import {
   Crown,
   LayoutDashboard,
   BarChart3,
+  LineChart,
   BookOpen,
   Menu,
   X,
@@ -23,7 +23,7 @@ import WalletButton from "@/components/WalletButton";
 import lunexLogo from "@/assets/lunex-logo.png";
 
 const NAV = [
-  { to: "/", icon: Home, label: "Home" },
+  { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/swap", icon: Repeat, label: "Swap" },
   { to: "/pool", icon: Droplets, label: "Pool" },
   { to: "/yield", icon: Sprout, label: "Yield" },
@@ -32,8 +32,8 @@ const NAV = [
   // { to: "/pay", icon: CreditCard, label: "Pay" },
   // { to: "/autopilot", icon: Bot, label: "Autopilot" },
   { to: "/points", icon: Crown, label: "Points" },
-  { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/stats", icon: BarChart3, label: "Stats" },
+  { to: "/analytics", icon: LineChart, label: "Analytics" },
   { to: "/docs", icon: BookOpen, label: "Docs" },
 ];
 
@@ -48,6 +48,7 @@ const PATH_LABELS: Record<string, string> = {
   "/points": "points",
   "/dashboard": "dashboard",
   "/stats": "protocol-stats",
+  "/analytics": "analytics",
   "/docs": "docs",
 };
 

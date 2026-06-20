@@ -156,7 +156,7 @@ const ProtocolStats = () => {
           <div className="p-6 border border-border rounded-sm bg-primary/5">
              <h4 className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-4">onchain Oracle</h4>
              <p className="text-[10px] leading-relaxed text-muted-foreground">
-               Real-time volume data is sourced from onchain event analysis of Lunex protocol contracts and tracked in the protocol stats database.
+               Volume is read live from Lunex contract event logs on Arc — swap, liquidity, and vault activity decoded directly from on-chain events. No off-chain database.
              </p>
           </div>
         </div>

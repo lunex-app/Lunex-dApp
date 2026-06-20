@@ -360,57 +360,10 @@ const Docs = () => {
             )}
           </div>
         ) : (
-          /* Main Layout: Sidebar + Content */
-          <div className="flex flex-col lg:flex-row gap-10">
-            {/* Desktop Sidebar */}
-            <aside className="hidden lg:block w-72 shrink-0">
-              <nav className="sticky top-24 space-y-8 pr-6">
-                {docs.map((cat) => (
-                  <div key={cat.id}>
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2.5">
-                      <span className="text-primary/70">{cat.icon}</span> 
-                      {cat.category}
-                    </p>
-                    <div className="space-y-1">
-                      {cat.sections.map((s) => (
-                        <button
-                          key={s.id}
-                          onClick={() => setActiveSection(s.id)}
-                          className={`w-full text-left text-sm px-3 py-2 rounded-lg transition-all flex items-center gap-2 ${
-                            activeSection === s.id
-                              ? "bg-primary/10 text-primary font-medium"
-                              : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                          }`}
-                        >
-                          {activeSection === s.id && <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
-                          <span className="truncate">{s.title}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </nav>
-            </aside>
-
-            {/* Mobile Nav Dropdown */}
-            <div className="lg:hidden w-full mb-6">
-              <select
-                value={activeSection}
-                onChange={(e) => setActiveSection(e.target.value)}
-                className="w-full p-3.5 text-sm border border-border bg-card text-foreground rounded-xl shadow-sm focus:ring-1 focus:ring-primary focus:border-primary"
-              >
-                {docs.map((cat) => (
-                  <optgroup key={cat.id} label={cat.category}>
-                    {cat.sections.map((s) => (
-                      <option key={s.id} value={s.id}>{s.title}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
-
+          /* Content + Prev/Next (section list lives in the hamburger drawer) */
+          <div className="flex flex-col">
             {/* Main Content Area */}
-            <main className="flex-1 min-w-0">
+            <main className="flex-1 min-w-0 max-w-4xl mx-auto w-full">
               {activeDoc && (
                 <article className="border border-border bg-card/40 rounded-2xl p-6 sm:p-10 shadow-sm">
                   <h2 className="text-2xl font-bold text-foreground mb-6 tracking-tight">{activeDoc.title}</h2>
