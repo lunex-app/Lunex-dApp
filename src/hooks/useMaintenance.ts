@@ -21,11 +21,12 @@ export function useMaintenance(key: "maintenance_all" | "maintenance_swap" | "ma
 
             if (!error && data) {
                dbResponded = true;
-               const hasMaint = data.some(d => d.value === true || d.value === "true");
+               const rows = data as unknown as Array<{ key: string; value: unknown }>;
+               const hasMaint = rows.some(d => d.value === true || d.value === "true");
                if (hasMaint) isMaint = true;
-               
+
                // Sync local storage with DB truth
-               const exactKeyData = data.find(d => d.key === key);
+               const exactKeyData = rows.find(d => d.key === key);
                if (exactKeyData) {
                  localStorage.setItem(key, exactKeyData.value === true || exactKeyData.value === "true" ? "true" : "false");
                }

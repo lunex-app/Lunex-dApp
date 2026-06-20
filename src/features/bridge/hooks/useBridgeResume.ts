@@ -11,6 +11,7 @@ import {
 } from "../config/bridgeConfig";
 import { toast } from "sonner";
 import { loadBridgeTransactions, saveBridgeTransaction } from "../state/bridgeState";
+import { humanizeError } from "@/lib/errors";
 
 export type ResumeStage = 
   | "idle" 
@@ -99,7 +100,7 @@ async function checkAlreadyMinted(toChainKey: BridgeChainKey | undefined, messag
     abi: MESSAGE_TRANSMITTER_ABI,
     functionName: "usedMessages",
     args: [keccak256(message)],
-  }) as boolean;
+  } as any) as boolean;
 }
 
 export function useBridgeResume() {
@@ -170,13 +171,12 @@ export function useBridgeResume() {
         throw new Error("Transaction not found on any supported chain. Please verify the hash.");
       }
 
-      // Validate that the connected wallet matches the tx sender
+      // Record the original sender for display. We do NOT block on a mismatch:
+      // Lunex burns set destinationCaller = zeroHash, so ANY wallet may submit
+      // receiveMessage and the minted USDC still goes to the original
+      // mintRecipient encoded in the message. Blocking here would defeat
+      // recovery (e.g. recovering from a different device/wallet).
       const sender = tx?.from || receipt?.from;
-      if (sender && address && sender.toLowerCase() !== address.toLowerCase()) {
-        throw new Error(
-          `Wallet mismatch. This transaction was sent by ${sender.slice(0, 8)}...${sender.slice(-6)}. Please connect the originating wallet to recover this bridge.`
-        );
-      }
 
       // Parse logs for MessageSent event
       let foundMessageBytes: `0x${string}` | null = null;
@@ -186,7 +186,7 @@ export function useBridgeResume() {
             abi: MESSAGE_SENT_EVENT_ABI,
             data: log.data,
             topics: log.topics,
-          });
+          }) as { eventName: string; args: { message: `0x${string}` } };
           if (decoded.eventName === "MessageSent") {
             foundMessageBytes = decoded.args.message;
             break;
@@ -203,18 +203,28 @@ export function useBridgeResume() {
       const amount = extractBurnAmountFromMessage(foundMessageBytes);
       const alreadyMinted = await checkAlreadyMinted(chains.toChainKey, foundMessageBytes);
 
+      const matchedDomain = BRIDGE_CHAINS[matchedChain].domain;
       setMessageBytes(foundMessageBytes);
       setMessageHash(keccak256(foundMessageBytes));
       setSourceTxHash(inputTxHash);
-      setSourceDomain(BRIDGE_CHAINS[matchedChain].domain);
+      setSourceDomain(matchedDomain);
       setDetectedChain(BRIDGE_CHAINS[matchedChain].label);
       setBridgeDetails({ ...chains, amount, status: alreadyMinted ? "completed" : "pending" });
       setTxSender(sender || null);
-      setStage(alreadyMinted ? "success" : "tx-found");
-      if (alreadyMinted) toast.success("This CCTP message has already been completed on the destination chain.");
+
+      if (alreadyMinted) {
+        setStage("success");
+        toast.success("This CCTP message has already been completed on the destination chain.");
+        return;
+      }
+
+      setStage("tx-found");
+      // Auto-progress: immediately try to fetch the Circle attestation so the
+      // user only needs to paste a hash, then click Complete when ready.
+      void fetchAttestation(inputTxHash, matchedDomain);
 
     } catch (err: any) {
-      setErrorVisible(err.message || "Unknown error");
+      setErrorVisible(humanizeError(err, "Couldn't find that transaction. Check the hash and try again."));
       setStage("error");
     }
   };
@@ -222,13 +232,15 @@ export function useBridgeResume() {
   /**
    * STEP 2: Check Circle for attestation (Single Check, no waiting)
    */
-  const fetchAttestation = async () => {
-    if (!sourceTxHash || sourceDomain === null) return;
+  const fetchAttestation = async (txHashArg?: string, domainArg?: number) => {
+    const txHash = txHashArg ?? sourceTxHash;
+    const domain = domainArg ?? sourceDomain;
+    if (!txHash || domain === null || domain === undefined) return;
 
     setStage("polling-attestation");
 
     try {
-      const messageObj = await getIrisMessage(sourceDomain, sourceTxHash);
+      const messageObj = await getIrisMessage(domain, txHash);
       if (!messageObj) {
         throw new Error("Circle Iris found no CCTP message for this transaction yet.");
       }
@@ -270,7 +282,7 @@ export function useBridgeResume() {
         throw new Error("Attestation not ready yet. The source chain may still be finalizing. Please try again in a few minutes.");
       }
     } catch (err: any) {
-      setErrorVisible(err.message || "Checking attestation failed");
+      setErrorVisible(humanizeError(err, "Couldn't check the Circle attestation. Please try again shortly."));
       setStage("error");
     }
   };
@@ -281,15 +293,9 @@ export function useBridgeResume() {
   const completeMint = async () => {
     if (!messageBytes || !attestation || !bridgeDetails?.toChainKey) return;
 
-    // Wallet address check — must match originating tx sender
-    if (txSender && address && txSender.toLowerCase() !== address.toLowerCase()) {
-      setErrorVisible(
-        `Wallet mismatch. Connect the originating wallet (${txSender.slice(0, 8)}...${txSender.slice(-6)}) to complete this recovery.`
-      );
-      setStage("error");
-      return;
-    }
-
+    // No wallet-match requirement: the mint sends USDC to the mintRecipient
+    // baked into the message, not to msg.sender. Any connected wallet on the
+    // destination chain can finalize a stuck transfer.
     setStage("minting");
     
     // Dynamically retrieve the correct destination chain config
@@ -308,7 +314,7 @@ export function useBridgeResume() {
         abi: MESSAGE_TRANSMITTER_ABI,
         functionName: "usedMessages",
         args: [keccak256(messageBytes)],
-      }) as boolean;
+      } as any) as boolean;
 
       if (isAlreadyMinted) {
          // If already minted, we treat it as success but notify the user
@@ -332,7 +338,7 @@ export function useBridgeResume() {
         functionName: "receiveMessage",
         args: [messageBytes, attestation],
         chainId: targetChain.chainId,
-      });
+      } as any);
 
       // Wait for actual transaction receipt
       const receipt = await client.waitForTransactionReceipt({ hash });
@@ -361,7 +367,7 @@ export function useBridgeResume() {
       setStage("success");
       toast.success(`Bridge recovered! USDC minted on ${targetChain.label}.`);
     } catch (err: any) {
-      setErrorVisible(err?.shortMessage || err?.message || "Minting transaction failed. Please check the explorer.");
+      setErrorVisible(humanizeError(err, "Minting failed. Please try again or check the explorer."));
       setStage("error");
     }
   };

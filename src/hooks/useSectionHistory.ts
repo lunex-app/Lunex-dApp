@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 
 export interface SectionTx {
   txHash: string;
@@ -27,7 +27,7 @@ function saveLocalHistory(wallet: string, section: string, txs: SectionTx[]) {
 }
 
 export function useSectionHistory(section: string) {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const [txs, setTxs] = useState<SectionTx[]>([]);
   const knownTxHashesRef = useRef<Set<string>>(new Set());
 

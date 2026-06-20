@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import BackButton from "@/components/BackButton";
 import SDKDeveloperGuide, { AVAILABLE_SERVICES } from "@/components/SDKDeveloperGuide";
 
@@ -102,7 +102,7 @@ const ADMIN_WALLETS = [
 
 const AdminDashboard = () => {
   const { user, session, signOut, isAdmin: isEmailAdmin } = useAuth();
-  const { address } = useAccount();
+  const { address } = useWallet();
   const isAdmin = isEmailAdmin || (address && ADMIN_WALLETS.some(a => a.toLowerCase() === address.toLowerCase()));
   
   const [keys, setKeys] = useState<ApiKey[]>([]);
@@ -192,8 +192,9 @@ const AdminDashboard = () => {
     try {
       const { data, error } = await supabase.from("protocol_settings" as any).select("*");
       if (!error && data && data.length > 0) {
+        const rows = data as unknown as Array<{ key: string; value: unknown }>;
         settings = settings.map(s => {
-           const dbVal = data.find(d => d.key === s.key);
+           const dbVal = rows.find(d => d.key === s.key);
            return dbVal ? { ...s, value: dbVal.value === true || dbVal.value === "true" } : s;
         });
         setProtocolSettings(settings);

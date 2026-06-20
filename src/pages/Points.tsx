@@ -1,5 +1,5 @@
 import { Award, BarChart3, Crown, Loader2, Trophy } from "lucide-react";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import BackButton from "@/components/BackButton";
 import EmptyState from "@/components/EmptyState";
 import { usePoints } from "@/hooks/usePoints";
@@ -17,7 +17,7 @@ const actionLabels: Record<string, string> = {
 };
 
 const Points = () => {
-  const { isConnected, address } = useAccount();
+  const { isConnected, address } = useWallet();
   const points = usePoints();
   const leaderboard = usePointsLeaderboard();
   const byAction = points.events.reduce<Record<string, number>>((acc, event) => {

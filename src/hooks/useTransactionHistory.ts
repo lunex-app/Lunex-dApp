@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import { arcTestnet } from "@/config/wagmi";
 
 export interface Transaction {
@@ -34,7 +34,7 @@ function saveLocalTransactions(wallet: string, txs: Transaction[]) {
 }
 
 export const useTransactionHistory = () => {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   const fetchTxs = useCallback(async () => {

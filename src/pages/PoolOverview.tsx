@@ -1,6 +1,6 @@
 import { Plus, Minus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import { usePoolData } from "@/hooks/usePoolData";
 import { SectionHistory } from "@/components/SectionHistory";
 import { useSectionHistory } from "@/hooks/useSectionHistory";
@@ -17,7 +17,7 @@ const POOL_COLUMNS = [
 ];
 
 const PoolOverview = () => {
-  const { isConnected } = useAccount();
+  const { isConnected } = useWallet();
   const pool = usePoolData();
   const history = useSectionHistory("pool");
   const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });

@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
-import { ArrowRight, Loader2, Zap } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowRight, Loader2, Zap, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChainSelector } from "./ChainSelector";
 import { useGateway } from "../hooks/useGateway";
+import { useWallet } from "@/context/WalletProvider";
 import { BRIDGE_CHAINS, type BridgeChainKey } from "../config/bridgeConfig";
 
 const fmtFee = (fee: any) => {
@@ -15,6 +16,8 @@ const fmtFee = (fee: any) => {
 
 export function GatewayPanel() {
   const gateway = useGateway();
+  const { isInjectedOnly, circle, uc } = useWallet();
+  const isCircleWallet = Boolean(circle || uc);
   const [mode, setMode] = useState<"deposit" | "spend">("deposit");
   const [transferMode, setTransferMode] = useState<"instant" | "manual">("instant");
   const [amount, setAmount] = useState("");
@@ -23,6 +26,12 @@ export function GatewayPanel() {
 
   const isBusy = gateway.status === "depositing" || gateway.status === "spending" || gateway.status === "estimating";
   const validAmount = Number(amount) > 0;
+
+  // Load the unified Gateway balance once an injected wallet is available.
+  const { refreshGatewayBalance } = gateway;
+  useEffect(() => {
+    if (isInjectedOnly) refreshGatewayBalance();
+  }, [isInjectedOnly, refreshGatewayBalance]);
 
   const feeRows = useMemo(() => {
     const fees = (gateway.lastEstimate as any)?.fees;
@@ -59,9 +68,30 @@ export function GatewayPanel() {
           <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
             {mode === "deposit"
               ? "Deposit USDC into the Gateway Wallet on a source chain. Deposits are required before Gateway can mint instantly on other chains."
-              : "Burn from a Gateway source allocation and mint USDC on the destination chain using Circle Gateway attestations."}
+              : "Spend your unified Gateway balance: Circle's Forwarding Service mints USDC on the destination chain in under a second — no source-chain finality wait."}
           </p>
         </div>
+
+        {isCircleWallet && (
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-500">
+            Gateway runs on a browser/injected wallet (e.g. MetaMask). It signs Circle burn-intents and on-chain deposits across chains, which Arc-only Circle smart accounts can't drive — connect an injected wallet to use Gateway.
+          </div>
+        )}
+
+        {gateway.gatewayBalance != null && (
+          <div className="flex items-center justify-between rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5">
+            <div className="flex items-center gap-2">
+              <Zap className="h-3.5 w-3.5 text-primary" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Unified Gateway Balance</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-sm font-bold text-primary">{gateway.gatewayBalance.toFixed(2)} USDC</span>
+              <button onClick={() => gateway.refreshGatewayBalance()} className="text-muted-foreground hover:text-primary" title="Refresh">
+                <RefreshCw className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        )}
 
         <ChainSelector
           fromChain={fromChain}

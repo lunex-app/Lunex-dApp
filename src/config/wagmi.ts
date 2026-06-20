@@ -1,6 +1,11 @@
-import { getDefaultConfig } from "@rainbow-me/rainbowkit";
+import { createConfig, http } from "wagmi";
+import { injected } from "wagmi/connectors";
 import { defineChain } from "viem";
 import { baseSepolia as viemBaseSepolia, sepolia, arbitrumSepolia, avalancheFuji, polygonAmoy } from "viem/chains";
+
+const ARC_RPC_URL =
+  (import.meta as { env?: Record<string, string> }).env?.VITE_ARC_RPC_URL ||
+  "https://practical-frosty-waterfall.arc-testnet.quiknode.pro/2b82adc87d92552ec5e5ab05b388217ac38627d3/";
 
 export const arcTestnet = defineChain({
   id: 5042002,
@@ -9,8 +14,8 @@ export const arcTestnet = defineChain({
   rpcUrls: {
     default: {
       http: [
+        ARC_RPC_URL,
         "https://rpc.testnet.arc.network",
-        "https://arc-testnet.g.alchemy.com/v2/p5FjSqrtO_veTslnfRbDr",
       ],
       webSocket: ["wss://rpc.testnet.arc.network"],
     },
@@ -52,8 +57,18 @@ export const EXPLORER_URL = "https://testnet.arcscan.app";
 export const getExplorerTxUrl = (hash: string) => `${EXPLORER_URL}/tx/${hash}`;
 export const getExplorerAddressUrl = (addr: string) => `${EXPLORER_URL}/address/${addr}`;
 
-export const wagmiConfig = getDefaultConfig({
-  appName: "Lunex Finance",
-  projectId: "lunex-protocol-demo",
+// Circle wallets (passkey + email/PIN) are the primary login; wagmi keeps an
+// injected-EOA connector as a fallback (and for the cross-chain bridge). No
+// WalletConnect connector — reads use the per-chain http transports below.
+export const wagmiConfig = createConfig({
   chains: [arcTestnet, viemBaseSepolia, sepolia, arbitrumSepolia, avalancheFuji, polygonAmoy],
+  connectors: [injected()],
+  transports: {
+    [arcTestnet.id]: http(),
+    [viemBaseSepolia.id]: http(),
+    [sepolia.id]: http(),
+    [arbitrumSepolia.id]: http(),
+    [avalancheFuji.id]: http(),
+    [polygonAmoy.id]: http(),
+  },
 });

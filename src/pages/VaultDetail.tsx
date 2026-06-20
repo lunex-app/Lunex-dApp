@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAccount, useReadContract } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useReadContract } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import { useTokenBalance } from "@/hooks/useTokenBalance";
 import { useVaultDeposit, useVaultWithdraw } from "@/hooks/useVault";
 import { useVaultData } from "@/hooks/useVaultData";
@@ -25,8 +25,7 @@ const VaultDetail = () => {
   const vaultAddress = isUSDC ? CONTRACTS.LUNE_VAULT_USDC : CONTRACTS.LUNE_VAULT_EURC;
   const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const { isConnected } = useAccount();
-  const { openConnectModal } = useConnectModal();
+  const { isConnected, openConnect } = useWallet();
   const balance = useTokenBalance(tokenName);
   const vault = useVaultData(tokenName);
   const dynamicApy = useDynamicApy(`vault-${tokenName.toLowerCase()}-share-price`, vault.sharePrice, 0);
@@ -125,7 +124,7 @@ const VaultDetail = () => {
   const hasInsufficientBalance = hasInsufficientDepositBalance || hasInsufficientWithdrawBalance;
 
   const getButtonText = () => {
-    if (!isConnected) return "CONNECT WALLET";
+    if (!isConnected) return "CONNECT";
     if (tab === "withdraw" && vault.userSharesRaw <= 0n) return "NO SHARES";
     if (!amount || parsedInputAmount <= 0n) return "ENTER AN AMOUNT";
     if (hasInsufficientDepositBalance) return `INSUFFICIENT ${tokenName}`;
@@ -136,8 +135,8 @@ const VaultDetail = () => {
   };
 
   const handleClick = () => {
-    if (!isConnected && openConnectModal) {
-      openConnectModal();
+    if (!isConnected) {
+      openConnect();
       return;
     }
     if (!amount || parsedInputAmount <= 0n || hasInsufficientBalance) return;

@@ -40,7 +40,7 @@ const ProtocolStats = () => {
     fetchStats();
   }, []);
 
-  const dailyFees = totalVolume * (pool.feePercent / 100) / 365;
+  const dailyFees = totalVolume * (parseFloat(pool.feePercent) / 100) / 365;
 
   return (
     <div className="container max-w-6xl mx-auto py-16 px-4">

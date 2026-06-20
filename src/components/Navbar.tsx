@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X, Crown } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import WalletButton from "@/components/WalletButton";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { useTheme } from "next-themes";
 import lunexLogo from "@/assets/lunex-logo.png";
@@ -52,25 +51,7 @@ const Navbar = () => {
 
         <div className="flex items-center justify-end gap-2 flex-1">
           <ThemeSwitcher />
-          <ConnectButton.Custom>
-            {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }) => {
-              const connected = mounted && account && chain;
-              return (
-                <div {...(!mounted && { "aria-hidden": true, style: { opacity: 0, pointerEvents: "none" as const, userSelect: "none" as const } })}>
-                  {!connected ? (
-                    <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold tracking-wider uppercase h-8 px-4" onClick={openConnectModal}>Connect</Button>
-                  ) : chain.unsupported ? (
-                    <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs font-semibold h-8 px-4" onClick={openChainModal}>Wrong Network</Button>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <button onClick={openChainModal} className="hidden md:flex items-center gap-1.5 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors">{chain.name}</button>
-                      <Button size="sm" className="bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 text-xs font-mono h-8 px-3" onClick={openAccountModal}>{account.displayName}</Button>
-                    </div>
-                  )}
-                </div>
-              );
-            }}
-          </ConnectButton.Custom>
+          <WalletButton />
           <button className="lg:hidden text-muted-foreground" onClick={() => setMobileOpen(!mobileOpen)}>
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>

@@ -1,4 +1,5 @@
 import { defineChain } from "viem";
+import type { UnifiedBalanceChainIdentifier } from "@circle-fin/unified-balance-kit";
 
 export const baseSepolia = defineChain({
   id: 84532,
@@ -18,7 +19,7 @@ export type BridgeChainKey = "base" | "arc" | "ethereum" | "arbitrum" | "avalanc
 export interface BridgeChainConfig {
   key: BridgeChainKey;
   label: string;
-  circleName: string;
+  circleName: UnifiedBalanceChainIdentifier;
   domain: number;
   chainId: number;
   nativeSymbol: string;

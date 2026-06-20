@@ -1,10 +1,11 @@
-import { useAccount, useReadContract } from "wagmi";
+import { useReadContract } from "wagmi";
 import { formatUnits } from "viem";
 import { stableSwapAbi, erc20Abi } from "@/config/abis";
 import { CONTRACTS, arcTestnet } from "@/config/wagmi";
+import { useWallet } from "@/context/WalletProvider";
 
 export function usePoolData() {
-  const { address } = useAccount();
+  const { address } = useWallet();
 
   const { data: usdcReserveRaw, refetch: refetchUsdcReserve } = useReadContract({
     address: CONTRACTS.LUNEX_SWAP_POOL,

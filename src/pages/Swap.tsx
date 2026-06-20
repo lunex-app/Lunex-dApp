@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { ArrowDownUp, Settings, Loader2, Clock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAccount, usePublicClient, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { usePublicClient, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import { CONTRACTS, TOKEN_INDEX, TOKENS, arcTestnet } from "@/config/wagmi";
 import { useTokenBalances } from "@/hooks/useTokenBalance";
 import { useSwap } from "@/hooks/useSwap";
@@ -21,6 +21,7 @@ import { recordPointEvent } from "@/lib/points";
 import { lunexLimitOrderKeeperAbi } from "@/config/abis";
 import { useApproveToken } from "@/hooks/useApproveToken";
 import { toast } from "sonner";
+import { humanizeError } from "@/lib/errors";
 import { parseEventLogs } from "viem";
 
 const tokenList = Object.values(TOKENS);
@@ -33,8 +34,7 @@ const SWAP_COLUMNS = [
 ];
 
 const Swap = () => {
-  const { address, isConnected } = useAccount();
-  const { openConnectModal } = useConnectModal();
+  const { address, isConnected, openConnect } = useWallet();
   const publicClient = usePublicClient({ chainId: arcTestnet.id });
   const balances = useTokenBalances();
   const history = useSectionHistory("swap");
@@ -98,7 +98,7 @@ const Swap = () => {
   const hasInsufficientBalance = hasInsufficientTokenBalance(fromAmount, bal?.balance);
 
   const getButtonText = () => {
-    if (!isConnected) return "CONNECT WALLET";
+    if (!isConnected) return "CONNECT";
     if (!fromAmount || parsedFromAmount <= 0n) return "ENTER AN AMOUNT";
     if (!swap.isSlippageValid) return "INVALID SLIPPAGE";
     if (hasInsufficientBalance) return "INSUFFICIENT BALANCE";
@@ -109,7 +109,7 @@ const Swap = () => {
   };
 
   const handleClick = () => {
-    if (!isConnected && openConnectModal) { openConnectModal(); return; }
+    if (!isConnected) { openConnect(); return; }
     if (fromAmount && parsedFromAmount > 0n && !hasInsufficientBalance) swap.executeSwap();
   };
 
@@ -217,15 +217,15 @@ const Swap = () => {
   }, [isLimitOrderConfirmed, limitOrderTxHash, pendingLimitOrder, address, fromAmount, fromToken.symbol, toToken.symbol, publicClient]);
 
   useEffect(() => {
-    if (limitOrderError) toast.error("Limit order failed", { description: limitOrderError.message.slice(0, 120) });
+    if (limitOrderError) toast.error("Limit order failed", { description: humanizeError(limitOrderError, "Limit order failed. Please try again.") });
   }, [limitOrderError]);
 
   useEffect(() => {
-    if (cancelOrderError) toast.error("Cancel failed", { description: cancelOrderError.message.slice(0, 120) });
+    if (cancelOrderError) toast.error("Cancel failed", { description: humanizeError(cancelOrderError, "Couldn't cancel the order. Please try again.") });
   }, [cancelOrderError]);
 
   useEffect(() => {
-    if (executeOrderError) toast.error("Execution failed", { description: executeOrderError.message.slice(0, 120) });
+    if (executeOrderError) toast.error("Execution failed", { description: humanizeError(executeOrderError, "Order execution failed. Please try again.") });
   }, [executeOrderError]);
 
   useEffect(() => {
@@ -282,7 +282,7 @@ const Swap = () => {
   };
 
   return (
-    <div className="container max-w-lg mx-auto py-16 px-4">
+    <div className="container max-w-4xl mx-auto py-16 px-4">
       <div className="mb-8">
         <BackButton />
         <h1 className="text-3xl font-bold tracking-tight mt-6">Swap Assets</h1>

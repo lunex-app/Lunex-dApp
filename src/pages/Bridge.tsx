@@ -1,10 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
-import { ArrowRight, Loader2, Zap, Info, ArrowLeftRight, ExternalLink, Fuel } from "lucide-react";
+import { ArrowRight, Loader2, Zap, Info, ArrowLeftRight, ExternalLink, Fuel, X, RotateCw, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAccount } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useWallet } from "@/context/WalletProvider";
 import { useBridge } from "@/features/bridge/hooks/useBridge";
 import { useUnifiedBalance } from "@/features/bridge/hooks/useUnifiedBalance";
 import { ChainSelector } from "@/features/bridge/components/ChainSelector";
@@ -20,8 +19,8 @@ import BackButton from "@/components/BackButton";
 import { formatUnits, parseUnits } from "viem";
 
 const Bridge = () => {
-  const { address, isConnected } = useAccount();
-  const { openConnectModal } = useConnectModal();
+  const { address, isConnected, openConnect, circle, uc } = useWallet();
+  const isCircleWallet = Boolean(circle || uc);
   const {
     balancesByChain,
     refetch: refetchBalances,
@@ -128,11 +127,19 @@ const Bridge = () => {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-8 bg-muted/20 border border-border p-1 rounded-sm h-12">
-          <TabsTrigger value="bridge" className="data-[state=active]:bg-background data-[state=active]:text-primary rounded-sm font-bold uppercase tracking-widest text-[10px]">Transfer Assets</TabsTrigger>
-          <TabsTrigger value="gateway" className="data-[state=active]:bg-background data-[state=active]:text-primary rounded-sm font-bold uppercase tracking-widest text-[10px]">Gateway</TabsTrigger>
-          <TabsTrigger value="recovery" className="data-[state=active]:bg-background data-[state=active]:text-primary rounded-sm font-bold uppercase tracking-widest text-[10px]">Recovery</TabsTrigger>
-          <TabsTrigger value="history" className="data-[state=active]:bg-background data-[state=active]:text-primary rounded-sm font-bold uppercase tracking-widest text-[10px]">Bridge History</TabsTrigger>
+        <TabsList className="flex flex-wrap justify-start gap-2 mb-8 h-auto bg-transparent p-0">
+          <TabsTrigger value="bridge" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
+            <ArrowLeftRight className="h-3.5 w-3.5" /> Transfer
+          </TabsTrigger>
+          <TabsTrigger value="gateway" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
+            <Zap className="h-3.5 w-3.5" /> Gateway
+          </TabsTrigger>
+          <TabsTrigger value="recovery" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
+            <RotateCw className="h-3.5 w-3.5" /> Recovery
+          </TabsTrigger>
+          <TabsTrigger value="history" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
+            <History className="h-3.5 w-3.5" /> History
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="bridge" className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -283,8 +290,13 @@ const Bridge = () => {
                 )}
               </div>
 
+              {isCircleWallet && (
+                <div className="mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-500">
+                  Cross-chain bridging needs a browser/injected wallet (e.g. MetaMask). The CCTP bridge spans 6 chains, which Circle's Arc-only smart accounts can't drive — connect an injected wallet to bridge.
+                </div>
+              )}
               {!isConnected ? (
-                <Button className="w-full h-14 bg-primary text-primary-foreground font-bold uppercase tracking-[0.2em] text-sm" onClick={openConnectModal}>Connect Wallet</Button>
+                <Button className="w-full h-14 bg-primary text-primary-foreground font-bold uppercase tracking-[0.2em] text-sm" onClick={openConnect}>Connect</Button>
               ) : (
                 <Button 
                   className="w-full h-14 bg-primary text-primary-foreground font-bold uppercase tracking-[0.2em] text-sm disabled:opacity-50 shadow-lg shadow-primary/20 active:scale-[0.98] transition-all" 

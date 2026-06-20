@@ -1,6 +1,6 @@
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { Hammer, Loader2 } from "lucide-react";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 
 // Add administrative wallet addresses here for maintenance bypass
 const ADMIN_WALLETS = [
@@ -13,7 +13,7 @@ interface MaintenanceGuardProps {
 }
 
 export const MaintenanceGuard = ({ children, module }: MaintenanceGuardProps) => {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const { isMaintenance, loading } = useMaintenance(module || "maintenance_all");
 
   const isAdminWallet = address && ADMIN_WALLETS.some(a => a.toLowerCase() === address.toLowerCase());

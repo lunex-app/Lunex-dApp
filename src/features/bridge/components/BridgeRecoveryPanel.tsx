@@ -34,34 +34,41 @@ export function BridgeRecoveryPanel() {
           />
         </div>
 
-        <div className="grid sm:grid-cols-3 gap-2">
+        <div className="grid sm:grid-cols-2 gap-2">
           <Button
             disabled={!canSearch}
             onClick={() => recovery.findTransaction(cleanHash)}
             className="h-11 gap-2 font-black uppercase tracking-widest text-[10px]"
           >
-            {recovery.stage === "scanning" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            Fetch
+            {recovery.stage === "scanning" || recovery.stage === "polling-attestation" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Search className="h-4 w-4" />
+            )}
+            {recovery.stage === "scanning"
+              ? "Scanning"
+              : recovery.stage === "polling-attestation"
+                ? "Checking Circle"
+                : "Recover"}
           </Button>
           <Button
-            variant="outline"
-            disabled={recovery.stage !== "tx-found"}
-            onClick={recovery.fetchAttestation}
-            className="h-11 gap-2 font-black uppercase tracking-widest text-[10px]"
-          >
-            {recovery.stage === "polling-attestation" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-            Attest
-          </Button>
-          <Button
-            variant="outline"
             disabled={recovery.stage !== "ready-to-mint" || recovery.bridgeDetails?.status === "completed"}
             onClick={recovery.completeMint}
             className="h-11 gap-2 font-black uppercase tracking-widest text-[10px]"
           >
             {recovery.stage === "minting" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            Complete
+            Complete Mint
           </Button>
         </div>
+
+        {recovery.stage === "tx-found" && (
+          <button
+            onClick={() => recovery.fetchAttestation()}
+            className="text-[10px] font-bold uppercase tracking-widest text-primary hover:underline flex items-center gap-1.5"
+          >
+            <RotateCw className="h-3 w-3" /> Re-check attestation
+          </button>
+        )}
 
         {recovery.errorVisible && (
           <div className="flex gap-3 border border-destructive/30 bg-destructive/10 p-4 text-xs text-destructive">

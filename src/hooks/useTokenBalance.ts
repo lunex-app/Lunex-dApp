@@ -1,10 +1,11 @@
-import { useAccount, useReadContract } from "wagmi";
+import { useReadContract } from "wagmi";
 import { formatUnits } from "viem";
 import { TOKENS, arcTestnet } from "@/config/wagmi";
 import { erc20Abi } from "@/config/abis";
+import { useWallet } from "@/context/WalletProvider";
 
 export function useTokenBalance(tokenSymbol: "USDC" | "EURC") {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useWallet();
   const token = TOKENS[tokenSymbol];
 
   const { data: rawBalance, isLoading, refetch } = useReadContract({

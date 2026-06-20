@@ -1,22 +1,33 @@
 import { useCallback, useState } from "react";
 import { useAccount, useSwitchChain } from "wagmi";
 import { createViemAdapterFromProvider } from "@circle-fin/adapter-viem-v2";
-import { UnifiedBalanceKit, type SpendResult, type DepositResult, type EstimateSpendResult } from "@circle-fin/unified-balance-kit";
+import {
+  UnifiedBalanceKit,
+  type SpendResult,
+  type DepositResult,
+  type EstimateSpendResult,
+} from "@circle-fin/unified-balance-kit";
 import { toast } from "sonner";
 import { BRIDGE_CHAINS, type BridgeChainKey } from "../config/bridgeConfig";
+import { humanizeError } from "@/lib/errors";
 
 type GatewayStatus = "idle" | "depositing" | "estimating" | "spending" | "complete" | "failed";
-type GatewayTransferMode = "instant" | "manual";
+export type GatewayTransferMode = "instant" | "manual";
 
-const gatewayKit = new UnifiedBalanceKit();
+// Class API. Telemetry disabled — keeps the dApp from POSTing to Circle's
+// analytics endpoint on every op.
+const gatewayKit = new UnifiedBalanceKit({ disableAnalytics: true, disableErrorReporting: true });
 
 async function getProvider() {
-  const provider = (window as any).ethereum;
-  if (!provider) throw new Error("No wallet provider found");
+  const provider = (window as { ethereum?: unknown }).ethereum;
+  if (!provider) throw new Error("Gateway needs a browser wallet (e.g. MetaMask). Connect an injected wallet to use Gateway.");
   return provider;
 }
 
 export function useGateway() {
+  // Gateway burn-intents are signed via the injected EOA's viem adapter and the
+  // deposit is an on-chain tx — so this flow uses the injected wallet, like the
+  // CCTP bridge. (Circle smart accounts can't drive the adapter here.)
   const { address } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const [status, setStatus] = useState<GatewayStatus>("idle");
@@ -25,10 +36,12 @@ export function useGateway() {
   const [lastSpend, setLastSpend] = useState<SpendResult | null>(null);
   const [lastEstimate, setLastEstimate] = useState<EstimateSpendResult | null>(null);
   const [lastSpendMode, setLastSpendMode] = useState<GatewayTransferMode>("instant");
+  const [gatewayBalance, setGatewayBalance] = useState<number | null>(null);
 
   const createAdapter = useCallback(async () => {
     const provider = await getProvider();
-    return createViemAdapterFromProvider({ provider });
+     
+    return createViemAdapterFromProvider({ provider } as any);
   }, []);
 
   const ensureChain = useCallback(
@@ -39,13 +52,83 @@ export function useGateway() {
     [switchChainAsync]
   );
 
+  /**
+   * Read the unified Gateway balance (USDC already deposited into the Gateway
+   * Wallet contracts and available to mint elsewhere) across all bridge chains.
+   */
+  const refreshGatewayBalance = useCallback(async () => {
+    if (!address) {
+      setGatewayBalance(null);
+      return null;
+    }
+    try {
+      const chains = Object.values(BRIDGE_CHAINS).map((c) => c.circleName);
+      const res = await gatewayKit.getBalances({
+        token: "USDC",
+        sources: { address, chains },
+        includePending: true,
+        networkType: "testnet",
+      });
+      // Sum the available balance across chains into one unified figure.
+       
+      const anyRes = res as any;
+      const total =
+        typeof anyRes?.totalBalance === "string"
+          ? Number(anyRes.totalBalance)
+          : Array.isArray(anyRes?.balances)
+            ? anyRes.balances.reduce((sum: number, b: { balance?: string }) => sum + Number(b?.balance ?? 0), 0)
+            : 0;
+      setGatewayBalance(Number.isFinite(total) ? total : 0);
+      return total;
+    } catch {
+      setGatewayBalance(null);
+      return null;
+    }
+  }, [address]);
+
+  /** Build the SpendParams shared by estimate and spend. */
+  const buildSpendParams = useCallback(
+     
+    (adapter: any, fromChain: BridgeChainKey, toChain: BridgeChainKey, amount: string, mode: GatewayTransferMode): any => {
+      const from = BRIDGE_CHAINS[fromChain];
+      const to = BRIDGE_CHAINS[toChain];
+      return {
+        token: "USDC" as const,
+        amountIn: amount,
+        from: {
+          adapter,
+          // Pull exactly from the chosen source chain (matches the UI selector).
+          allocations: { amount, chain: from.circleName },
+        },
+        to:
+          mode === "instant"
+            ? {
+                // Forwarding Service mints on the destination — no adapter needed.
+                chain: to.circleName,
+                recipientAddress: address as string,
+                useForwarder: true,
+              }
+            : {
+                // Manual mint — the user's wallet signs the destination mint tx.
+                adapter,
+                chain: to.circleName,
+                recipientAddress: address as string,
+                useForwarder: false,
+              },
+      };
+    },
+    [address]
+  );
+
   const deposit = useCallback(
     async (chainKey: BridgeChainKey, amount: string) => {
-      if (!address) throw new Error("Connect wallet first");
+      if (!address) throw new Error("Connect a wallet first");
       setStatus("depositing");
       setError(null);
       setLastDeposit(null);
       try {
+        // Deposit is an on-chain approve+transfer to the Gateway Wallet, so the
+        // wallet must be on the source chain.
         await ensureChain(chainKey);
         const adapter = await createAdapter();
         const result = await gatewayKit.deposit({
@@ -55,90 +138,74 @@ export function useGateway() {
         });
         setLastDeposit(result);
         setStatus("complete");
-        toast.success("Gateway deposit complete", { description: `${amount} USDC deposited on ${BRIDGE_CHAINS[chainKey].label}` });
+        toast.success("Gateway deposit complete", {
+          description: `${amount} USDC deposited on ${BRIDGE_CHAINS[chainKey].label}`,
+        });
+        refreshGatewayBalance();
         return result;
-      } catch (err: any) {
-        const message = err?.message || "Gateway deposit failed";
+      } catch (err: unknown) {
+        const message = humanizeError(err as never, "Gateway deposit failed. Please try again.");
         setError(message);
         setStatus("failed");
-        toast.error("Gateway deposit failed", { description: message.slice(0, 140) });
+        toast.error("Gateway deposit failed", { description: message });
         throw err;
       }
     },
-    [address, createAdapter, ensureChain]
+    [address, createAdapter, ensureChain, refreshGatewayBalance]
   );
 
   const estimateSpend = useCallback(
     async (fromChain: BridgeChainKey, toChain: BridgeChainKey, amount: string, mode: GatewayTransferMode = "instant") => {
-      if (!address) throw new Error("Connect wallet first");
+      if (!address) throw new Error("Connect a wallet first");
       setStatus("estimating");
       setError(null);
       setLastEstimate(null);
       try {
         const adapter = await createAdapter();
-        const result = await gatewayKit.estimateSpend({
-          amount,
-          token: "USDC",
-          from: {
-            adapter,
-            allocations: { amount, chain: BRIDGE_CHAINS[fromChain].circleName },
-          },
-          to: {
-            ...(mode === "manual" ? { adapter } : {}),
-            chain: BRIDGE_CHAINS[toChain].circleName,
-            recipientAddress: address,
-            useForwarder: mode === "instant",
-          },
-        });
+        const result = await gatewayKit.estimateSpend(buildSpendParams(adapter, fromChain, toChain, amount, mode));
         setLastEstimate(result);
         setStatus("idle");
         return result;
-      } catch (err: any) {
-        const message = err?.message || "Gateway estimate failed";
-        setError(message);
+      } catch (err: unknown) {
+        const message = (err as Error)?.message || "Gateway estimate failed";
+        setError(humanizeGatewayError(message));
         setStatus("failed");
         throw err;
       }
     },
-    [address, createAdapter]
+    [address, createAdapter, buildSpendParams]
   );
 
   const spend = useCallback(
     async (fromChain: BridgeChainKey, toChain: BridgeChainKey, amount: string, mode: GatewayTransferMode = "instant") => {
-      if (!address) throw new Error("Connect wallet first");
+      if (!address) throw new Error("Connect a wallet first");
       setStatus("spending");
       setError(null);
       setLastSpend(null);
+      setLastSpendMode(mode);
       try {
+        // Burn-intent signing is chain-agnostic (EIP-712). Only the MANUAL mint
+        // is an on-chain tx, so switch to the destination chain for that path.
+        // Instant (forwarder) mode needs no chain switch at all.
+        if (mode === "manual") await ensureChain(toChain);
         const adapter = await createAdapter();
-        setLastSpendMode(mode);
-        const result = await gatewayKit.spend({
-          amount,
-          token: "USDC",
-          from: { adapter },
-          to: {
-            ...(mode === "manual" ? { adapter } : {}),
-            chain: BRIDGE_CHAINS[toChain].circleName,
-            recipientAddress: address,
-            useForwarder: mode === "instant",
-          },
-        });
+        const result = await gatewayKit.spend(buildSpendParams(adapter, fromChain, toChain, amount, mode));
         setLastSpend(result);
         setStatus("complete");
-        toast.success("Gateway transfer complete", { description: `${amount} USDC minted on ${BRIDGE_CHAINS[toChain].label}` });
+        toast.success("Gateway transfer complete", {
+          description: `${amount} USDC minted on ${BRIDGE_CHAINS[toChain].label}`,
+        });
+        refreshGatewayBalance();
         return result;
-      } catch (err: any) {
-        let message = err?.message || "Gateway transfer failed";
-        if (message.includes("Insufficient total maxFee") || message.includes("forwarding fee")) {
-          message = "Gateway instant transfer needs extra USDC headroom for the Circle forwarding fee. Try a slightly smaller amount, or switch to manual mint mode.";
-        }
+      } catch (err: unknown) {
+        const message = humanizeGatewayError((err as Error)?.message || "Gateway transfer failed");
         setError(message);
         setStatus("failed");
-        toast.error("Gateway transfer failed", { description: message.slice(0, 140) });
+        toast.error("Gateway transfer failed", { description: message.slice(0, 160) });
         throw err;
       }
     },
-    [address, createAdapter]
+    [address, createAdapter, ensureChain, buildSpendParams, refreshGatewayBalance]
   );
 
   const reset = useCallback(() => {
@@ -149,5 +216,34 @@ export function useGateway() {
     setLastEstimate(null);
   }, []);
 
-  return { status, error, lastDeposit, lastSpend, lastEstimate, lastSpendMode, deposit, estimateSpend, spend, reset };
+  return {
+    status,
+    error,
+    lastDeposit,
+    lastSpend,
+    lastEstimate,
+    lastSpendMode,
+    gatewayBalance,
+    refreshGatewayBalance,
+    deposit,
+    estimateSpend,
+    spend,
+    reset,
+  };
+}
+
+/** Turn Circle's raw Gateway errors into actionable guidance. */
+function humanizeGatewayError(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes("insufficient") && (m.includes("maxfee") || m.includes("fee") || m.includes("balance"))) {
+    return "Not enough Gateway balance to cover the amount plus Circle's forwarding fee. Deposit a little more, reduce the amount, or switch to Manual mint mode.";
+  }
+  if (m.includes("forwarder") || m.includes("forwarding")) {
+    return "Instant (forwarder) transfer isn't available for this route right now. Switch to Manual mint mode to complete the transfer.";
+  }
+  if (m.includes("no deposit") || m.includes("no balance") || m.includes("not found")) {
+    return "No Gateway balance found on the source chain. Deposit USDC into Gateway first, then spend it on the destination chain.";
+  }
+  // Anything else → scrub library/RPC noise out before showing it.
+  return humanizeError(message, "Gateway transfer failed. Please try again.");
 }

@@ -1,4 +1,4 @@
-import { useAccount } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import { useTokenBalances } from "@/hooks/useTokenBalance";
 import { usePoolData } from "@/hooks/usePoolData";
 import { useVaultData } from "@/hooks/useVaultData";
@@ -18,7 +18,7 @@ const ACTIVITY_COLUMNS = [
 ];
 
 const Dashboard = () => {
-  const { isConnected } = useAccount();
+  const { isConnected } = useWallet();
   const balances = useTokenBalances();
   const pool = usePoolData();
   const usdcVault = useVaultData("USDC");

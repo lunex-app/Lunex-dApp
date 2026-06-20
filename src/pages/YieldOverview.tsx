@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import { useVaultData } from "@/hooks/useVaultData";
 import { SectionHistory } from "@/components/SectionHistory";
 import { useSectionHistory } from "@/hooks/useSectionHistory";
@@ -19,7 +19,7 @@ const YIELD_COLUMNS = [
 ];
 
 const YieldOverview = () => {
-  const { isConnected } = useAccount();
+  const { isConnected } = useWallet();
   const usdcVault = useVaultData("USDC");
   const eurcVault = useVaultData("EURC");
   const history = useSectionHistory("yield");
@@ -37,7 +37,7 @@ const YieldOverview = () => {
   const [claimedRewards, setClaimedRewards] = useState(false);
 
   return (
-    <div className="container max-w-5xl mx-auto py-16 px-4">
+    <div className="container max-w-4xl mx-auto py-16 px-4">
       <div className="mb-10">
         <BackButton />
         <h1 className="text-3xl font-bold tracking-tight mt-6 uppercase">Yield Vaults</h1>

@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useAccount, useWalletClient, useSwitchChain } from "wagmi";
-import { parseUnits, pad, zeroHash, createPublicClient, http, createWalletClient, custom } from "viem";
+import { parseUnits, formatUnits, pad, zeroHash, createPublicClient, http, createWalletClient, custom } from "viem";
 import { toast } from "sonner";
 import {
   BRIDGE_CHAINS,
@@ -19,6 +19,7 @@ import {
   saveBridgeTransaction,
 } from "../state/bridgeState";
 import { recordPointEvent } from "@/lib/points";
+import { humanizeError } from "@/lib/errors";
 
 /** Poll CCTP V2 attestation API using domain + txHash */
 function useAttestationV2() {
@@ -117,6 +118,19 @@ export function useBridge() {
 
   const attestationV2 = useAttestationV2();
 
+  // resumeTransaction is declared before startBridge but may call it; a ref keeps it
+  // pointing at the latest startBridge (avoids a stale walletClient closure).
+  const startBridgeRef = useRef<
+    (
+      amount: string,
+      fromChain: BridgeChainKey,
+      toChain: BridgeChainKey,
+      isFastPath?: boolean,
+      tokenSymbol?: "USDC" | "EURC",
+      gasTopUpAmount?: string
+    ) => Promise<void>
+  >();
+
   const getChainClient = useCallback((chain: BridgeChainKey) => {
     const config = BRIDGE_CHAINS[chain];
     return createPublicClient({ transport: http(config.rpcUrl) });
@@ -175,7 +189,7 @@ export function useBridge() {
           tx.status = "waiting_attestation";
         } else {
           // Restart from start
-          return startBridge(tx.amount, tx.fromChain, tx.toChain, false, tx.tokenSymbol ?? "USDC", tx.gasTopUpAmount);
+          return startBridgeRef.current?.(tx.amount, tx.fromChain, tx.toChain, false, tx.tokenSymbol ?? "USDC", tx.gasTopUpAmount);
         }
       }
 
@@ -227,7 +241,7 @@ export function useBridge() {
         toast.success("Bridge complete!");
       }
     } catch (err: any) {
-      const msg = err?.shortMessage || err?.message || "Resume failed";
+      const msg = humanizeError(err, "Couldn't resume the transfer. Please try again.");
       setStatus("failed");
       setError(msg);
       updateTx({ status: "failed", error: msg });
@@ -311,7 +325,9 @@ export function useBridge() {
           address: tokenAddress,
           abi: ERC20_APPROVE_ABI,
           functionName: "approve",
-          args: [from.tokenMessenger, parsedAmount],
+          // Only the burn amount is pulled by the TokenMessenger (via transferFrom);
+          // the protocol fee is sent separately with a direct transfer below.
+          args: [from.tokenMessenger, burnAmount],
           account: address,
           chain: bridgeViemChains[fromChain],
         });
@@ -409,7 +425,9 @@ export function useBridge() {
           status: "complete",
           mintTxHash: mintHash,
           amountIn: amount,
-          amountOut: (Number(amount) * (isFastPath ? 0.998 : 0.999)).toFixed(2),
+          // Minimum received = burned amount minus the CCTP max fee cap (protocol fee
+          // was already deducted from burnAmount). Reflects real on-chain values.
+          amountOut: Number(formatUnits(burnAmount - maxFee, from.usdcDecimals)).toFixed(2),
           gasTopUpStatus: parsedTopUpAmount > 0n ? (to.topUpRelayer ? "relayer_pending" : "unsupported") : "not_requested",
         });
         recordPointEvent({
@@ -421,7 +439,7 @@ export function useBridge() {
         });
         toast.success("Bridge complete!");
       } catch (err: any) {
-        const msg = err?.shortMessage || err?.message || "Bridge failed";
+        const msg = humanizeError(err, "The bridge transfer failed. Please try again.");
         setStatus("failed");
         setError(msg);
         updateTx({ status: "failed", error: msg });
@@ -429,6 +447,9 @@ export function useBridge() {
     },
     [address, walletClient, ensureChain, updateTx, attestationV2, getChainClient]
   );
+
+  // Keep the ref pointing at the current startBridge for resumeTransaction.
+  startBridgeRef.current = startBridge;
 
   const reset = useCallback(() => {
     setBridgeTx(null);

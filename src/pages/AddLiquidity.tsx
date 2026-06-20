@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAccount } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useWallet } from "@/context/WalletProvider";
 import { useTokenBalances } from "@/hooks/useTokenBalance";
 import { useAddLiquidity } from "@/hooks/useLiquidity";
 import { usePoolData } from "@/hooks/usePoolData";
@@ -14,8 +13,7 @@ import { TokenIcon } from "@/components/TokenIcon";
 import { DEFAULT_SLIPPAGE_PERCENT } from "@/lib/slippage";
 
 const AddLiquidity = () => {
-  const { isConnected } = useAccount();
-  const { openConnectModal } = useConnectModal();
+  const { isConnected, openConnect } = useWallet();
   const balances = useTokenBalances();
   const pool = usePoolData();
   const history = useSectionHistory("pool");
@@ -68,7 +66,7 @@ const AddLiquidity = () => {
   const hasInsufficientBalance = hasInsufficientUsdc || hasInsufficientEurc;
 
   const getButtonText = () => {
-    if (!isConnected) return "CONNECT WALLET";
+    if (!isConnected) return "CONNECT";
     if (!hasAmount) return "ENTER AMOUNTS";
     if (!liq.isSlippageValid) return "INVALID SLIPPAGE";
     if (hasInsufficientUsdc) return "INSUFFICIENT USDC";
@@ -79,7 +77,7 @@ const AddLiquidity = () => {
   };
 
   const handleClick = () => {
-    if (!isConnected && openConnectModal) { openConnectModal(); return; }
+    if (!isConnected) { openConnect(); return; }
     if (hasAmount && !hasInsufficientBalance) liq.execute();
   };
 

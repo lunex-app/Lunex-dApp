@@ -3,8 +3,8 @@ import { Loader2 } from "lucide-react";
 import { formatUnits } from "viem";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { useAccount, useReadContract } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useReadContract } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import { useRemoveLiquidity } from "@/hooks/useLiquidity";
 import { usePoolData } from "@/hooks/usePoolData";
 import { TransactionModal, computeTxStage } from "@/components/TransactionModal";
@@ -17,8 +17,7 @@ import { DEFAULT_SLIPPAGE_PERCENT } from "@/lib/slippage";
 const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const RemoveLiquidity = () => {
-  const { isConnected } = useAccount();
-  const { openConnectModal } = useConnectModal();
+  const { isConnected, openConnect } = useWallet();
   const pool = usePoolData();
   const history = useSectionHistory("pool");
   const [percentage, setPercentage] = useState([100]);
@@ -105,7 +104,7 @@ const RemoveLiquidity = () => {
   };
 
   const getButtonText = () => {
-    if (!isConnected) return "CONNECT WALLET";
+    if (!isConnected) return "CONNECT";
     if (pool.lpBalanceRaw <= 0n) return "NO LP TOKENS";
     if (percentage[0] === 0) return "SELECT AMOUNT";
     if (liq.isApproving) return "APPROVING LP...";
@@ -114,8 +113,8 @@ const RemoveLiquidity = () => {
   };
 
   const handleClick = () => {
-    if (!isConnected && openConnectModal) {
-      openConnectModal();
+    if (!isConnected) {
+      openConnect();
       return;
     }
     if (percentage[0] > 0 && lpToRemoveRaw > 0n) liq.execute();

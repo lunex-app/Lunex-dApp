@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef } from "react";
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useCallback, useEffect } from "react";
+import { useReadContract } from "wagmi";
 import { parseUnits, formatUnits } from "viem";
-import { stableSwapAbi } from "@/config/abis";
+import { stableSwapAbi, erc20Abi } from "@/config/abis";
 import { CONTRACTS, TOKEN_INDEX, TOKENS, arcTestnet, getExplorerTxUrl } from "@/config/wagmi";
 import { useApproveToken } from "./useApproveToken";
 import { useVolumeTracker } from "./useVolumeTracker";
+import { useWallet } from "@/context/WalletProvider";
+import { useTx } from "./useTx";
+import type { Write } from "@/lib/circleTx";
 import { toast } from "sonner";
 import { applySlippage, parseSlippageBps } from "@/lib/slippage";
 import { recordPointEvent } from "@/lib/points";
@@ -17,7 +20,7 @@ interface UseSwapParams {
 }
 
 export function useSwap({ fromSymbol, toSymbol, amount, slippage }: UseSwapParams) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useWallet();
   const fromToken = TOKENS[fromSymbol as keyof typeof TOKENS];
   const toToken = TOKENS[toSymbol as keyof typeof TOKENS];
 
@@ -49,33 +52,35 @@ export function useSwap({ fromSymbol, toSymbol, amount, slippage }: UseSwapParam
 
   const approval = useApproveToken(fromToken.address, CONTRACTS.LUNEX_SWAP_POOL, fromToken.decimals);
   const { recordVolume } = useVolumeTracker();
-
-  const { writeContract, data: swapTxHash, isPending: isSwapPending, error: swapError, reset: resetSwap } = useWriteContract();
-  const { isLoading: isSwapConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash: swapTxHash, timeout: 60_000 });
+  const tx = useTx();
 
   useEffect(() => {
-    if (isConfirmed && swapTxHash) {
+    if (tx.isConfirmed) {
       toast.success("Swap successful!", {
         description: `Swapped ${amount} ${fromSymbol} → ${toSymbol}`,
-        action: { label: "View on ArcScan →", onClick: () => window.open(getExplorerTxUrl(swapTxHash), "_blank") },
+        ...(tx.txHash && tx.txHash !== "0x"
+          ? { action: { label: "View on ArcScan →", onClick: () => window.open(getExplorerTxUrl(tx.txHash!), "_blank") } }
+          : {}),
       });
       const amountUsd = parseFloat(amount || "0");
       if (amountUsd > 0) {
-        recordVolume({ txHash: swapTxHash, eventType: "swap", amountUsd, contract: CONTRACTS.LUNEX_SWAP_POOL });
+        recordVolume({ txHash: tx.txHash || "0x", eventType: "swap", amountUsd, contract: CONTRACTS.LUNEX_SWAP_POOL });
         recordPointEvent({
           wallet: address,
           action: "swap",
           volumeUsd: amountUsd,
-          txHash: swapTxHash,
+          txHash: tx.txHash,
           description: `Swapped ${amount} ${fromSymbol} to ${toSymbol}`,
         });
       }
+      approval.refetchAllowance();
     }
-  }, [isConfirmed, swapTxHash]);
+     
+  }, [tx.isConfirmed, tx.txHash]);
 
   useEffect(() => {
-    if (swapError) toast.error("Transaction failed", { description: swapError.message.slice(0, 120) });
-  }, [swapError]);
+    if (tx.error) toast.error("Transaction failed", { description: tx.error.message.slice(0, 120) });
+  }, [tx.error]);
 
   const executeSwap = useCallback(() => {
     if (!isConnected || !address || !amount) return;
@@ -87,40 +92,34 @@ export function useSwap({ fromSymbol, toSymbol, amount, slippage }: UseSwapParam
       toast.error("Quote unavailable", { description: "Wait for a valid quote before swapping." });
       return;
     }
-    if (approval.needsApproval(amount)) { approval.requestApproval(amount); return; }
     const minDy = applySlippage(dyRaw as bigint, slippageBps);
-    writeContract({
-      address: CONTRACTS.LUNEX_SWAP_POOL, abi: stableSwapAbi, functionName: "exchange",
-      args: [i, j, parsedInput, minDy], chain: arcTestnet, account: address,
-    });
-  }, [isConnected, address, amount, parsedInput, dyRaw, slippageBps, isSlippageValid, i, j, approval, writeContract]);
-
-  const resetAll = useCallback(() => { resetSwap(); approval.resetApprove(); }, [resetSwap, approval.resetApprove]);
-
-  const lastApprovedTx = useRef<string | null>(null);
-  useEffect(() => {
-    if (approval.isApproved && approval.approveTxHash && lastApprovedTx.current !== approval.approveTxHash) {
-      lastApprovedTx.current = approval.approveTxHash;
-      setTimeout(() => {
-        if (!isSwapPending && !isSwapConfirming) executeSwap();
-      }, 2000);
+    const writes: Write[] = [];
+    if (approval.needsApproval(amount)) {
+      writes.push({ address: fromToken.address, abi: erc20Abi, functionName: "approve", args: [CONTRACTS.LUNEX_SWAP_POOL, parsedInput] });
     }
-  }, [approval.isApproved, approval.approveTxHash, executeSwap, isSwapPending, isSwapConfirming]);
+    writes.push({ address: CONTRACTS.LUNEX_SWAP_POOL, abi: stableSwapAbi, functionName: "exchange", args: [i, j, parsedInput, minDy] });
+    tx.execute(writes);
+  }, [isConnected, address, amount, parsedInput, dyRaw, slippageBps, isSlippageValid, i, j, approval, fromToken.address, tx]);
+
+  const resetAll = useCallback(() => { tx.reset(); approval.resetApprove(); }, [tx, approval.resetApprove]);
 
   return {
     executeSwap,
-    isApprovePending: approval.isApprovePending,
-    approveTxHash: approval.approveTxHash,
-    isApproveConfirming: approval.isApproveConfirming,
-    approveError: approval.approveError,
-    isSwapPending, swapTxHash, isSwapConfirming,
-    isApproving: approval.isApproving,
-    isBusy: approval.isApproving || isSwapPending || isSwapConfirming,
-    isConfirmed, swapError,
+    isApprovePending: false,
+    approveTxHash: undefined as string | undefined,
+    isApproveConfirming: false,
+    approveError: null as Error | null,
+    isSwapPending: tx.isPending,
+    swapTxHash: tx.txHash,
+    isSwapConfirming: false,
+    isApproving: false,
+    isBusy: tx.isPending,
+    isConfirmed: tx.isConfirmed,
+    swapError: tx.error,
     needsApproval: approval.needsApproval(amount),
     outputAmount, spotRate, priceImpact, resetAll,
     isSlippageValid,
-    isApproved: approval.isApproved,
+    isApproved: !approval.needsApproval(amount),
     isAllowanceLoading: approval.isAllowanceLoading,
   };
 }

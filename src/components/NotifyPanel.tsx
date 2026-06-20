@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Bell, Mail, Send, Webhook } from "lucide-react";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createId, protocolStorage, type NotificationRule } from "@/lib/localProtocol";
@@ -15,7 +15,7 @@ const iconByChannel = {
 };
 
 export function NotifyPanel() {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const [type, setType] = useState<NotificationRule["type"]>("vault_share_price");
   const [channel, setChannel] = useState<NotificationRule["channel"]>("email");
   const [destination, setDestination] = useState("");

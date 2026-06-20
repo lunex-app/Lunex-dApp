@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { useAccount } from "wagmi";
 import { getPointSummary, loadPointEvents, recordPointEvent, type PointAction } from "@/lib/points";
+import { useWallet } from "@/context/WalletProvider";
 
 export function usePoints() {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const [version, setVersion] = useState(0);
 
   useEffect(() => {

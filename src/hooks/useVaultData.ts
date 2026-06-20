@@ -1,10 +1,11 @@
-import { useAccount, useReadContract } from "wagmi";
+import { useReadContract } from "wagmi";
 import { formatUnits } from "viem";
 import { vaultAbi } from "@/config/abis";
 import { CONTRACTS, arcTestnet } from "@/config/wagmi";
+import { useWallet } from "@/context/WalletProvider";
 
 export function useVaultData(tokenSymbol: "USDC" | "EURC") {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const vaultAddress = tokenSymbol === "USDC" ? CONTRACTS.LUNE_VAULT_USDC : CONTRACTS.LUNE_VAULT_EURC;
 
   const { data: totalAssetsRaw, refetch: refetchAssets } = useReadContract({

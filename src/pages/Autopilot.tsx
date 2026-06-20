@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Bot, Loader2, Send, Sparkles, User } from "lucide-react";
-import { useAccount } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useWallet } from "@/context/WalletProvider";
 import BackButton from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -79,8 +78,7 @@ function assistantCopy(intent: ParsedIntent) {
 }
 
 const Autopilot = () => {
-  const { address, isConnected } = useAccount();
-  const { openConnectModal } = useConnectModal();
+  const { address, isConnected, openConnect } = useWallet();
   const [prompt, setPrompt] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: "welcome", role: "agent", content: "Tell me what to do with USDC or EURC. I can execute swaps, CCTP bridges, vault deposits, and liquidity actions directly from this page when the route is supported." },
@@ -128,7 +126,7 @@ const Autopilot = () => {
   const executeIntent = async () => {
     if (!latestIntent) return;
     if (!isConnected) {
-      openConnectModal?.();
+      openConnect();
       return;
     }
     if (!latestIntent.amount || Number(latestIntent.amount) <= 0 || latestIntent.needsBackend) return;

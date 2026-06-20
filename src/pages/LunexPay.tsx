@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, Copy, Link as LinkIcon, Loader2, Play, Plus, Radio, Wallet, X } from "lucide-react";
-import { useAccount, usePublicClient, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { usePublicClient, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import { parseEventLogs, parseUnits } from "viem";
 import BackButton from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
@@ -12,21 +12,21 @@ import { recordPointEvent } from "@/lib/points";
 import { erc20Abi, lunexStreamAbi } from "@/config/abis";
 import { useApproveToken } from "@/hooks/useApproveToken";
 import { toast } from "sonner";
+import { humanizeError } from "@/lib/errors";
 
 const tokens = ["USDC", "EURC"] as const;
 
 function parsePaymentFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const amount = params.get("amount") || "";
-  const token = params.get("token") === "EURC" ? "EURC" : "USDC";
+  const token: "USDC" | "EURC" = params.get("token") === "EURC" ? "EURC" : "USDC";
   const recipient = params.get("recipient") || "";
   const memo = params.get("memo") || "";
   return { amount, token, recipient, memo };
 }
 
 const LunexPay = () => {
-  const { address, isConnected } = useAccount();
-  const { openConnectModal } = useConnectModal();
+  const { address, isConnected, openConnect } = useWallet();
   const publicClient = usePublicClient({ chainId: arcTestnet.id });
   const paymentParams = parsePaymentFromUrl();
   const { writeContract: writePayment, data: payTxHash, isPending: isPayPending, error: payError } = useWriteContract();
@@ -90,7 +90,7 @@ const LunexPay = () => {
 
   const payNow = () => {
     if (!isConnected) {
-      openConnectModal?.();
+      openConnect();
       return;
     }
     if (!recipient || !amount || Number(amount) <= 0) return;
@@ -227,11 +227,11 @@ const LunexPay = () => {
   }, [isStreamConfirmed, streamTxHash, pendingStream, address, token, publicClient]);
 
   useEffect(() => {
-    if (payError) toast.error("Payment failed", { description: payError.message.slice(0, 120) });
+    if (payError) toast.error("Payment failed", { description: humanizeError(payError, "Payment failed. Please try again.") });
   }, [payError]);
 
   useEffect(() => {
-    if (streamError) toast.error("Stream creation failed", { description: streamError.message.slice(0, 120) });
+    if (streamError) toast.error("Stream creation failed", { description: humanizeError(streamError, "Stream creation failed. Please try again.") });
   }, [streamError]);
 
   const addRecipientRow = () => setStreamRecipients((items) => [...items, { address: "", amount: "" }]);

@@ -65,8 +65,15 @@ export function recordPointEvent(params: {
     description: params.description,
   };
   const next = [event, ...loadPointEvents(normalized)].slice(0, 100);
-  localStorage.setItem(storageKey(normalized), JSON.stringify(next));
-  window.dispatchEvent(new Event("lunex_points_updated"));
+  // Must never throw: callers invoke this on the success path of on-chain txs
+  // (e.g. inside useBridge's try block). A storage failure (Safari Private Mode,
+  // quota exceeded) must not flip a confirmed tx to "failed".
+  try {
+    localStorage.setItem(storageKey(normalized), JSON.stringify(next));
+    window.dispatchEvent(new Event("lunex_points_updated"));
+  } catch {
+    return null;
+  }
   return event;
 }
 
