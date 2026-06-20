@@ -22,8 +22,12 @@ const USDC_ADDRESS = TOKENS.USDC.address;
 const USDC_DECIMALS = TOKENS.USDC.decimals;
 
 const ENV = (import.meta as { env?: Record<string, string> }).env ?? {};
-const CLIENT_KEY = ENV.VITE_CIRCLE_CLIENT_KEY || "";
-const CLIENT_URL = ENV.VITE_CIRCLE_CLIENT_URL || "";
+// Public, domain-allowlisted client-side values — safe in the bundle (Circle
+// gates Modular Wallets by registered origin, not by key secrecy). Defaults let
+// the app work on any deploy even when VITE_* env injection isn't applied; env
+// vars override.
+const CLIENT_KEY = ENV.VITE_CIRCLE_CLIENT_KEY || "TEST_CLIENT_KEY:381a6a62b519383dcda56d32b3293c5d:865a81cbcc62debbdc069494fc939109";
+const CLIENT_URL = ENV.VITE_CIRCLE_CLIENT_URL || "https://modular-sdk.circle.com/v1/rpc/w3s/buidl";
 const CHAIN_PATH = ENV.VITE_CIRCLE_CHAIN_PATH || "arcTestnet";
 
 export function circleEnabled(): boolean {

@@ -20,8 +20,10 @@ const USDC_DECIMALS = TOKENS.USDC.decimals;
 const ARC_RPC_URL = arcTestnet.rpcUrls.default.http[0];
 
 const ENV = (import.meta as { env?: Record<string, string> }).env ?? {};
-const API_URL = ENV.VITE_API_URL || "https://polaris-agent-runtime-production.up.railway.app";
-const APP_ID = ENV.VITE_CIRCLE_UC_APP_ID || "";
+// Public defaults so the app works on any deploy even if VITE_* env injection
+// isn't picked up by the host. Both are public client-side values; env overrides.
+const API_URL = ENV.VITE_API_URL || "https://lunex-backend-production-235e.up.railway.app";
+const APP_ID = ENV.VITE_CIRCLE_UC_APP_ID || "20cba6f1-baa6-5eb9-be94-52edc31a4c43";
 
 export function ucWalletEnabled(): boolean {
   return Boolean(API_URL && APP_ID);
