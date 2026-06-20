@@ -10,10 +10,14 @@ import {
   Sprout,
   TrendingUp,
   Layers,
+  Repeat,
+  CalendarDays,
 } from "lucide-react";
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -30,25 +34,67 @@ const usd2 = (n: number) =>
   `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const num = (n: number) => n.toLocaleString();
 
-function Kpi({ label, value, icon: Icon }: { label: string; value: string; icon: typeof DollarSign }) {
+const chartTooltip = {
+  background: "hsl(var(--card))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: 6,
+  fontSize: 12,
+} as const;
+
+function Kpi({
+  label,
+  value,
+  icon: Icon,
+  accent,
+  sub,
+}: {
+  label: string;
+  value: string;
+  icon: typeof DollarSign;
+  accent?: boolean;
+  sub?: string;
+}) {
   return (
-    <div className="border border-border bg-card p-6 rounded-sm relative overflow-hidden group">
-      <Icon className="absolute -bottom-2 -right-2 h-16 w-16 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity" />
+    <div
+      className={`border bg-card p-5 sm:p-6 rounded-sm relative overflow-hidden group ${
+        accent ? "border-primary/40" : "border-border"
+      }`}
+    >
+      <Icon
+        className={`absolute -bottom-2 -right-2 h-16 w-16 transition-opacity ${
+          accent ? "opacity-[0.07] text-primary" : "opacity-[0.03] group-hover:opacity-[0.05]"
+        }`}
+      />
       <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground mb-3">{label}</p>
-      <p className="text-2xl font-bold font-mono tracking-tighter">{value}</p>
+      <p className={`text-2xl font-bold font-mono tracking-tighter ${accent ? "text-primary" : ""}`}>{value}</p>
+      {sub && <p className="text-[10px] text-muted-foreground font-mono mt-1">{sub}</p>}
     </div>
   );
 }
 
-function Row({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Row({ label, value, sub, strong }: { label: string; value: string; sub?: string; strong?: boolean }) {
   return (
     <div className="flex items-center justify-between py-3 border-b border-border last:border-0">
-      <span className="text-xs text-muted-foreground font-bold uppercase tracking-widest">{label}</span>
+      <span
+        className={`text-xs uppercase tracking-widest ${
+          strong ? "text-foreground font-black" : "text-muted-foreground font-bold"
+        }`}
+      >
+        {label}
+      </span>
       <div className="text-right">
-        <span className="text-sm font-mono font-bold">{value}</span>
+        <span className={`text-sm font-mono ${strong ? "font-black text-primary" : "font-bold"}`}>{value}</span>
         {sub && <span className="block text-[10px] text-muted-foreground font-mono">{sub}</span>}
       </div>
     </div>
+  );
+}
+
+function SectionTitle({ icon: Icon, children }: { icon: typeof Users; children: React.ReactNode }) {
+  return (
+    <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-4 flex items-center gap-2">
+      <Icon className="h-4 w-4" /> {children}
+    </h2>
   );
 }
 
@@ -73,12 +119,13 @@ const Analytics = () => {
 
   return (
     <div className="container max-w-6xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 border-b border-border pb-8">
         <div>
           <BackButton />
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mt-6">Lunex Protocol Analytics</h1>
           <p className="text-muted-foreground mt-2 font-mono text-xs uppercase tracking-wider">
-            Live on-chain metrics · Arc Testnet · StableSwap · Vaults · CCTP
+            Live on-chain metrics · Arc Testnet · StableSwap · Vaults · CCTP Bridge
           </p>
         </div>
         <div className="flex items-center gap-4 mt-6 md:mt-0">
@@ -109,18 +156,48 @@ const Analytics = () => {
         <>
           {/* Headline KPIs */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-10">
+            <Kpi label="Total Protocol Volume" value={usd(data.totalVolumeUsd)} icon={BarChart3} accent sub="swaps + pool + vaults + bridge" />
             <Kpi label="Total Value Locked" value={usd(data.totalTvlUsd)} icon={DollarSign} />
-            <Kpi label="Total Volume" value={usd(data.totalVolumeUsd)} icon={BarChart3} />
             <Kpi label="All-Time Wallets" value={num(data.allTimeWallets)} icon={Users} />
             <Kpi label="Total Transactions" value={num(data.totalTxCount)} icon={Activity} />
           </div>
 
-          {/* Daily volume chart */}
-          <div className="border border-border bg-card rounded-sm p-6 mb-10">
+          {/* ===================== USERS / WALLETS (featured) ===================== */}
+          <div className="border border-primary/30 bg-primary/[0.03] rounded-sm p-6 mb-10">
+            <SectionTitle icon={Users}>Active Wallets</SectionTitle>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
+              <Kpi label="Daily Active (24h)" value={num(data.dau)} icon={Users} />
+              <Kpi label="Weekly Active (7d)" value={num(data.wau)} icon={Users} />
+              <Kpi label="Monthly Active (30d)" value={num(data.mau)} icon={CalendarDays} />
+              <Kpi label="All-Time Wallets" value={num(data.allTimeWallets)} icon={Users} accent />
+            </div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-3">
+              Daily Active Wallets · Last 30 Days
+            </p>
+            <div className="h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.dailyWallets} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 10 }}
+                    stroke="currentColor"
+                    className="text-muted-foreground"
+                    interval="preserveStartEnd"
+                    minTickGap={24}
+                  />
+                  <YAxis tick={{ fontSize: 10 }} stroke="currentColor" className="text-muted-foreground" width={32} allowDecimals={false} />
+                  <Tooltip formatter={(v: number) => [num(v), "Wallets"]} contentStyle={chartTooltip} cursor={{ fill: "hsl(var(--muted)/0.3)" }} />
+                  <Bar dataKey="wallets" fill="#19E0E6" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* ===================== VOLUME ===================== */}
+          <div className="border border-border bg-card rounded-sm p-6 mb-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                Swap Volume · Last 30 Days
-              </h2>
+              <SectionTitle icon={Repeat}>Swap Volume · Last 30 Days</SectionTitle>
               <span className="text-[10px] font-mono text-muted-foreground">
                 {num(data.daily.reduce((s, d) => s + d.swaps, 0))} swaps ·{" "}
                 {usd(data.daily.reduce((s, d) => s + d.volumeUsd, 0))}
@@ -151,61 +228,40 @@ const Analytics = () => {
                     width={48}
                     tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`)}
                   />
-                  <Tooltip
-                    formatter={(v: number) => [usd2(v), "Volume"]}
-                    contentStyle={{
-                      background: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: 6,
-                      fontSize: 12,
-                    }}
-                  />
+                  <Tooltip formatter={(v: number) => [usd2(v), "Volume"]} contentStyle={chartTooltip} />
                   <Area type="monotone" dataKey="volumeUsd" stroke="#19E0E6" strokeWidth={2} fill="url(#vol)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Volume + TVL breakdown */}
+          {/* Volume breakdown + TVL */}
           <div className="grid md:grid-cols-2 gap-6 mb-10">
             <div className="border border-border bg-card rounded-sm p-6">
-              <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-4 flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" /> Volume by Source
-              </h2>
+              <SectionTitle icon={BarChart3}>Volume by Source</SectionTitle>
               <Row label="Swaps" value={usd2(data.swapVolumeUsd)} sub={`${num(data.swapCount)} trades`} />
-              <Row label="USDC → EURC" value={usd2(data.usdcToEurcUsd)} />
-              <Row label="EURC → USDC" value={usd2(data.eurcToUsdcUsd)} />
-              <Row label="Liquidity" value={usd2(data.liquidityVolumeUsd)} sub={`${num(data.liquidityCount)} events`} />
+              <Row label="· USDC → EURC" value={usd2(data.usdcToEurcUsd)} />
+              <Row label="· EURC → USDC" value={usd2(data.eurcToUsdcUsd)} />
+              <Row label="Pool Liquidity" value={usd2(data.liquidityVolumeUsd)} sub={`${num(data.liquidityCount)} events`} />
               <Row label="Vaults" value={usd2(data.vaultVolumeUsd)} sub={`${num(data.vaultTxCount)} txns`} />
-              <Row label="Total" value={usd2(data.totalVolumeUsd)} />
+              <Row label="Bridge (CCTP)" value={usd2(data.bridgeVolumeUsd)} sub={`${num(data.bridgeCount)} recent burns`} />
+              <Row label="Total Volume" value={usd2(data.totalVolumeUsd)} strong />
             </div>
 
             <div className="border border-border bg-card rounded-sm p-6">
-              <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-4 flex items-center gap-2">
-                <Layers className="h-4 w-4" /> Total Value Locked
-              </h2>
+              <SectionTitle icon={Layers}>Total Value Locked</SectionTitle>
               <Row label="StableSwap Pool" value={usd2(data.poolTvlUsd)} />
-              <Row label="· USDC reserve" value={`${num(Math.round(data.poolUsdc))}`} />
-              <Row label="· EURC reserve" value={`${num(Math.round(data.poolEurc))}`} />
+              <Row label="· USDC reserve" value={num(Math.round(data.poolUsdc))} />
+              <Row label="· EURC reserve" value={num(Math.round(data.poolEurc))} />
               <Row label="Yield Vaults" value={usd2(data.vaultTvlUsd)} />
-              <Row label="Pool APR" value={`${data.poolAprPct.toFixed(2)}%`} sub={`${data.poolFeePct}% fee`} />
-              <Row label="Total TVL" value={usd2(data.totalTvlUsd)} />
+              <Row label="Pool APR" value={`${data.poolAprPct.toFixed(2)}%`} sub={`${data.poolFeePct}% swap fee`} />
+              <Row label="Total TVL" value={usd2(data.totalTvlUsd)} strong />
             </div>
-          </div>
-
-          {/* Active wallets */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-10">
-            <Kpi label="Daily Active" value={num(data.dau)} icon={Users} />
-            <Kpi label="Weekly Active" value={num(data.wau)} icon={Users} />
-            <Kpi label="Monthly Active" value={num(data.mau)} icon={Users} />
-            <Kpi label="All-Time Active" value={num(data.allTimeWallets)} icon={Users} />
           </div>
 
           {/* Vault performance */}
           <div className="border border-border bg-card rounded-sm p-6 mb-10">
-            <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-4 flex items-center gap-2">
-              <Sprout className="h-4 w-4" /> Vault Performance · Auto-Compounding
-            </h2>
+            <SectionTitle icon={Sprout}>Vault Performance · Auto-Compounding</SectionTitle>
             <div className="grid sm:grid-cols-2 gap-6">
               {data.vaults.map((v) => (
                 <div key={v.symbol} className="border border-border rounded-sm p-4 bg-muted/10">
@@ -221,50 +277,36 @@ const Analytics = () => {
             </div>
           </div>
 
-          {/* CCTP + chain links */}
+          {/* Bridge + contracts */}
           <div className="grid md:grid-cols-2 gap-6 mb-10">
             <div className="border border-border bg-card rounded-sm p-6">
-              <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-4 flex items-center gap-2">
-                <ArrowLeftRight className="h-4 w-4" /> Cross-Chain · CCTP
-              </h2>
-              <Row
-                label="Arc CCTP Messages"
-                value={data.cctpMessages != null ? num(data.cctpMessages) : "—"}
-                sub="Outbound burns via Circle CCTP v2"
-              />
+              <SectionTitle icon={ArrowLeftRight}>Cross-Chain · Circle CCTP v2</SectionTitle>
+              <Row label="Bridge Volume (recent)" value={usd2(data.bridgeVolumeUsd)} />
+              <Row label="Burns (recent)" value={num(data.bridgeCount)} />
               <p className="text-[10px] text-muted-foreground leading-relaxed mt-3">
-                Lunex routes cross-chain USDC through Circle's Cross-Chain Transfer Protocol. CCTP flows are
-                shared Arc-wide infrastructure, so this reflects total Arc CCTP activity.
+                Lunex routes cross-chain USDC via Circle's Cross-Chain Transfer Protocol. CCTP is shared Arc-wide
+                infrastructure, so this samples recent on-chain burn flow; the full historical series is published in
+                the Dune dashboard.
               </p>
             </div>
             <div className="border border-border bg-card rounded-sm p-6">
-              <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-4 flex items-center gap-2">
-                <Droplets className="h-4 w-4" /> Protocol Contracts
-              </h2>
-              <a
-                href={`${EXPLORER_URL}/address/0xC24BFc8e4b10500a72A63Bec98CCC989CbDA41d8`}
-                target="_blank"
-                rel="noreferrer"
-                className="block text-xs font-mono text-primary hover:underline py-1.5"
-              >
-                StableSwap Pool ↗
-              </a>
-              <a
-                href={`${EXPLORER_URL}/address/0x66CF9CA9D75FD62438C6E254bA35E61775EF9496`}
-                target="_blank"
-                rel="noreferrer"
-                className="block text-xs font-mono text-primary hover:underline py-1.5"
-              >
-                luneUSDC Vault ↗
-              </a>
-              <a
-                href={`${EXPLORER_URL}/address/0xcF2C839B12ECf6D9eEcd4607521B73fcFb7E8713`}
-                target="_blank"
-                rel="noreferrer"
-                className="block text-xs font-mono text-primary hover:underline py-1.5"
-              >
-                luneEURC Vault ↗
-              </a>
+              <SectionTitle icon={Droplets}>Protocol Contracts</SectionTitle>
+              {[
+                ["StableSwap Pool", "0xC24BFc8e4b10500a72A63Bec98CCC989CbDA41d8"],
+                ["luneUSDC Vault", "0x66CF9CA9D75FD62438C6E254bA35E61775EF9496"],
+                ["luneEURC Vault", "0xcF2C839B12ECf6D9eEcd4607521B73fcFb7E8713"],
+              ].map(([label, addr]) => (
+                <a
+                  key={addr}
+                  href={`${EXPLORER_URL}/address/${addr}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between text-xs font-mono text-primary hover:underline py-2 border-b border-border last:border-0"
+                >
+                  <span>{label}</span>
+                  <span className="text-muted-foreground">↗</span>
+                </a>
+              ))}
             </div>
           </div>
 
