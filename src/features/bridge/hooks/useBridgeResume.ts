@@ -69,10 +69,50 @@ function extractBurnAmountFromMessage(messageBytes: `0x${string}`): string {
   }
 }
 
-function createChainClient(chainKey: BridgeChainKey) {
+function createChainClient(chainKey: BridgeChainKey, rpcUrl?: string) {
   return createPublicClient({
-    transport: http(BRIDGE_CHAINS[chainKey].rpcUrl),
+    transport: http(rpcUrl ?? BRIDGE_CHAINS[chainKey].rpcUrl),
   });
+}
+
+// Public RPCs flake/rate-limit, which would make a valid hash look "not found".
+// Try several per chain so recovery works across all supported networks.
+const FALLBACK_RPCS: Record<BridgeChainKey, string[]> = {
+  ethereum: ["https://eth-sepolia.public.blastapi.io", "https://ethereum-sepolia-rpc.publicnode.com", "https://rpc.sepolia.org", "https://1rpc.io/sepolia"],
+  base: ["https://base-sepolia-rpc.publicnode.com", "https://sepolia.base.org", "https://base-sepolia.gateway.tenderly.co"],
+  arbitrum: ["https://sepolia-rollup.arbitrum.io/rpc", "https://arbitrum-sepolia-rpc.publicnode.com"],
+  avalanche: ["https://avalanche-fuji-c-chain-rpc.publicnode.com", "https://api.avax-test.network/ext/bc/C/rpc"],
+  polygon: ["https://rpc-amoy.polygon.technology", "https://polygon-amoy-bor-rpc.publicnode.com"],
+  arc: ["https://rpc.testnet.arc.network"],
+};
+
+function isNotFoundError(e: unknown): boolean {
+  const s = String((e as { name?: string; message?: string })?.name ?? "") + " " + String((e as { message?: string })?.message ?? "");
+  return /not\s*be?\s*found|notfound|could not be found/i.test(s);
+}
+
+/**
+ * Look up a tx receipt on one chain, trying each fallback RPC. Returns the
+ * receipt+tx when found, or null when the tx is genuinely not on this chain.
+ * A "not found" reply ends the chain early; transient RPC errors fall through
+ * to the next RPC so a flaky endpoint can't mask a valid hash.
+ */
+async function findOnChain(chainKey: BridgeChainKey, hash: `0x${string}`) {
+  for (const rpc of FALLBACK_RPCS[chainKey]) {
+    try {
+      const client = createChainClient(chainKey, rpc);
+      const receipt = await client.getTransactionReceipt({ hash });
+      if (receipt) {
+        let tx: unknown = null;
+        try { tx = await client.getTransaction({ hash }); } catch { /* optional */ }
+        return { receipt, tx, chainKey };
+      }
+    } catch (e) {
+      if (isNotFoundError(e)) return null; // definitively not on this chain
+      // else transient RPC error — try the next fallback RPC
+    }
+  }
+  return null;
 }
 
 async function getIrisMessage(sourceDomain: number, txHash: string) {
@@ -147,29 +187,20 @@ export function useBridgeResume() {
     setErrorVisible(null);
 
     try {
-      const chainsToTry: BridgeChainKey[] = [...BRIDGE_CHAIN_KEYS];
-      let receipt: any = null;
-      let tx: any = null;
-      let matchedChain: BridgeChainKey | null = null;
+      // Scan all supported chains in parallel (each with RPC fallbacks), then
+      // pick the match in canonical order. This works for a hash from any of the
+      // 6 networks and isn't defeated by a single flaky RPC.
+      const settled = await Promise.all(
+        BRIDGE_CHAIN_KEYS.map((key) => findOnChain(key, inputTxHash as `0x${string}`).catch(() => null)),
+      );
+      const match = settled.find(Boolean);
 
-      for (const chainKey of chainsToTry) {
-        try {
-          const client = createChainClient(chainKey);
-          receipt = await client.getTransactionReceipt({ hash: inputTxHash as `0x${string}` });
-          if (receipt) {
-            // Also get the actual transaction to extract sender
-            try {
-              tx = await client.getTransaction({ hash: inputTxHash as `0x${string}` });
-            } catch { /* optional */ }
-            matchedChain = chainKey;
-            break;
-          }
-        } catch { continue; }
-      }
-
-      if (!receipt || !matchedChain) {
+      if (!match) {
         throw new Error("Transaction not found on any supported chain. Please verify the hash.");
       }
+      const receipt = match.receipt as any;
+      const tx = match.tx as any;
+      const matchedChain = match.chainKey;
 
       // Record the original sender for display. We do NOT block on a mismatch:
       // Lunex burns set destinationCaller = zeroHash, so ANY wallet may submit

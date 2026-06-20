@@ -7,10 +7,8 @@ import { useSectionHistory } from "@/hooks/useSectionHistory";
 import { SectionHistory } from "@/components/SectionHistory";
 import EmptyState from "@/components/EmptyState";
 import BackButton from "@/components/BackButton";
-import { useUnifiedBalance } from "@/features/bridge/hooks/useUnifiedBalance";
 import { Loader2 } from "lucide-react";
 // import { NotifyPanel } from "@/components/NotifyPanel"; // disabled for this release
-import { UnifiedBalanceCard } from "@/features/bridge/components/UnifiedBalanceCard";
 
 const ACTIVITY_COLUMNS = [
   { key: "action", label: "Action" },
@@ -33,18 +31,6 @@ const Dashboard = () => {
     .slice(0, 5)
     .map(tx => ({ ...tx, data: { ...tx.data, action: tx.type.replace("_", " ").toUpperCase(), detail: Object.entries(tx.data).filter(([k]) => k !== "action").map(([k, v]) => `${k}: ${v}`).join(", ") } }));
 
-  const {
-    formattedTotal: globalBalance,
-    isLoading: globalBalanceLoading,
-    balancesByChain,
-    gatewayByChain,
-    gatewayTotal,
-    gatewayPendingTotal,
-    gatewayError,
-    isGatewayLoading,
-    refetch: refetchUnifiedBalance,
-  } = useUnifiedBalance();
-
   const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const hasPoolPosition = pool.lpBalanceRaw > 0n;
   const userUsdcValue = pool.lpTotalSupply > 0 ? (pool.lpBalance / pool.lpTotalSupply) * pool.usdcReserve : 0;
@@ -61,27 +47,15 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="container max-w-5xl mx-auto py-16 px-4">
+    <div className="container max-w-5xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
       <div className="mb-10">
         <BackButton />
         <h1 className="text-3xl font-bold tracking-tight mt-6 uppercase">Portfolio Overview</h1>
         <p className="text-muted-foreground text-sm font-mono mt-1">Consolidated view of your protocol assets and performance</p>
       </div>
 
-      <div className="grid lg:grid-cols-4 gap-8">
-         <div className="lg:col-span-3 space-y-8">
-            <UnifiedBalanceCard
-              walletTotal={globalBalance}
-              gatewayTotal={gatewayTotal}
-              gatewayPendingTotal={gatewayPendingTotal}
-              balancesByChain={balancesByChain}
-              gatewayByChain={gatewayByChain}
-              loading={globalBalanceLoading}
-              gatewayLoading={isGatewayLoading}
-              gatewayError={gatewayError}
-              onRefresh={refetchUnifiedBalance}
-            />
-
+      <div className="space-y-8">
+         <div className="space-y-8">
             {/* Asset Allocation */}
             <section className="border border-border bg-card rounded-sm overflow-hidden shadow-sm">
                <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center justify-between">
@@ -90,14 +64,6 @@ const Dashboard = () => {
                      <span className="text-[10px] font-bold uppercase tracking-widest">Protocol Balances</span>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
-                       <span className="text-[8px] font-bold uppercase tracking-widest text-primary">Unified Global:</span>
-                       {globalBalanceLoading ? (
-                         <Loader2 className="h-2 w-2 animate-spin text-primary" />
-                       ) : (
-                         <span className="text-[9px] font-bold font-mono text-primary">${globalBalance}</span>
-                       )}
-                    </div>
                     <span className="text-[10px] text-muted-foreground font-mono">Net Worth: ${fmt((balances.USDC.balance?.formatted ? parseFloat(balances.USDC.balance.formatted) : 0) + (balances.EURC.balance?.formatted ? parseFloat(balances.EURC.balance.formatted) : 0) + userUsdcValue + userEurcValue + usdcVault.userDeposited + eurcVault.userDeposited)}</span>
                   </div>
                </div>
@@ -195,10 +161,6 @@ const Dashboard = () => {
 
             {/* Lunex Notify panel disabled for this release. */}
             {/* <NotifyPanel /> */}
-         </div>
-
-         <div className="space-y-6">
-            {/* Sidebar metrics removed per request */}
          </div>
       </div>
     </div>

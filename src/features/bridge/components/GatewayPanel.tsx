@@ -3,7 +3,7 @@ import { ArrowRight, Loader2, Zap, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChainSelector } from "./ChainSelector";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { BridgeWalletBar } from "./BridgeWalletBar";
 import { useGateway } from "../hooks/useGateway";
 import { useUnifiedBalance } from "../hooks/useUnifiedBalance";
 import { useWallet } from "@/context/WalletProvider";
@@ -20,7 +20,6 @@ const fmtFee = (fee: any) => {
 export function GatewayPanel() {
   const gateway = useGateway();
   const { circle, uc, hasInjected } = useWallet();
-  const { openConnectModal } = useConnectModal();
   const isCircleWallet = Boolean(circle || uc);
   // Gateway needs a real multi-chain EOA. A Circle user can connect one via
   // RainbowKit (injected or WalletConnect/mobile) without losing their session.
@@ -85,20 +84,11 @@ export function GatewayPanel() {
           </p>
         </div>
 
-        {needsInjected && (
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-3 space-y-2.5">
-            <p className="text-[11px] leading-relaxed text-amber-500">
-              {isCircleWallet
-                ? "Gateway works across multiple chains, so it needs a browser wallet like MetaMask. Your Lunex passkey/email wallet only works on Arc — connect one to use Gateway (your Circle session stays active)."
-                : "Gateway works across multiple chains. Connect a browser wallet like MetaMask to deposit and spend your unified USDC balance."}
-            </p>
-            <Button
-              onClick={() => openConnectModal?.()}
-              className="h-9 w-full gap-2 font-black uppercase tracking-widest text-[10px]"
-            >
-              Connect wallet
-            </Button>
-          </div>
+        <BridgeWalletBar usdc={srcUsdc.toFixed(2)} chainLabel={BRIDGE_CHAINS[fromChain].label} />
+        {needsInjected && isCircleWallet && (
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            Gateway is multi-chain, so it needs a browser wallet — your Lunex passkey/email session stays active.
+          </p>
         )}
 
         {gateway.gatewayBalance != null && (

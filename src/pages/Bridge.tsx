@@ -11,6 +11,7 @@ import { BridgeProgress } from "@/features/bridge/components/BridgeProgress";
 import { BridgeHistory } from "@/features/bridge/components/BridgeHistory";
 import { BridgeRecoveryPanel } from "@/features/bridge/components/BridgeRecoveryPanel";
 import { GatewayPanel } from "@/features/bridge/components/GatewayPanel";
+import { BridgeWalletBar } from "@/features/bridge/components/BridgeWalletBar";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type BridgeChainKey, BRIDGE_CHAINS, getExplorerTxUrl } from "@/features/bridge/config/bridgeConfig";
@@ -143,6 +144,11 @@ const Bridge = () => {
         </TabsList>
 
         <TabsContent value="bridge" className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <BridgeWalletBar
+            usdc={Number(formatUnits(sourceBalanceData?.usdc ?? 0n, sourceDecimals)).toFixed(2)}
+            eurc={eurcSupported ? Number(formatUnits(sourceBalanceData?.eurc ?? 0n, sourceDecimals)).toFixed(2) : undefined}
+            chainLabel={sourceChainConfig.label}
+          />
           <div className="grid lg:grid-cols-2 gap-8">
             <div className="space-y-6">
               <div className="space-y-3">
@@ -356,7 +362,8 @@ const Bridge = () => {
           <GatewayPanel />
         </TabsContent>
 
-        <TabsContent value="recovery">
+        <TabsContent value="recovery" className="space-y-6">
+          <BridgeWalletBar showBalances={false} />
           <BridgeRecoveryPanel />
         </TabsContent>
 

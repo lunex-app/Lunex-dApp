@@ -78,10 +78,42 @@ export function topicAddress(log: ExplorerLog, topicIndex: number): string | nul
   return ("0x" + t.slice(26)).toLowerCase();
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Fetch one page of logs. Returns the rows (possibly empty = genuine end of
+ * results). Retries transient failures (network error, rate-limit, error
+ * string) with backoff, and THROWS if the page can't be fetched after retries —
+ * so callers never silently treat a transient failure as "no more data" (which
+ * would make totals fluctuate between refreshes).
+ */
+async function fetchLogPage(url: string): Promise<ExplorerLog[]> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const res = await fetch(url);
+      const json = (await res.json()) as { result?: ExplorerLog[] | string; message?: string };
+      if (Array.isArray(json.result)) return json.result; // success (may be empty)
+      const msg = String(json.message ?? "").toLowerCase();
+      // Blockscout returns this for an empty range — a legitimate end, not an error.
+      if (msg.includes("no records") || msg.includes("not found")) return [];
+      lastErr = new Error(json.message || "explorer returned a non-array result");
+    } catch (e) {
+      lastErr = e;
+    }
+    await sleep(400 * (attempt + 1)); // 0.4s, 0.8s, 1.2s, 1.6s backoff
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("explorer page request failed");
+}
+
 /**
  * Fetch every log of `topic0` emitted by `address` since `fromBlock`, paginating
  * through the explorer (it returns at most 1000 rows): advance `fromBlock` past
  * the last block seen and de-duplicate overlapping rows by (txHash, logIndex).
+ *
+ * Deterministic: a complete scan always returns the same set. Page failures are
+ * retried; if a page ultimately fails the whole call throws (callers keep their
+ * last-good value) rather than returning a partial — so totals don't fluctuate.
  */
 export async function fetchAllLogs(
   address: string,
@@ -98,15 +130,7 @@ export async function fetchAllLogs(
     const url =
       `${EXPLORER_URL}/api?module=logs&action=getLogs` +
       `&address=${address}&topic0=${topic0}${extraQuery}&fromBlock=${cursor}&toBlock=latest`;
-    let rows: ExplorerLog[] = [];
-    try {
-      const res = await fetch(url);
-      const json = (await res.json()) as { result?: ExplorerLog[] | string };
-      if (!Array.isArray(json.result)) break; // "No records found" or an error string
-      rows = json.result;
-    } catch {
-      break;
-    }
+    const rows = await fetchLogPage(url); // throws on unrecoverable failure
     if (rows.length === 0) break;
 
     let maxBlock = cursor;
