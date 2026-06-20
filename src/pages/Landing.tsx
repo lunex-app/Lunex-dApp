@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, DollarSign, BarChart3 } from "lucide-react";
+import { ArrowRight, DollarSign, BarChart3, ArrowLeftRight, ShieldCheck, Zap, Sprout, Repeat, Fingerprint } from "lucide-react";
 import FaucetBanner from "@/components/FaucetBanner";
 import { usePoolData } from "@/hooks/usePoolData";
 import { useVaultData } from "@/hooks/useVaultData";
@@ -26,12 +26,19 @@ const Landing = () => {
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 grid-bg opacity-30" />
         <div className="container relative py-28 md:py-40 text-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-6">
+            <span className="flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse" /> Live on Arc Testnet · Powered by Circle
+          </span>
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight uppercase leading-none mb-6">
             <span className="text-foreground whitespace-nowrap">Stable</span>
             <span className="text-primary whitespace-nowrap">Swap</span>
           </h1>
-          <p className="text-muted-foreground text-base md:text-lg max-w-lg mx-auto mb-10 leading-relaxed">
-            Curve-style StableSwap AMM optimised for USDC/EURC pairs with minimal slippage on Arc Network.
+          <p className="text-muted-foreground text-base md:text-lg max-w-xl mx-auto mb-4 leading-relaxed">
+            The stablecoin liquidity hub for the dollar-and-euro economy. Swap USDC/EURC at near-zero slippage,
+            bridge across 6 chains with Circle CCTP, and earn auto-compounding yield — all gas-paid in USDC on Arc.
+          </p>
+          <p className="text-muted-foreground/70 text-xs md:text-sm max-w-lg mx-auto mb-10">
+            No seed phrases. Sign in with a passkey or email and transact gaslessly in seconds.
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
             <Link to="/dashboard" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 text-sm font-semibold tracking-wider uppercase hover:bg-primary/90 transition-colors w-full sm:w-auto justify-center">
@@ -74,6 +81,56 @@ const Landing = () => {
               <p className="text-xs text-muted-foreground tracking-wider">TOTAL VOLUME</p>
               <p className="text-lg sm:text-xl font-bold font-mono tabular-nums break-all">${fmt(totalVolume)}</p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Why Lunex */}
+      <section className="container pb-20">
+        <div className="text-center mb-12">
+          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary mb-3">Why Lunex</p>
+          <h2 className="text-2xl md:text-3xl font-bold uppercase tracking-tight">Built for stablecoins, end to end</h2>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-border">
+          {[
+            { icon: Repeat, title: "StableSwap AMM", body: "A Curve-style invariant tuned for the 1:1 peg — deep liquidity and minimal price impact on USDC/EURC." },
+            { icon: ArrowLeftRight, title: "Native CCTP Bridge", body: "Move real USDC across 6 chains with Circle's Cross-Chain Transfer Protocol — burn-and-mint, zero wrapped risk." },
+            { icon: Sprout, title: "Auto-Compounding Vaults", body: "ERC-4626 vaults that reinvest swap fees automatically. Deposit once and let yield compound." },
+            { icon: Fingerprint, title: "Passwordless Wallets", body: "Circle passkey & email wallets with gasless transactions — onboard users without seed phrases or gas." },
+          ].map((f) => (
+            <div key={f.title} className="bg-background p-6 group hover:bg-card transition-colors">
+              <div className="flex h-10 w-10 items-center justify-center bg-primary/10 mb-4"><f.icon className="h-5 w-5 text-primary" /></div>
+              <h3 className="text-sm font-bold uppercase tracking-wide mb-2">{f.title}</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">{f.body}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Trust band */}
+        <div className="mt-12 border border-border bg-card/40 rounded-sm p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-start gap-4 max-w-xl text-center md:text-left">
+            <ShieldCheck className="hidden md:block h-8 w-8 text-primary shrink-0" />
+            <div>
+              <h3 className="text-base font-bold uppercase tracking-tight mb-1">Institution-grade rails</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Lunex runs on Arc, Circle's payments L1 with USDC-denominated gas and sub-second finality, and settles
+                cross-chain through Circle's native CCTP. Every metric on this site is verifiable on-chain.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-6 shrink-0">
+            <div className="text-center">
+              <Zap className="h-5 w-5 text-primary mx-auto mb-1" />
+              <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Sub-second<br />finality</p>
+            </div>
+            <div className="text-center">
+              <DollarSign className="h-5 w-5 text-primary mx-auto mb-1" />
+              <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">USDC<br />gas</p>
+            </div>
+            <Link to="/stats" className="text-center group">
+              <BarChart3 className="h-5 w-5 text-primary mx-auto mb-1" />
+              <p className="text-[9px] font-bold uppercase tracking-widest text-primary group-hover:underline">Live<br />analytics</p>
+            </Link>
           </div>
         </div>
       </section>
