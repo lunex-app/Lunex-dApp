@@ -9,7 +9,7 @@ import EmptyState from "@/components/EmptyState";
 import BackButton from "@/components/BackButton";
 import { useUnifiedBalance } from "@/features/bridge/hooks/useUnifiedBalance";
 import { Loader2 } from "lucide-react";
-import { NotifyPanel } from "@/components/NotifyPanel";
+// import { NotifyPanel } from "@/components/NotifyPanel"; // disabled for this release
 import { UnifiedBalanceCard } from "@/features/bridge/components/UnifiedBalanceCard";
 
 const ACTIVITY_COLUMNS = [
@@ -193,7 +193,8 @@ const Dashboard = () => {
                <SectionHistory transactions={recentActivity} columns={ACTIVITY_COLUMNS} section="all" />
             </section>
 
-            <NotifyPanel />
+            {/* Lunex Notify panel disabled for this release. */}
+            {/* <NotifyPanel /> */}
          </div>
 
          <div className="space-y-6">

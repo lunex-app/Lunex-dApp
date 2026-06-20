@@ -304,17 +304,8 @@ const Swap = () => {
 
       <div className="border border-border bg-card rounded-sm overflow-visible shadow-sm">
         <div className="p-6 border-b border-border flex justify-between items-center">
-           <div className="flex gap-px bg-border">
-             {(["market", "limit"] as const).map((mode) => (
-               <button
-                 key={mode}
-                 onClick={() => setOrderMode(mode)}
-                 className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest ${orderMode === mode ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground"}`}
-               >
-                 {mode}
-               </button>
-             ))}
-           </div>
+           {/* Market / Limit order modes are disabled for this release — normal swap only. */}
+           <span className="text-[10px] font-black uppercase tracking-widest text-primary">Swap</span>
            <button onClick={() => setShowSlippage(!showSlippage)} className="text-muted-foreground hover:text-primary transition-colors">
              <Settings className="h-4 w-4" />
            </button>
@@ -474,6 +465,7 @@ const Swap = () => {
         </div>
       </div>
 
+      {/* Limit orders list disabled for this release — normal swap only.
       {isConnected && evaluatedOrders.length > 0 && (
         <div className="mt-8 border border-border bg-card rounded-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-border flex items-center gap-2">
@@ -514,6 +506,7 @@ const Swap = () => {
           </div>
         </div>
       )}
+      */}
 
       <div className="mt-12">
         <h3 className="text-[10px] font-bold tracking-[0.3em] uppercase mb-6 text-muted-foreground border-b border-border pb-4">Transaction History</h3>

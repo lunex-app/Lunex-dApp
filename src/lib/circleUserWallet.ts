@@ -57,36 +57,81 @@ function brandLogo(): string {
   return `${origin}/lunex-logo.png`;
 }
 
+/**
+ * Read the app's current theme so the Circle PIN/OTP ceremony matches what the
+ * user is looking at. ThemeSwitcher toggles a `dark` class on <html> and
+ * persists "lunex-theme" in localStorage (default = dark).
+ */
+function isDarkTheme(): boolean {
+  if (typeof document !== "undefined" && document.documentElement.classList.contains("dark")) return true;
+  if (typeof document !== "undefined" && document.documentElement.classList.contains("light")) return false;
+  if (typeof localStorage !== "undefined") return localStorage.getItem("lunex-theme") !== "light";
+  return true;
+}
+
+// Cyan accent is shared across both themes.
+const ACCENT = "#19E0E6";
+
+// Deep-navy surfaces for dark mode.
+const DARK_PALETTE = {
+  backdrop: "#04070F",
+  backdropOpacity: 0.7,
+  bg: "#0A1018",
+  divider: "#1B2533",
+  textMain: "#EAF2F8",
+  textMain2: "#EAF2F8",
+  textAuxiliary: "#8CA0B3",
+  textAuxiliary2: "#5C6B7C",
+  textSummary: "#EAF2F8",
+  textSummaryHighlight: ACCENT,
+  textPlaceholder: "#5C6B7C",
+  textInteractive: ACCENT,
+  textDetailToggle: ACCENT,
+  success: "#13C99A",
+  error: "#FF5A5A",
+  pinDotBase: "#0F1722",
+  pinDotBaseBorder: "#243040",
+  pinDotActivated: ACCENT,
+  enteredPinText: "#EAF2F8",
+  inputText: "#EAF2F8",
+  inputBorderFocused: ACCENT,
+  inputBorderFocusedError: "#FF5A5A",
+  inputBg: "#0F1722",
+};
+
+// Clean white surfaces for light mode, dark slate text.
+const LIGHT_PALETTE = {
+  backdrop: "#0A1018",
+  backdropOpacity: 0.45,
+  bg: "#FFFFFF",
+  divider: "#E2E8F0",
+  textMain: "#0A1018",
+  textMain2: "#0A1018",
+  textAuxiliary: "#475569",
+  textAuxiliary2: "#94A3B8",
+  textSummary: "#0A1018",
+  textSummaryHighlight: "#0891A6",
+  textPlaceholder: "#94A3B8",
+  textInteractive: "#0891A6",
+  textDetailToggle: "#0891A6",
+  success: "#0E9F7A",
+  error: "#DC2626",
+  pinDotBase: "#F1F5F9",
+  pinDotBaseBorder: "#CBD5E1",
+  pinDotActivated: "#0891A6",
+  enteredPinText: "#0A1018",
+  inputText: "#0A1018",
+  inputBorderFocused: "#0891A6",
+  inputBorderFocusedError: "#DC2626",
+  inputBg: "#F8FAFC",
+};
+
 /** Apply Lunex branding (logo, palette, typography, copy) to the PIN ceremony. */
 function brandSdk(sdk: W3SSdk): void {
   const logo = brandLogo();
 
-  // Palette mirrors the Lunex dark theme: deep navy surfaces, cyan accents.
-  sdk.setThemeColor({
-    backdrop: "#04070F",
-    backdropOpacity: 0.7,
-    bg: "#0A1018",
-    divider: "#1B2533",
-    textMain: "#EAF2F8",
-    textMain2: "#EAF2F8",
-    textAuxiliary: "#8CA0B3",
-    textAuxiliary2: "#5C6B7C",
-    textSummary: "#EAF2F8",
-    textSummaryHighlight: "#19E0E6",
-    textPlaceholder: "#5C6B7C",
-    textInteractive: "#19E0E6",
-    textDetailToggle: "#19E0E6",
-    success: "#13C99A",
-    error: "#FF5A5A",
-    pinDotBase: "#0F1722",
-    pinDotBaseBorder: "#243040",
-    pinDotActivated: "#19E0E6",
-    enteredPinText: "#EAF2F8",
-    inputText: "#EAF2F8",
-    inputBorderFocused: "#19E0E6",
-    inputBorderFocusedError: "#FF5A5A",
-    inputBg: "#0F1722",
-  });
+  // Match the app's active light/dark theme.
+  sdk.setThemeColor(isDarkTheme() ? DARK_PALETTE : LIGHT_PALETTE);
 
   sdk.setResources({
     securityIntroMain: logo,

@@ -69,10 +69,14 @@ export function clearCachedCredential() {
 async function buildSession(username: string, credential: Credential): Promise<CircleSession> {
   const modularTransport = toModularTransport(`${CLIENT_URL}/${CHAIN_PATH}`, CLIENT_KEY);
   const publicClient = createPublicClient({ chain: arcTestnet, transport: modularTransport });
-   
-  const account = await (toCircleSmartAccount as any)({ client: publicClient, owner: toWebAuthnAccount({ credential }) });
-   
-  const bundler = (createBundlerClient as any)({ account, chain: arcTestnet, transport: modularTransport });
+
+  const account = await (toCircleSmartAccount as any)({ client: publicClient, owner: toWebAuthnAccount({ credential }), name: username });
+
+  // Per Circle's official gasless example, the bundler is created WITHOUT a bound
+  // account — the account is supplied per-call in sendUserOperation. Binding it
+  // here as well makes viem's prepare/paymaster step send conflicting params,
+  // which the Gas Station RPC rejects ("Missing or invalid parameters").
+  const bundler = (createBundlerClient as any)({ chain: arcTestnet, transport: modularTransport });
   return { kind: "passkey", address: account.address as `0x${string}`, username, bundler, account, publicClient };
 }
 

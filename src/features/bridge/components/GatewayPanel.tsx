@@ -18,8 +18,11 @@ const fmtFee = (fee: any) => {
 
 export function GatewayPanel() {
   const gateway = useGateway();
-  const { isInjectedOnly, circle, uc } = useWallet();
+  const { circle, uc, hasInjected, connectInjected, connectingInjected } = useWallet();
   const isCircleWallet = Boolean(circle || uc);
+  // Gateway needs a browser wallet (multi-chain). A Circle user can attach one
+  // on demand without losing their Circle session.
+  const needsInjected = !hasInjected;
   const [mode, setMode] = useState<"deposit" | "spend">("deposit");
   const [transferMode, setTransferMode] = useState<"instant" | "manual">("instant");
   const [amount, setAmount] = useState("");
@@ -34,11 +37,12 @@ export function GatewayPanel() {
   const isBusy = gateway.status === "depositing" || gateway.status === "spending" || gateway.status === "estimating";
   const validAmount = Number(amount) > 0;
 
-  // Load the unified Gateway balance once an injected wallet is available.
+  // Load the unified Gateway balance once a browser wallet is available
+  // (whether it's the only wallet or attached alongside a Circle session).
   const { refreshGatewayBalance } = gateway;
   useEffect(() => {
-    if (isInjectedOnly) refreshGatewayBalance();
-  }, [isInjectedOnly, refreshGatewayBalance]);
+    if (hasInjected) refreshGatewayBalance();
+  }, [hasInjected, refreshGatewayBalance]);
 
   const feeRows = useMemo(() => {
     const fees = (gateway.lastEstimate as any)?.fees;
@@ -79,9 +83,21 @@ export function GatewayPanel() {
           </p>
         </div>
 
-        {isCircleWallet && (
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-500">
-            Gateway works across multiple chains, so it needs a browser wallet like MetaMask. Your Lunex passkey/email wallet only works on Arc — connect a browser wallet to use Gateway.
+        {needsInjected && (
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-3 space-y-2.5">
+            <p className="text-[11px] leading-relaxed text-amber-500">
+              {isCircleWallet
+                ? "Gateway works across multiple chains, so it needs a browser wallet like MetaMask. Your Lunex passkey/email wallet only works on Arc — connect one to use Gateway (your Circle session stays active)."
+                : "Gateway works across multiple chains. Connect a browser wallet like MetaMask to deposit and spend your unified USDC balance."}
+            </p>
+            <Button
+              onClick={() => connectInjected()}
+              disabled={connectingInjected}
+              className="h-9 w-full gap-2 font-black uppercase tracking-widest text-[10px]"
+            >
+              {connectingInjected ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Connect browser wallet
+            </Button>
           </div>
         )}
 
@@ -168,7 +184,7 @@ export function GatewayPanel() {
           {mode === "spend" && (
             <Button
               variant="outline"
-              disabled={!validAmount || isBusy || fromChain === toChain}
+              disabled={!validAmount || isBusy || needsInjected || fromChain === toChain}
               onClick={() => gateway.estimateSpend(fromChain, toChain, amount, transferMode)}
               className="h-12 gap-2 font-black uppercase tracking-widest text-[10px]"
             >
@@ -177,7 +193,7 @@ export function GatewayPanel() {
             </Button>
           )}
           <Button
-            disabled={!validAmount || isBusy || (mode === "spend" && fromChain === toChain)}
+            disabled={!validAmount || isBusy || needsInjected || (mode === "spend" && fromChain === toChain)}
             onClick={runPrimary}
             className="h-12 gap-2 font-black uppercase tracking-widest text-[10px]"
           >

@@ -20,6 +20,7 @@ import YieldOverview from "@/pages/YieldOverview";
 import VaultDetail from "@/pages/VaultDetail";
 import Dashboard from "@/pages/Dashboard";
 import ProtocolStats from "@/pages/ProtocolStats";
+import AnalyticsPage from "@/pages/Analytics";
 import Bridge from "@/pages/Bridge";
 import Docs from "@/pages/Docs";
 import ComingSoon from "@/pages/ComingSoon";
@@ -51,6 +52,7 @@ const AppRoutes = () => {
           <Route path="/bridge" element={<PageTransition><MaintenanceGuard module="maintenance_bridge"><Bridge /></MaintenanceGuard></PageTransition>} />
           <Route path="/dashboard" element={<PageTransition><MaintenanceGuard><Dashboard /></MaintenanceGuard></PageTransition>} />
           <Route path="/stats" element={<PageTransition><MaintenanceGuard><ProtocolStats /></MaintenanceGuard></PageTransition>} />
+          <Route path="/analytics" element={<PageTransition><AnalyticsPage /></PageTransition>} />
           <Route path="/protocol" element={<PageTransition><MaintenanceGuard><ProtocolStats /></MaintenanceGuard></PageTransition>} />
           <Route path="/points" element={<PageTransition><ComingSoon /></PageTransition>} />
           {/* Temporarily disabled for the main release:
