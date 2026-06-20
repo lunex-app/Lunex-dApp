@@ -244,8 +244,11 @@ export async function connectEmailWallet(email: string): Promise<UcSession> {
   let wallet = await walletByToken(userToken);
   if (!wallet) {
     const { challengeId } = await api<{ challengeId: string }>("/api/uc/pin-setup", { userToken });
-    sdk.setAuthentication({ userToken, encryptionKey });
-    await runChallenge(sdk, challengeId); // user sets a 6-digit PIN, wallet is created
+    // Run the "set PIN + create wallet" ceremony on a FRESH SDK instance — the
+    // same pattern ucWrite uses for tx signing. Reusing the login SDK here can
+    // leave the PIN UI un-rendered (its UI flow is consumed by verifyOtp).
+    const pinSdk = await makeSdk(userToken, encryptionKey);
+    await runChallenge(pinSdk, challengeId); // user sets a 6-digit PIN, wallet is created
     for (let i = 0; i < 20 && !wallet; i++) {
       wallet = await walletByToken(userToken);
       if (!wallet) await new Promise((r) => setTimeout(r, 1500));
