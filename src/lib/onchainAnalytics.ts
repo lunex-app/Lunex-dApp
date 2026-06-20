@@ -207,16 +207,19 @@ async function readBridgeFromTreasury(): Promise<{
   }
 }
 
-function loadCache(): ProtocolAnalytics | null {
+// `allowStale` returns the last-good snapshot regardless of age — used as a
+// fallback when a refresh fails, so the UI shows the last accurate numbers
+// instead of partial/zero data.
+function loadCache(allowStale = false): ProtocolAnalytics | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { at: number; data: ProtocolAnalytics };
-    // Only trust a fresh cache whose shape matches the current code (defensive
-    // against an older cached object missing array fields the UI maps over).
+    // Only trust a cache whose shape matches the current code (defensive against
+    // an older cached object missing array fields the UI maps over).
     const d = parsed.data;
     const valid = d && Array.isArray(d.daily) && Array.isArray(d.dailyWallets) && Array.isArray(d.vaults);
-    if (valid && Date.now() - parsed.at < CACHE_TTL_MS) return d;
+    if (valid && (allowStale || Date.now() - parsed.at < CACHE_TTL_MS)) return d;
   } catch {
     /* ignore */
   }
@@ -238,6 +241,7 @@ export async function fetchProtocolAnalytics(force = false): Promise<ProtocolAna
     if (cached) return cached;
   }
 
+  try {
   const [swaps, adds, usdcDep, usdcWd, eurcDep, eurcWd, pool, usdcVault, eurcVault, bridge] =
     await Promise.all([
       fetchAllLogs(CONTRACTS.LUNEX_SWAP_POOL, ARC_TOPICS.tokenExchange),
@@ -365,4 +369,11 @@ export async function fetchProtocolAnalytics(force = false): Promise<ProtocolAna
   };
   saveCache(result);
   return result;
+  } catch (e) {
+    // A page failed after retries — keep the last accurate snapshot rather than
+    // returning partial/zero data. Only rethrow if we have nothing to show.
+    const stale = loadCache(true);
+    if (stale) return stale;
+    throw e;
+  }
 }

@@ -77,13 +77,15 @@ function sumVaultVolume(logs: ExplorerLog[]): number {
   return usd;
 }
 
-function loadCache(): VolumeBreakdown | null {
-  if (memoryCache && Date.now() - memoryCache.at < CACHE_TTL_MS) return memoryCache.data;
+// `allowStale` returns the last-good value regardless of age — used as a fallback
+// when a refresh fails, so the landing never drops to 0 on a transient error.
+function loadCache(allowStale = false): VolumeBreakdown | null {
+  if (memoryCache && (allowStale || Date.now() - memoryCache.at < CACHE_TTL_MS)) return memoryCache.data;
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { at: number; data: VolumeBreakdown };
-    if (Date.now() - parsed.at < CACHE_TTL_MS) {
+    if (allowStale || Date.now() - parsed.at < CACHE_TTL_MS) {
       memoryCache = parsed;
       return parsed.data;
     }
@@ -136,7 +138,8 @@ export async function fetchOnchainVolume(): Promise<VolumeBreakdown> {
     saveCache(breakdown);
     return breakdown;
   } catch {
-    return cached ?? ZERO;
+    // Keep the last accurate value on a transient failure rather than dropping to 0.
+    return loadCache(true) ?? ZERO;
   }
 }
 

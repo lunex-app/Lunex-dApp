@@ -55,35 +55,42 @@ function Sidebar({
   collapsed,
   mobileOpen,
   onNavigate,
+  onToggleCollapse,
 }: {
   collapsed: boolean;
   mobileOpen: boolean;
   onNavigate: () => void;
+  onToggleCollapse: () => void;
 }) {
   return (
     <aside
       className={cn(
         "fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-border bg-background/95 py-4 backdrop-blur-xl transition-all duration-300",
-        collapsed ? "w-[68px]" : "w-[232px]",
+        collapsed ? "w-[64px]" : "w-[196px]",
         "max-lg:transition-transform",
         mobileOpen ? "max-lg:translate-x-0" : "max-lg:-translate-x-full",
       )}
     >
-      <NavLink
-        to="/"
-        onClick={onNavigate}
-        className={cn("mb-6 flex px-4", collapsed ? "flex-col items-center gap-1 px-0" : "items-center gap-2")}
-      >
-        <img src={lunexLogo} alt="LUNEX" className="h-9 w-auto shrink-0" />
-        <span
-          className={cn(
-            "font-bold uppercase text-foreground",
-            collapsed ? "text-[9px] tracking-tight leading-none" : "text-lg tracking-wide",
+      {/* Brand + collapse toggle (toggle lives in the sidebar, not the topbar) */}
+      <div className={cn("mb-5 flex px-3", collapsed ? "flex-col items-center gap-2" : "items-center justify-between")}>
+        <NavLink to="/" onClick={onNavigate} className="flex items-center gap-2 min-w-0">
+          {collapsed ? (
+            <span className="text-[10px] font-black uppercase tracking-tight text-foreground">LUNEX</span>
+          ) : (
+            <>
+              <img src={lunexLogo} alt="LUNEX" className="h-8 w-auto shrink-0" />
+              <span className="text-lg font-bold uppercase tracking-wide text-foreground">Lunex</span>
+            </>
           )}
+        </NavLink>
+        <button
+          onClick={onToggleCollapse}
+          className="hidden h-7 w-7 place-items-center rounded-md border border-border bg-card text-muted-foreground hover:text-foreground lg:grid"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          Lunex
-        </span>
-      </NavLink>
+          {collapsed ? <PanelLeft size={15} /> : <PanelLeftClose size={15} />}
+        </button>
+      </div>
 
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3">
         {NAV.map(({ to, icon: Icon, label }) => (
@@ -115,15 +122,7 @@ function Sidebar({
   );
 }
 
-function Topbar({
-  collapsed,
-  onToggleCollapse,
-  onOpenMobile,
-}: {
-  collapsed: boolean;
-  onToggleCollapse: () => void;
-  onOpenMobile: () => void;
-}) {
+function Topbar({ onOpenMobile }: { onOpenMobile: () => void }) {
   const { pathname } = useLocation();
   const seg = "/" + (pathname.split("/")[1] ?? "");
   const label = PATH_LABELS[seg] ?? pathname.replace("/", "");
@@ -137,23 +136,9 @@ function Topbar({
         >
           <Menu size={18} />
         </button>
-        <button
-          onClick={onToggleCollapse}
-          className="hidden h-9 w-9 place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground lg:grid"
-          aria-label="Collapse sidebar"
-        >
-          {collapsed ? <PanelLeft size={17} /> : <PanelLeftClose size={17} />}
-        </button>
-        <NavLink to="/" className="flex items-center gap-1">
-          <img src={lunexLogo} alt="LUNEX" className="h-7 w-auto shrink-0" />
-          <span className="-ml-0.5 text-base font-bold uppercase tracking-wide text-foreground hover:text-primary transition-colors">LUNEX</span>
-        </NavLink>
-        <span className="hidden font-mono text-xs text-muted-foreground md:inline">/ {label}</span>
+        <span className="font-mono text-xs text-muted-foreground">/ {label}</span>
       </div>
       <div className="flex items-center gap-2 sm:gap-2.5">
-        <span className="hidden rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] uppercase tracking-widest text-primary md:inline">
-          Arc Testnet
-        </span>
         <ThemeSwitcher />
         <WalletButton />
       </div>
@@ -170,24 +155,25 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {mobileOpen && (
         <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
-      <Sidebar collapsed={collapsed} mobileOpen={mobileOpen} onNavigate={() => setMobileOpen(false)} />
+      <Sidebar
+        collapsed={collapsed}
+        mobileOpen={mobileOpen}
+        onNavigate={() => setMobileOpen(false)}
+        onToggleCollapse={() => setCollapsed((c) => !c)}
+      />
 
       {mobileOpen && (
         <button
           onClick={() => setMobileOpen(false)}
-          className="fixed left-[244px] top-4 z-50 grid h-9 w-9 place-items-center rounded-lg border border-border bg-card text-foreground lg:hidden"
+          className="fixed left-[208px] top-4 z-50 grid h-9 w-9 place-items-center rounded-lg border border-border bg-card text-foreground lg:hidden"
           aria-label="Close menu"
         >
           <X size={18} />
         </button>
       )}
 
-      <div className={cn("min-w-0 overflow-x-clip transition-all duration-300", collapsed ? "lg:pl-[68px]" : "lg:pl-[232px]")}>
-        <Topbar
-          collapsed={collapsed}
-          onToggleCollapse={() => setCollapsed((c) => !c)}
-          onOpenMobile={() => setMobileOpen(true)}
-        />
+      <div className={cn("min-w-0 overflow-x-clip transition-all duration-300", collapsed ? "lg:pl-[64px]" : "lg:pl-[196px]")}>
+        <Topbar onOpenMobile={() => setMobileOpen(true)} />
         <main className="min-h-[calc(100vh-3.5rem)]">{children}</main>
       </div>
     </div>
