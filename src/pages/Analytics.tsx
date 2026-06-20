@@ -124,9 +124,6 @@ const Analytics = () => {
         <div>
           <BackButton />
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mt-6">Lunex Protocol Analytics</h1>
-          <p className="text-muted-foreground mt-2 font-mono text-xs uppercase tracking-wider">
-            Live on-chain metrics · Arc Testnet · StableSwap · Vaults · CCTP Bridge
-          </p>
         </div>
         <div className="flex items-center gap-4 mt-6 md:mt-0">
           <div className="text-right">
@@ -244,7 +241,7 @@ const Analytics = () => {
               <Row label="· EURC → USDC" value={usd2(data.eurcToUsdcUsd)} />
               <Row label="Pool Liquidity" value={usd2(data.liquidityVolumeUsd)} sub={`${num(data.liquidityCount)} events`} />
               <Row label="Vaults" value={usd2(data.vaultVolumeUsd)} sub={`${num(data.vaultTxCount)} txns`} />
-              <Row label="Bridge (CCTP)" value={usd2(data.bridgeVolumeUsd)} sub={`${num(data.bridgeCount)} recent burns`} />
+              <Row label="Bridge (CCTP)" value={usd2(data.bridgeVolumeUsd)} sub={`${num(data.bridgeCount)} bridges · 0.1% fee`} />
               <Row label="Total Volume" value={usd2(data.totalVolumeUsd)} strong />
             </div>
 
@@ -281,12 +278,23 @@ const Analytics = () => {
           <div className="grid md:grid-cols-2 gap-6 mb-10">
             <div className="border border-border bg-card rounded-sm p-6">
               <SectionTitle icon={ArrowLeftRight}>Cross-Chain · Circle CCTP v2</SectionTitle>
-              <Row label="Bridge Volume (recent)" value={usd2(data.bridgeVolumeUsd)} />
-              <Row label="Burns (recent)" value={num(data.bridgeCount)} />
+              <Row label="Lunex Bridge Volume" value={usd2(data.bridgeVolumeUsd)} strong />
+              <Row label="Treasury Fees (0.1%)" value={usd2(data.bridgeFeesUsd)} />
+              <Row label="Bridges Settled" value={num(data.bridgeCount)} />
+              <div className="mt-3 pt-3 border-t border-border">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Treasury Wallet</p>
+                <a
+                  href={`${EXPLORER_URL}/address/${data.treasuryAddress}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] font-mono text-primary hover:underline break-all"
+                >
+                  {data.treasuryAddress} ↗
+                </a>
+              </div>
               <p className="text-[10px] text-muted-foreground leading-relaxed mt-3">
-                Lunex routes cross-chain USDC via Circle's Cross-Chain Transfer Protocol. CCTP is shared Arc-wide
-                infrastructure, so this samples recent on-chain burn flow; the full historical series is published in
-                the Dune dashboard.
+                Every Lunex bridge charges a 0.1% protocol fee in USDC to the treasury. Bridge volume is reconstructed
+                from collected treasury fees — isolating Lunex-routed CCTP flow from Arc-wide activity.
               </p>
             </div>
             <div className="border border-border bg-card rounded-sm p-6">

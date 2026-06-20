@@ -24,10 +24,21 @@ export const ARC_TOPICS = {
   // CCTP v2 TokenMessenger — DepositForBurn(address burnToken, uint256 amount,
   //   address depositor, bytes32 mintRecipient, ...). amount = data word 0.
   depositForBurn: "0x0c8c1cbdc5190613ebd485511d4e2812cfa45eecb79d845893331fedad5130a5",
+  // ERC-20 Transfer(address indexed from, address indexed to, uint256 value).
+  transfer: "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
 } as const;
 
 // CCTP v2 sandbox contracts on Arc (shared across testnet chains).
 export const ARC_TOKEN_MESSENGER = "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA";
+
+// Lunex protocol bridge fee: 0.1% of every bridged amount, paid in USDC to the
+// treasury (see useBridge.ts). Lets us isolate Lunex-specific bridge volume.
+export const BRIDGE_FEE_RATE = 0.001;
+
+/** Pad a 20-byte address to a 32-byte topic value (for indexed-arg filtering). */
+export function addressTopic(address: string): string {
+  return "0x" + "0".repeat(24) + address.toLowerCase().replace(/^0x/, "");
+}
 
 // Block the swap pool was deployed at — bounds all-time scans.
 export const POOL_DEPLOY_BLOCK = 31_829_533;
@@ -77,6 +88,7 @@ export async function fetchAllLogs(
   topic0: string,
   fromBlock: number = POOL_DEPLOY_BLOCK,
   maxPages: number = MAX_PAGES,
+  extraQuery = "",
 ): Promise<ExplorerLog[]> {
   const out: ExplorerLog[] = [];
   const seen = new Set<string>();
@@ -85,7 +97,7 @@ export async function fetchAllLogs(
   for (let page = 0; page < maxPages; page++) {
     const url =
       `${EXPLORER_URL}/api?module=logs&action=getLogs` +
-      `&address=${address}&topic0=${topic0}&fromBlock=${cursor}&toBlock=latest`;
+      `&address=${address}&topic0=${topic0}${extraQuery}&fromBlock=${cursor}&toBlock=latest`;
     let rows: ExplorerLog[] = [];
     try {
       const res = await fetch(url);
