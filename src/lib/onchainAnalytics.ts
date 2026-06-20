@@ -22,7 +22,9 @@ import {
 const DAY = 86_400; // seconds
 const SERIES_DAYS = 30;
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const CACHE_KEY = "lunex:onchain-analytics";
+// Versioned: bump when the ProtocolAnalytics shape changes so stale cached
+// objects (missing new fields) are never returned and can't crash the page.
+const CACHE_KEY = "lunex:onchain-analytics:v3";
 
 export interface DailyPoint {
   day: number; // unix seconds, midnight UTC
@@ -210,7 +212,11 @@ function loadCache(): ProtocolAnalytics | null {
     const raw = localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { at: number; data: ProtocolAnalytics };
-    if (Date.now() - parsed.at < CACHE_TTL_MS) return parsed.data;
+    // Only trust a fresh cache whose shape matches the current code (defensive
+    // against an older cached object missing array fields the UI maps over).
+    const d = parsed.data;
+    const valid = d && Array.isArray(d.daily) && Array.isArray(d.dailyWallets) && Array.isArray(d.vaults);
+    if (valid && Date.now() - parsed.at < CACHE_TTL_MS) return d;
   } catch {
     /* ignore */
   }

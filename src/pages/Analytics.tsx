@@ -173,7 +173,7 @@ const Analytics = () => {
             </p>
             <div className="h-48 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.dailyWallets} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+                <BarChart data={data.dailyWallets ?? []} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border" vertical={false} />
                   <XAxis
                     dataKey="label"
@@ -196,13 +196,13 @@ const Analytics = () => {
             <div className="flex items-center justify-between mb-6">
               <SectionTitle icon={Repeat}>Swap Volume · Last 30 Days</SectionTitle>
               <span className="text-[10px] font-mono text-muted-foreground">
-                {num(data.daily.reduce((s, d) => s + d.swaps, 0))} swaps ·{" "}
-                {usd(data.daily.reduce((s, d) => s + d.volumeUsd, 0))}
+                {num((data.daily ?? []).reduce((s, d) => s + d.swaps, 0))} swaps ·{" "}
+                {usd((data.daily ?? []).reduce((s, d) => s + d.volumeUsd, 0))}
               </span>
             </div>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data.daily} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+                <AreaChart data={data.daily ?? []} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
                   <defs>
                     <linearGradient id="vol" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#19E0E6" stopOpacity={0.35} />
@@ -260,7 +260,7 @@ const Analytics = () => {
           <div className="border border-border bg-card rounded-sm p-6 mb-10">
             <SectionTitle icon={Sprout}>Vault Performance · Auto-Compounding</SectionTitle>
             <div className="grid sm:grid-cols-2 gap-6">
-              {data.vaults.map((v) => (
+              {(data.vaults ?? []).map((v) => (
                 <div key={v.symbol} className="border border-border rounded-sm p-4 bg-muted/10">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-bold uppercase tracking-widest">lune{v.symbol}</span>
