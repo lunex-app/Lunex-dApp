@@ -50,7 +50,9 @@ export interface ProtocolAnalytics {
   liquidityVolumeUsd: number;
   vaultVolumeUsd: number;
   bridgeVolumeUsd: number; // Lunex bridge volume, derived from treasury fees
-  bridgeFeesUsd: number; // 0.1% protocol fee collected by the treasury
+  bridgeFeesUsd: number; // 0.1% bridge protocol fee collected by the treasury
+  swapAdminFeesUsd: number; // pool admin fees routed to the treasury
+  treasuryRevenueUsd: number; // total USDC the treasury has received
   totalVolumeUsd: number; // swaps + pool + vaults + bridge
   usdcToEurcUsd: number;
   eurcToUsdcUsd: number;
@@ -144,12 +146,25 @@ async function readVault(address: `0x${string}`, symbol: "USDC" | "EURC"): Promi
 }
 
 /**
- * Lunex bridge volume, isolated from Arc-wide CCTP via the protocol's own fee:
- * every Lunex bridge sends a 0.1% USDC fee to the treasury, so summing USDC
- * Transfer events into the treasury gives the total fees, and dividing by the
- * fee rate recovers the bridged volume that actually flowed through Lunex.
+ * Treasury fee revenue, read from the actual USDC transfers the treasury
+ * received — then classified by sender so bridge fees are isolated from swap
+ * admin fees (the two share the treasury wallet):
+ *
+ *  • Sender = the StableSwap pool  → swap admin fee (a swap, not a bridge).
+ *  • Sender = the zero address     → mint/other, ignored.
+ *  • Sender = any other (an EOA)   → a Lunex bridge fee. Each Lunex bridge sends
+ *    exactly 0.1% of the bridged amount in its own transaction, so that tx's
+ *    bridged amount = fee ÷ 0.001, recovered per-transaction and summed. (A
+ *    wallet's raw CCTP burns can exceed this when it also bridges outside Lunex
+ *    — those non-fee burns are correctly excluded.)
  */
-async function readBridgeFromTreasury(): Promise<{ feesUsd: number; volumeUsd: number; count: number }> {
+async function readBridgeFromTreasury(): Promise<{
+  bridgeFeesUsd: number;
+  bridgeVolumeUsd: number;
+  bridgeCount: number;
+  swapAdminFeesUsd: number;
+  treasuryRevenueUsd: number;
+}> {
   try {
     // USDC Transfer(from, to=treasury, value): filter on topic2 (indexed `to`).
     const logs = await fetchAllLogs(
@@ -159,11 +174,34 @@ async function readBridgeFromTreasury(): Promise<{ feesUsd: number; volumeUsd: n
       undefined,
       `&topic2=${addressTopic(LUNEX_TREASURY)}&topic0_2_opr=and`,
     );
-    let feesUsd = 0;
-    for (const log of logs) feesUsd += Number(logWord(log.data, 0)) / STABLE_DECIMALS;
-    return { feesUsd, volumeUsd: feesUsd / BRIDGE_FEE_RATE, count: logs.length };
+    const pool = CONTRACTS.LUNEX_SWAP_POOL.toLowerCase();
+    const zero = "0x0000000000000000000000000000000000000000";
+    let bridgeFeesUsd = 0;
+    let bridgeCount = 0;
+    let swapAdminFeesUsd = 0;
+    let treasuryRevenueUsd = 0;
+    for (const log of logs) {
+      const amount = Number(logWord(log.data, 0)) / STABLE_DECIMALS;
+      treasuryRevenueUsd += amount;
+      const from = topicAddress(log, 1); // Transfer's indexed `from`
+      if (from === pool) {
+        swapAdminFeesUsd += amount; // swap admin fee, not a bridge
+      } else if (from === zero) {
+        /* mint / other — ignore */
+      } else {
+        bridgeFeesUsd += amount; // standalone bridge-fee transfer from a bridger
+        bridgeCount += 1;
+      }
+    }
+    return {
+      bridgeFeesUsd,
+      bridgeVolumeUsd: bridgeFeesUsd / BRIDGE_FEE_RATE,
+      bridgeCount,
+      swapAdminFeesUsd,
+      treasuryRevenueUsd,
+    };
   } catch {
-    return { feesUsd: 0, volumeUsd: 0, count: 0 };
+    return { bridgeFeesUsd: 0, bridgeVolumeUsd: 0, bridgeCount: 0, swapAdminFeesUsd: 0, treasuryRevenueUsd: 0 };
   }
 }
 
@@ -290,16 +328,18 @@ export async function fetchProtocolAnalytics(force = false): Promise<ProtocolAna
     swapVolumeUsd,
     liquidityVolumeUsd,
     vaultVolumeUsd,
-    bridgeVolumeUsd: bridge.volumeUsd,
-    bridgeFeesUsd: bridge.feesUsd,
-    totalVolumeUsd: swapVolumeUsd + liquidityVolumeUsd + vaultVolumeUsd + bridge.volumeUsd,
+    bridgeVolumeUsd: bridge.bridgeVolumeUsd,
+    bridgeFeesUsd: bridge.bridgeFeesUsd,
+    swapAdminFeesUsd: bridge.swapAdminFeesUsd,
+    treasuryRevenueUsd: bridge.treasuryRevenueUsd,
+    totalVolumeUsd: swapVolumeUsd + liquidityVolumeUsd + vaultVolumeUsd + bridge.bridgeVolumeUsd,
     usdcToEurcUsd,
     eurcToUsdcUsd,
     swapCount: swaps.length,
     liquidityCount: adds.length,
     vaultTxCount: vaultLogs.length,
-    bridgeCount: bridge.count,
-    totalTxCount: swaps.length + adds.length + vaultLogs.length + bridge.count,
+    bridgeCount: bridge.bridgeCount,
+    totalTxCount: swaps.length + adds.length + vaultLogs.length + bridge.bridgeCount,
     poolTvlUsd,
     vaultTvlUsd,
     totalTvlUsd,

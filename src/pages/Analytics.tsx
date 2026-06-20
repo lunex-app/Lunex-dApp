@@ -277,10 +277,11 @@ const Analytics = () => {
           {/* Bridge + contracts */}
           <div className="grid md:grid-cols-2 gap-6 mb-10">
             <div className="border border-border bg-card rounded-sm p-6">
-              <SectionTitle icon={ArrowLeftRight}>Cross-Chain · Circle CCTP v2</SectionTitle>
+              <SectionTitle icon={ArrowLeftRight}>Bridge · Treasury Revenue</SectionTitle>
               <Row label="Lunex Bridge Volume" value={usd2(data.bridgeVolumeUsd)} strong />
-              <Row label="Treasury Fees (0.1%)" value={usd2(data.bridgeFeesUsd)} />
-              <Row label="Bridges Settled" value={num(data.bridgeCount)} />
+              <Row label="Bridge Fees (0.1%)" value={usd2(data.bridgeFeesUsd)} sub={`${num(data.bridgeCount)} bridges`} />
+              <Row label="Swap Admin Fees" value={usd2(data.swapAdminFeesUsd)} />
+              <Row label="Total Treasury Revenue" value={usd2(data.treasuryRevenueUsd)} />
               <div className="mt-3 pt-3 border-t border-border">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Treasury Wallet</p>
                 <a
@@ -293,8 +294,9 @@ const Analytics = () => {
                 </a>
               </div>
               <p className="text-[10px] text-muted-foreground leading-relaxed mt-3">
-                Every Lunex bridge charges a 0.1% protocol fee in USDC to the treasury. Bridge volume is reconstructed
-                from collected treasury fees — isolating Lunex-routed CCTP flow from Arc-wide activity.
+                Lunex charges 0.1% in USDC to the treasury on every bridge. Treasury inflows are read on-chain and
+                classified by sender — bridge fees (from bridgers) vs swap admin fees (from the pool) — so bridge
+                volume reflects only Lunex-routed CCTP flow, computed per transaction as fee ÷ 0.1%.
               </p>
             </div>
             <div className="border border-border bg-card rounded-sm p-6">
