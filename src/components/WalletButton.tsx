@@ -24,6 +24,8 @@ export default function WalletButton() {
     circle,
     uc,
     balance,
+    eurcBalance,
+    network,
     connecting,
     circleEnabled,
     ucEnabled,
@@ -58,7 +60,11 @@ export default function WalletButton() {
           onClick={() => setMenuOpen((o) => !o)}
           className="bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 text-xs font-mono h-8 px-3 gap-2"
         >
-          {balance != null && <span className="hidden sm:inline text-muted-foreground">{balance.toFixed(2)} USDC</span>}
+          {(balance != null || eurcBalance != null) && (
+            <span className="hidden sm:inline text-muted-foreground">
+              {(balance ?? 0).toFixed(2)} USDC · {(eurcBalance ?? 0).toFixed(2)} EURC
+            </span>
+          )}
           <span className="grid h-5 w-5 place-items-center rounded-full bg-primary text-[9px] text-primary-foreground">{tag}</span>
           <span>{shortAddr(address)}</span>
           <ChevronDown className="h-3 w-3 opacity-60" />
@@ -75,10 +81,24 @@ export default function WalletButton() {
                   {copied ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
               </div>
-              <div className="mb-3 rounded-md border border-border bg-background px-3 py-2.5">
-                <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">USDC Balance</div>
-                <div className="font-mono text-lg font-bold text-foreground">{(balance ?? 0).toFixed(2)}</div>
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                <div className="rounded-md border border-border bg-background px-3 py-2.5">
+                  <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">USDC</div>
+                  <div className="font-mono text-base font-bold text-foreground tabular-nums">{(balance ?? 0).toFixed(2)}</div>
+                </div>
+                <div className="rounded-md border border-border bg-background px-3 py-2.5">
+                  <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">EURC</div>
+                  <div className="font-mono text-base font-bold text-foreground tabular-nums">{(eurcBalance ?? 0).toFixed(2)}</div>
+                </div>
               </div>
+              {network && (
+                <div className="mb-3 flex items-center justify-between rounded-md border border-border bg-background px-3 py-2">
+                  <span className="text-[9px] uppercase tracking-widest text-muted-foreground">Network</span>
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary" /> {network}
+                  </span>
+                </div>
+              )}
               {(circle || uc) && (
                 <button
                   onClick={() => {

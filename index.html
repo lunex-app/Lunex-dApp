@@ -19,16 +19,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- Polyfill Node globals some Circle SDK deps (jsonwebtoken/dotenv) expect in the browser. -->
-    <script>
-      window.global = window.global || window;
-      window.process = window.process || {};
-      window.process.env = window.process.env || {};
-      window.process.versions = window.process.versions || {};
-      window.process.browser = true;
-      window.process.version = window.process.version || "";
-      window.process.nextTick = window.process.nextTick || function (cb) { setTimeout(cb, 0); };
-    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

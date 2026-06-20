@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useAccount, useReadContracts } from "wagmi";
+import { useReadContracts } from "wagmi";
 import { createPublicClient, formatUnits, http } from "viem";
 import {
   createUnifiedBalanceKitContext,
@@ -12,9 +12,12 @@ import {
   ERC20_APPROVE_ABI,
   GATEWAY_CIRCLE_CHAINS,
 } from "../config/bridgeConfig";
+import { useWallet } from "@/context/WalletProvider";
 
 export function useUnifiedBalance() {
-  const { address } = useAccount();
+  // Use the active wallet address (Circle smart account or injected) so the
+  // unified balance shows for every login type, not just injected wallets.
+  const { address } = useWallet();
   const [gatewayBalances, setGatewayBalances] = useState<GetBalancesResult | null>(null);
   const [gatewayError, setGatewayError] = useState<string | null>(null);
   const [isGatewayLoading, setIsGatewayLoading] = useState(false);

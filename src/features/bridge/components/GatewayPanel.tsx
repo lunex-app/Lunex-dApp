@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChainSelector } from "./ChainSelector";
 import { useGateway } from "../hooks/useGateway";
+import { useUnifiedBalance } from "../hooks/useUnifiedBalance";
 import { useWallet } from "@/context/WalletProvider";
 import { BRIDGE_CHAINS, type BridgeChainKey } from "../config/bridgeConfig";
+import { formatUnits } from "viem";
 
 const fmtFee = (fee: any) => {
   if (!fee) return "";
@@ -23,6 +25,11 @@ export function GatewayPanel() {
   const [amount, setAmount] = useState("");
   const [fromChain, setFromChain] = useState<BridgeChainKey>("arc");
   const [toChain, setToChain] = useState<BridgeChainKey>("base");
+
+  const { balancesByChain } = useUnifiedBalance();
+  // Gateway is USDC-only; show the wallet's USDC balance on the source chain.
+  const srcUsdcRaw = balancesByChain[fromChain]?.usdc ?? 0n;
+  const srcUsdc = Number(formatUnits(srcUsdcRaw, BRIDGE_CHAINS[fromChain].usdcDecimals));
 
   const isBusy = gateway.status === "depositing" || gateway.status === "spending" || gateway.status === "estimating";
   const validAmount = Number(amount) > 0;
@@ -74,7 +81,7 @@ export function GatewayPanel() {
 
         {isCircleWallet && (
           <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-500">
-            Gateway runs on a browser/injected wallet (e.g. MetaMask). It signs Circle burn-intents and on-chain deposits across chains, which Arc-only Circle smart accounts can't drive — connect an injected wallet to use Gateway.
+            Gateway works across multiple chains, so it needs a browser wallet like MetaMask. Your Lunex passkey/email wallet only works on Arc — connect a browser wallet to use Gateway.
           </div>
         )}
 
@@ -132,7 +139,16 @@ export function GatewayPanel() {
         )}
 
         <div className="space-y-3">
-          <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">USDC Amount</label>
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">USDC Amount</label>
+            <button
+              type="button"
+              onClick={() => setAmount(srcUsdc > 0 ? String(srcUsdc) : "")}
+              className="text-[10px] font-bold uppercase tracking-widest text-primary hover:underline"
+            >
+              Balance: {srcUsdc.toFixed(2)} USDC · Max
+            </button>
+          </div>
           <div className="relative">
             <Input
               type="number"
@@ -143,6 +159,9 @@ export function GatewayPanel() {
             />
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-muted-foreground">USDC</span>
           </div>
+          {validAmount && Number(amount) > srcUsdc && (
+            <p className="text-[10px] text-destructive font-bold uppercase tracking-widest">Amount exceeds your {BRIDGE_CHAINS[fromChain].label} USDC balance</p>
+          )}
         </div>
 
         <div className="grid sm:grid-cols-2 gap-3">

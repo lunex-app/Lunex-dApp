@@ -77,7 +77,7 @@ const App = () => (
       <WalletProvider>
         <TooltipProvider>
           <Toaster />
-          <Sonner position="top-right" theme="dark" />
+          <Sonner position="top-right" theme="dark" offset="72px" />
           <BrowserRouter>
             <AppContent />
           </BrowserRouter>

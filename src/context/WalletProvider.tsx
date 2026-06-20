@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { useAccount } from "wagmi";
+import { arcTestnet } from "@/config/wagmi";
 import {
   circleEnabled,
   registerCircleWallet,
@@ -7,12 +8,14 @@ import {
   restoreCircleWallet,
   clearCachedCredential,
   circleUsdcBalance,
+  circleEurcBalance,
   type CircleSession,
 } from "@/lib/circleWallet";
 import {
   ucWalletEnabled,
   connectEmailWallet as connectEmailWalletLib,
   ucUsdcBalance,
+  ucEurcBalance,
   type UcSession,
 } from "@/lib/circleUserWallet";
 
@@ -50,7 +53,12 @@ type Ctx = {
   circleEnabled: boolean;
   ucEnabled: boolean;
   connecting: boolean;
+  /** USDC balance of the connected wallet (human units). */
   balance: number | null;
+  /** EURC balance of the connected wallet (human units). */
+  eurcBalance: number | null;
+  /** Human-readable name of the wallet's current network. */
+  network: string;
   lastUsername: string | null;
   lastUcEmail: string | null;
   connect: (username: string, mode: "register" | "login") => Promise<void>;
@@ -66,11 +74,12 @@ type Ctx = {
 const WalletCtx = createContext<Ctx | null>(null);
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const { address: injected } = useAccount();
+  const { address: injected, chain: injectedChain } = useAccount();
   const [circle, setCircle] = useState<CircleSession | null>(null);
   const [uc, setUc] = useState<UcSession | null>(() => loadUcSession());
   const [connecting, setConnecting] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
+  const [eurcBalance, setEurcBalance] = useState<number | null>(null);
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const [lastUsername, setLastUsername] = useState<string | null>(() => {
     try {
@@ -140,13 +149,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshBalance = useCallback(() => {
-    if (circle) circleUsdcBalance(circle).then(setBalance).catch(() => setBalance(null));
-    else if (uc) ucUsdcBalance(uc).then(setBalance).catch(() => setBalance(null));
+    if (circle) {
+      circleUsdcBalance(circle).then(setBalance).catch(() => setBalance(null));
+      circleEurcBalance(circle).then(setEurcBalance).catch(() => setEurcBalance(null));
+    } else if (uc) {
+      ucUsdcBalance(uc).then(setBalance).catch(() => setBalance(null));
+      ucEurcBalance(uc).then(setEurcBalance).catch(() => setEurcBalance(null));
+    }
   }, [circle, uc]);
 
   useEffect(() => {
     if (!circle && !uc) {
       setBalance(null);
+      setEurcBalance(null);
       return;
     }
     refreshBalance();
@@ -165,6 +180,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     ucEnabled: ucWalletEnabled(),
     connecting,
     balance,
+    eurcBalance,
+    // Circle wallets (passkey/UC) operate on Arc; injected reports its chain.
+    network: circle || uc ? arcTestnet.name : injectedChain?.name ?? (injected ? "Unknown network" : ""),
     lastUsername,
     lastUcEmail,
     connect,

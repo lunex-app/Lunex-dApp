@@ -30,7 +30,9 @@ export function computeTxStage(s: {
 }): Stage {
   if (s.approveError || s.actionError) return "error";
   if (s.isConfirmed) return "success";
-  if (s.isApproved && s.isAllowanceLoading) return "verifying";
+  // "verifying" only applies AFTER an approval tx was actually submitted — not on
+  // the initial allowance fetch (which would flash the modal on page load).
+  if (s.approveTxHash && s.isApproved && s.isAllowanceLoading) return "verifying";
   if (s.isApproved && !s.isActionPending && !s.actionTxHash && s.approveTxHash) return "approve-success";
   if (s.actionTxHash && s.isActionConfirming) return "action-pending";
   if (s.isActionPending) return "action-wallet";

@@ -292,7 +292,7 @@ const Bridge = () => {
 
               {isCircleWallet && (
                 <div className="mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-500">
-                  Cross-chain bridging needs a browser/injected wallet (e.g. MetaMask). The CCTP bridge spans 6 chains, which Circle's Arc-only smart accounts can't drive — connect an injected wallet to bridge.
+                  Bridging moves USDC between chains, so it needs a browser wallet like MetaMask. Your Lunex passkey/email wallet only works on Arc — connect a browser wallet to bridge.
                 </div>
               )}
               {!isConnected ? (

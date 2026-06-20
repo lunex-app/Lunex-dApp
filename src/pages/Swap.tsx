@@ -290,29 +290,28 @@ const Swap = () => {
       </div>
 
       {isConnected && (
-        <div className="flex flex-col gap-3 mb-6">
-          <div className="flex items-center justify-between px-4 py-3 bg-primary/10 border border-primary/30 rounded-sm">
-            <div className="flex items-center gap-3">
-               <Wallet className="h-4 w-4 text-primary" />
-               <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Global Unified Balance</span>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div className="aspect-square sm:aspect-auto flex flex-col justify-between p-4 bg-primary/10 border border-primary/30 rounded-md">
+            <div className="flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-primary shrink-0" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-primary leading-tight">Unified Balance</span>
             </div>
             {globalBalanceLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin text-primary" />
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
             ) : (
-              <span className="font-mono text-sm font-bold text-primary">
-                {globalBalance} USDC
-              </span>
+              <div>
+                <p className="text-2xl font-bold font-mono text-primary tabular-nums break-all">{globalBalance}</p>
+                <p className="text-[10px] text-primary/70 uppercase tracking-widest font-bold">USDC · all chains</p>
+              </div>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 border border-border bg-card rounded-sm">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-1">USDC Available</p>
-              <p className="text-lg font-bold font-mono">{balances.USDC.formatted}</p>
-            </div>
-            <div className="p-4 border border-border bg-card rounded-sm">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-1">EURC Available</p>
-              <p className="text-lg font-bold font-mono">{balances.EURC.formatted}</p>
-            </div>
+          <div className="flex flex-col justify-between p-4 border border-border bg-card rounded-md min-h-[96px]">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">USDC Available</p>
+            <p className="text-2xl font-bold font-mono tabular-nums break-all">{balances.USDC.formatted}</p>
+          </div>
+          <div className="flex flex-col justify-between p-4 border border-border bg-card rounded-md min-h-[96px]">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">EURC Available</p>
+            <p className="text-2xl font-bold font-mono tabular-nums break-all">{balances.EURC.formatted}</p>
           </div>
         </div>
       )}

@@ -22,12 +22,8 @@ const USDC_ADDRESS = TOKENS.USDC.address;
 const USDC_DECIMALS = TOKENS.USDC.decimals;
 
 const ENV = (import.meta as { env?: Record<string, string> }).env ?? {};
-// Public, domain-allowlisted client-side values — safe in the bundle (Circle
-// gates Modular Wallets by registered origin, not by key secrecy). Defaults let
-// the app work on any deploy even when VITE_* env injection isn't applied; env
-// vars override.
-const CLIENT_KEY = ENV.VITE_CIRCLE_CLIENT_KEY || "TEST_CLIENT_KEY:381a6a62b519383dcda56d32b3293c5d:865a81cbcc62debbdc069494fc939109";
-const CLIENT_URL = ENV.VITE_CIRCLE_CLIENT_URL || "https://modular-sdk.circle.com/v1/rpc/w3s/buidl";
+const CLIENT_KEY = ENV.VITE_CIRCLE_CLIENT_KEY || "";
+const CLIENT_URL = ENV.VITE_CIRCLE_CLIENT_URL || "";
 const CHAIN_PATH = ENV.VITE_CIRCLE_CHAIN_PATH || "arcTestnet";
 
 export function circleEnabled(): boolean {
@@ -107,15 +103,24 @@ export async function restoreCircleWallet(): Promise<CircleSession | null> {
   }
 }
 
-/** USDC balance (human units) for the connected smart account. */
-export async function circleUsdcBalance(session: CircleSession): Promise<number> {
+async function circleTokenBalance(session: CircleSession, token: `0x${string}`, decimals: number): Promise<number> {
   const raw = (await session.publicClient.readContract({
-    address: USDC_ADDRESS,
+    address: token,
     abi: erc20Abi,
     functionName: "balanceOf",
     args: [session.address],
   } as any)) as bigint;
-  return Number(formatUnits(raw, USDC_DECIMALS));
+  return Number(formatUnits(raw, decimals));
+}
+
+/** USDC balance (human units) for the connected smart account. */
+export function circleUsdcBalance(session: CircleSession): Promise<number> {
+  return circleTokenBalance(session, USDC_ADDRESS, USDC_DECIMALS);
+}
+
+/** EURC balance (human units) for the connected smart account. */
+export function circleEurcBalance(session: CircleSession): Promise<number> {
+  return circleTokenBalance(session, TOKENS.EURC.address, TOKENS.EURC.decimals);
 }
 
 export type Call = { address: `0x${string}`; abi: Abi; functionName: string; args: readonly unknown[] };
@@ -124,8 +129,10 @@ export type Call = { address: `0x${string}`; abi: Abi; functionName: string; arg
 export async function circleWrite(session: CircleSession, calls: Call[]): Promise<`0x${string}`> {
   const encoded = calls.map((c) => ({
     to: c.address,
+    value: 0n,
     data: encodeFunctionData({ abi: c.abi, functionName: c.functionName, args: c.args as never }),
   }));
+  // paymaster:true tells the bundler to sponsor gas via Circle's paymaster.
   const hash = await session.bundler.sendUserOperation({
     account: session.account,
     calls: encoded,

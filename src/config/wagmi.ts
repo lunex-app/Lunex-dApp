@@ -3,9 +3,11 @@ import { injected } from "wagmi/connectors";
 import { defineChain } from "viem";
 import { baseSepolia as viemBaseSepolia, sepolia, arbitrumSepolia, avalancheFuji, polygonAmoy } from "viem/chains";
 
+// RPC endpoint comes from env (set VITE_ARC_RPC_URL to your dedicated QuickNode
+// endpoint). Falls back to Arc's public RPC — a public, non-secret URL.
 const ARC_RPC_URL =
   (import.meta as { env?: Record<string, string> }).env?.VITE_ARC_RPC_URL ||
-  "https://practical-frosty-waterfall.arc-testnet.quiknode.pro/2b82adc87d92552ec5e5ab05b388217ac38627d3/";
+  "https://rpc.testnet.arc.network";
 
 export const arcTestnet = defineChain({
   id: 5042002,

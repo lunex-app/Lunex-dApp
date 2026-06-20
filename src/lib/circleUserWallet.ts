@@ -20,10 +20,8 @@ const USDC_DECIMALS = TOKENS.USDC.decimals;
 const ARC_RPC_URL = arcTestnet.rpcUrls.default.http[0];
 
 const ENV = (import.meta as { env?: Record<string, string> }).env ?? {};
-// Public defaults so the app works on any deploy even if VITE_* env injection
-// isn't picked up by the host. Both are public client-side values; env overrides.
-const API_URL = ENV.VITE_API_URL || "https://lunex-backend-production-235e.up.railway.app";
-const APP_ID = ENV.VITE_CIRCLE_UC_APP_ID || "20cba6f1-baa6-5eb9-be94-52edc31a4c43";
+const API_URL = ENV.VITE_API_URL || "";
+const APP_ID = ENV.VITE_CIRCLE_UC_APP_ID || "";
 
 export function ucWalletEnabled(): boolean {
   return Boolean(API_URL && APP_ID);
@@ -212,15 +210,24 @@ export async function connectEmailWallet(email: string): Promise<UcSession> {
   return { kind: "uc", userToken, encryptionKey, walletId: wallet.walletId, address: wallet.address, email: email.trim() };
 }
 
-/** USDC balance (human units) of the user wallet. */
-export async function ucUsdcBalance(session: UcSession): Promise<number> {
+async function ucTokenBalance(session: UcSession, token: `0x${string}`, decimals: number): Promise<number> {
   const raw = (await publicClient.readContract({
-    address: USDC_ADDRESS,
+    address: token,
     abi: erc20Abi,
     functionName: "balanceOf",
     args: [session.address],
   } as any)) as bigint;
-  return Number(formatUnits(raw, USDC_DECIMALS));
+  return Number(formatUnits(raw, decimals));
+}
+
+/** USDC balance (human units) of the user wallet. */
+export function ucUsdcBalance(session: UcSession): Promise<number> {
+  return ucTokenBalance(session, USDC_ADDRESS, USDC_DECIMALS);
+}
+
+/** EURC balance (human units) of the user wallet. */
+export function ucEurcBalance(session: UcSession): Promise<number> {
+  return ucTokenBalance(session, TOKENS.EURC.address, TOKENS.EURC.decimals);
 }
 
 type Call = { address: `0x${string}`; abi: Abi; functionName: string; args: readonly unknown[] };

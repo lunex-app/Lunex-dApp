@@ -4,11 +4,10 @@ import type { Database } from './types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-// Public anon project values — safe in the browser bundle; env overrides.
-const FALLBACK_SUPABASE_URL = "https://wakcwdqeasujtpqrlnkt.supabase.co";
-const FALLBACK_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indha2N3ZHFlYXN1anRwcXJsbmt0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTI2OTksImV4cCI6MjA5MDM4ODY5OX0.FNk_AruC6h80lMwA6zvtwLs17g_3CjfqNXMVKoHyTYI";
+const FALLBACK_SUPABASE_URL = "https://placeholder.supabase.co";
+const FALLBACK_SUPABASE_KEY = "placeholder-anon-key";
 
-export const isSupabaseConfigured = Boolean(SUPABASE_URL || FALLBACK_SUPABASE_URL) && Boolean(SUPABASE_PUBLISHABLE_KEY || FALLBACK_SUPABASE_KEY);
+export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
