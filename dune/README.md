@@ -1,5 +1,15 @@
 # Lunex — Dune Analytics Dashboard
 
+**Live dashboard:** https://dune.com/lunexfinance1264/lunex-protocol-arc-analytics
+
+Built via the Dune MCP with Lunex's on-chain numbers inlined as SQL `VALUES`
+(Arc isn't natively on Dune). It's a point-in-time snapshot; to refresh, re-run
+`node scripts/dune-build-data.mjs` and update the query `VALUES`. The
+upload-CSV path below is an alternative for a self-refreshing dataset.
+
+---
+
+
 Arc Testnet isn't natively indexed by Dune, so this folder uses Dune's
 **custom data** feature: export Lunex's on-chain activity to CSVs, upload them,
 then build the dashboard from `queries.sql`. The numbers match the in-app
