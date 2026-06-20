@@ -3,7 +3,6 @@ import { DollarSign, Droplets, Shield, BarChart3, TrendingUp, Loader2 } from "lu
 import { usePoolData } from "@/hooks/usePoolData";
 import { useVaultData } from "@/hooks/useVaultData";
 import BackButton from "@/components/BackButton";
-import { isSupabaseConfigured } from "@/integrations/supabase/client";
 import { fetchTotalVolumeUsd } from "@/hooks/useVolumeTracker";
 import { estimatePoolApy, formatApy, useDynamicApy } from "@/hooks/useApy";
 
@@ -23,10 +22,6 @@ const ProtocolStats = () => {
   useEffect(() => {
     async function fetchStats() {
       setLoadingMetrics(true);
-      if (!isSupabaseConfigured) {
-        setLoadingMetrics(false);
-        return;
-      }
       try {
         setTotalVolume(await fetchTotalVolumeUsd());
       } catch (e) {

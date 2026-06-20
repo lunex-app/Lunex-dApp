@@ -4,7 +4,6 @@ import FaucetBanner from "@/components/FaucetBanner";
 import { usePoolData } from "@/hooks/usePoolData";
 import { useVaultData } from "@/hooks/useVaultData";
 import { useQuery } from "@tanstack/react-query";
-import { isSupabaseConfigured } from "@/integrations/supabase/client";
 import { fetchTotalVolumeUsd } from "@/hooks/useVolumeTracker";
 
 const Landing = () => {
@@ -14,11 +13,11 @@ const Landing = () => {
   const totalTvl = pool.totalLiquidity + usdcVault.totalAssets + eurcVault.totalAssets;
   const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  // Volume is read live on-chain (Lunex contract events on Arc) — no Supabase gate.
   const { data: totalVolume = 0 } = useQuery({
     queryKey: ["protocol-total-volume"],
     queryFn: fetchTotalVolumeUsd,
-    enabled: isSupabaseConfigured,
-    refetchInterval: 10000,
+    refetchInterval: 60000,
   });
 
   return (

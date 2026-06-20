@@ -4,12 +4,14 @@
  * Powers the public Analytics dashboard. No off-chain database.
  */
 import { createPublicClient, http } from "viem";
-import { arcTestnet, CONTRACTS } from "@/config/wagmi";
+import { arcTestnet, CONTRACTS, TOKENS } from "@/config/wagmi";
 import { stableSwapAbi, vaultAbi } from "@/config/abis";
+import { LUNEX_TREASURY } from "@/features/bridge/config/bridgeConfig";
 import {
   ARC_TOPICS,
-  ARC_TOKEN_MESSENGER,
+  BRIDGE_FEE_RATE,
   STABLE_DECIMALS,
+  addressTopic,
   fetchAllLogs,
   logWord,
   logTime,
@@ -21,11 +23,6 @@ const DAY = 86_400; // seconds
 const SERIES_DAYS = 30;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CACHE_KEY = "lunex:onchain-analytics";
-// CCTP on Arc is extremely high-volume (Arc-wide, shared infra), so an all-time
-// scan isn't feasible in-browser — the Dune ETL carries the authoritative
-// series. Here we sample a recent block window for a live "bridge flow" figure.
-const BRIDGE_LOOKBACK_BLOCKS = 20_000;
-const BRIDGE_MAX_PAGES = 12;
 
 export interface DailyPoint {
   day: number; // unix seconds, midnight UTC
@@ -52,7 +49,8 @@ export interface ProtocolAnalytics {
   swapVolumeUsd: number;
   liquidityVolumeUsd: number;
   vaultVolumeUsd: number;
-  bridgeVolumeUsd: number; // recent CCTP flow (see note in UI)
+  bridgeVolumeUsd: number; // Lunex bridge volume, derived from treasury fees
+  bridgeFeesUsd: number; // 0.1% protocol fee collected by the treasury
   totalVolumeUsd: number; // swaps + pool + vaults + bridge
   usdcToEurcUsd: number;
   eurcToUsdcUsd: number;
@@ -81,6 +79,8 @@ export interface ProtocolAnalytics {
   // Time series (last 30 days)
   daily: DailyPoint[];
   dailyWallets: DailyWallets[];
+  // Treasury
+  treasuryAddress: string;
   // meta
   generatedAt: number;
 }
@@ -144,20 +144,26 @@ async function readVault(address: `0x${string}`, symbol: "USDC" | "EURC"): Promi
 }
 
 /**
- * Recent CCTP bridge volume on Arc — sum of DepositForBurn `amount` (data word 0)
- * over a recent block window. CCTP is shared Arc-wide infrastructure that Lunex
- * routes through; all-time totals live in the Dune dashboard.
+ * Lunex bridge volume, isolated from Arc-wide CCTP via the protocol's own fee:
+ * every Lunex bridge sends a 0.1% USDC fee to the treasury, so summing USDC
+ * Transfer events into the treasury gives the total fees, and dividing by the
+ * fee rate recovers the bridged volume that actually flowed through Lunex.
  */
-async function readBridgeFlow(): Promise<{ usd: number; count: number }> {
+async function readBridgeFromTreasury(): Promise<{ feesUsd: number; volumeUsd: number; count: number }> {
   try {
-    const latest = Number(await client.getBlockNumber());
-    const fromBlock = Math.max(0, latest - BRIDGE_LOOKBACK_BLOCKS);
-    const logs = await fetchAllLogs(ARC_TOKEN_MESSENGER, ARC_TOPICS.depositForBurn, fromBlock, BRIDGE_MAX_PAGES);
-    let usd = 0;
-    for (const log of logs) usd += Number(logWord(log.data, 0)) / STABLE_DECIMALS;
-    return { usd, count: logs.length };
+    // USDC Transfer(from, to=treasury, value): filter on topic2 (indexed `to`).
+    const logs = await fetchAllLogs(
+      TOKENS.USDC.address,
+      ARC_TOPICS.transfer,
+      undefined,
+      undefined,
+      `&topic2=${addressTopic(LUNEX_TREASURY)}&topic0_2_opr=and`,
+    );
+    let feesUsd = 0;
+    for (const log of logs) feesUsd += Number(logWord(log.data, 0)) / STABLE_DECIMALS;
+    return { feesUsd, volumeUsd: feesUsd / BRIDGE_FEE_RATE, count: logs.length };
   } catch {
-    return { usd: 0, count: 0 };
+    return { feesUsd: 0, volumeUsd: 0, count: 0 };
   }
 }
 
@@ -199,7 +205,7 @@ export async function fetchProtocolAnalytics(force = false): Promise<ProtocolAna
       readPoolTvl(),
       readVault(CONTRACTS.LUNE_VAULT_USDC, "USDC"),
       readVault(CONTRACTS.LUNE_VAULT_EURC, "EURC"),
-      readBridgeFlow(),
+      readBridgeFromTreasury(),
     ]);
 
   // ---- Volume + directional split + daily series ----
@@ -284,8 +290,9 @@ export async function fetchProtocolAnalytics(force = false): Promise<ProtocolAna
     swapVolumeUsd,
     liquidityVolumeUsd,
     vaultVolumeUsd,
-    bridgeVolumeUsd: bridge.usd,
-    totalVolumeUsd: swapVolumeUsd + liquidityVolumeUsd + vaultVolumeUsd + bridge.usd,
+    bridgeVolumeUsd: bridge.volumeUsd,
+    bridgeFeesUsd: bridge.feesUsd,
+    totalVolumeUsd: swapVolumeUsd + liquidityVolumeUsd + vaultVolumeUsd + bridge.volumeUsd,
     usdcToEurcUsd,
     eurcToUsdcUsd,
     swapCount: swaps.length,
@@ -307,6 +314,7 @@ export async function fetchProtocolAnalytics(force = false): Promise<ProtocolAna
     mau: mauSet.size,
     daily,
     dailyWallets,
+    treasuryAddress: LUNEX_TREASURY,
     generatedAt: Date.now(),
   };
   saveCache(result);
