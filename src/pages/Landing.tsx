@@ -4,7 +4,8 @@ import FaucetBanner from "@/components/FaucetBanner";
 import { usePoolData } from "@/hooks/usePoolData";
 import { useVaultData } from "@/hooks/useVaultData";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { isSupabaseConfigured } from "@/integrations/supabase/client";
+import { fetchTotalVolumeUsd } from "@/hooks/useVolumeTracker";
 
 const Landing = () => {
   const pool = usePoolData();
@@ -13,32 +14,16 @@ const Landing = () => {
   const totalTvl = pool.totalLiquidity + usdcVault.totalAssets + eurcVault.totalAssets;
   const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const { data: stats } = useQuery({
-    queryKey: ["protocol-stats"],
-    queryFn: async () => {
-      const { data } = await supabase.from("protocol_stats").select("*").eq("id", 1).single();
-      return data;
-    },
+  const { data: totalVolume = 0 } = useQuery({
+    queryKey: ["protocol-total-volume"],
+    queryFn: fetchTotalVolumeUsd,
+    enabled: isSupabaseConfigured,
     refetchInterval: 10000,
   });
-
-  const totalVolume = stats?.total_volume_usd ?? 0;
 
   return (
     <div className="page-fade-in">
       <FaucetBanner />
-      <div className="bg-primary/5 border-b border-primary/20 py-2.5 mt-2 transition-all hover:bg-primary/10">
-        <div className="container flex items-center justify-center gap-2">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-          </span>
-          <p className="text-[10px] font-bold tracking-widest uppercase text-primary">
-            Lunex Bridge is now LIVE — Move USDC cross-chain with CCTP
-          </p>
-          <Link to="/bridge" className="text-[10px] font-bold uppercase underline hover:text-primary transition-colors ml-2">Try Now</Link>
-        </div>
-      </div>
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 grid-bg opacity-30" />
         <div className="container relative py-28 md:py-40 text-center">
@@ -50,7 +35,7 @@ const Landing = () => {
             Curve-style StableSwap AMM optimised for USDC/EURC pairs with minimal slippage on Arc Network.
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
-            <Link to="/swap" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 text-sm font-semibold tracking-wider uppercase hover:bg-primary/90 transition-colors w-full sm:w-auto justify-center">
+            <Link to="/dashboard" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 text-sm font-semibold tracking-wider uppercase hover:bg-primary/90 transition-colors w-full sm:w-auto justify-center">
               Launch App <ArrowRight className="h-4 w-4" />
             </Link>
             <Link to="/docs" className="inline-flex items-center gap-2 border border-border text-foreground px-6 py-3 text-sm font-semibold tracking-wider uppercase hover:border-primary/40 hover:text-primary transition-colors w-full sm:w-auto justify-center">
@@ -76,9 +61,21 @@ const Landing = () => {
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 gap-px bg-border">
-          <div className="flex items-center gap-4 bg-background p-6 justify-center md:justify-start"><div className="flex h-10 w-10 items-center justify-center bg-primary/10"><DollarSign className="h-5 w-5 text-primary" /></div><div className="text-center md:text-left"><p className="text-xs text-muted-foreground tracking-wider">TVL</p><p className="text-xl font-bold font-mono">${fmt(totalTvl)}</p></div></div>
-          <div className="flex items-center gap-4 bg-background p-6 justify-center md:justify-start"><div className="flex h-10 w-10 items-center justify-center bg-primary/10"><BarChart3 className="h-5 w-5 text-primary" /></div><div className="text-center md:text-left"><p className="text-xs text-muted-foreground tracking-wider">TOTAL VOLUME</p><p className="text-xl font-bold font-mono">${fmt(totalVolume)}</p></div></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-border">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 bg-background p-5 sm:p-6 text-center sm:text-left">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center bg-primary/10 mx-auto sm:mx-0"><DollarSign className="h-5 w-5 text-primary" /></div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground tracking-wider">TVL</p>
+              <p className="text-lg sm:text-xl font-bold font-mono tabular-nums break-all">${fmt(totalTvl)}</p>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 bg-background p-5 sm:p-6 text-center sm:text-left">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center bg-primary/10 mx-auto sm:mx-0"><BarChart3 className="h-5 w-5 text-primary" /></div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground tracking-wider">TOTAL VOLUME</p>
+              <p className="text-lg sm:text-xl font-bold font-mono tabular-nums break-all">${fmt(totalVolume)}</p>
+            </div>
+          </div>
         </div>
       </section>
     </div>

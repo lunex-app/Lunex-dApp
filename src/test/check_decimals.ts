@@ -13,7 +13,7 @@ async function checkDecimals() {
       address: usdc,
       abi,
       functionName: 'decimals'
-    });
+    } as any);
     console.log('Arc USDC Decimals:', d);
   } catch (e) {
     console.error('Failed to get Arc USDC decimals:', e);

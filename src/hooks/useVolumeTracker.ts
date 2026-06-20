@@ -3,6 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 
 type EventType = "swap" | "add_liquidity" | "remove_liquidity" | "vault_deposit" | "vault_withdraw";
 
+/**
+ * Records protocol volume to Supabase (`protocol_volume`) so the landing/stats
+ * pages can show real cumulative volume. Best-effort: never throws into the tx
+ * flow (a storage/RLS failure must not flip a confirmed swap to "failed").
+ */
 export function useVolumeTracker() {
   const recordVolume = useCallback(
     async (params: {
@@ -12,7 +17,7 @@ export function useVolumeTracker() {
       contract: string;
       blockNumber?: number;
     }) => {
-      if (params.amountUsd <= 0) return;
+      if (!params.txHash || params.txHash === "0x" || !(params.amountUsd > 0)) return;
       try {
         await supabase.from("protocol_volume").insert({
           tx_hash: params.txHash,
@@ -22,11 +27,21 @@ export function useVolumeTracker() {
           block_number: params.blockNumber ?? 0,
         });
       } catch {
-        // non-critical
+        /* best-effort — ignore */
       }
     },
     []
   );
 
   return { recordVolume };
+}
+
+/** Sum all recorded protocol volume (USD). Returns 0 if unavailable. */
+export async function fetchTotalVolumeUsd(): Promise<number> {
+  try {
+    const { data } = await supabase.from("protocol_volume").select("amount_usd");
+    return (data ?? []).reduce((sum, row) => sum + Number((row as { amount_usd?: number }).amount_usd ?? 0), 0);
+  } catch {
+    return 0;
+  }
 }

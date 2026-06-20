@@ -21,6 +21,34 @@ function generateApiKey(): string {
   return "lnx_" + key;
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const encoded = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", encoded);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function maskApiKey(row: any) {
+  const prefix = row.key_prefix || (row.key_value ? String(row.key_value).slice(0, 8) : "lnx_****");
+  const last4 = row.key_last4 || (row.key_value ? String(row.key_value).slice(-4) : "****");
+  return {
+    ...row,
+    key_value: undefined,
+    key_hash: undefined,
+    key_prefix: prefix,
+    key_last4: last4,
+    display_key: `${prefix}...${last4}`,
+  };
+}
+
+async function buildApiKeyInsert(keyValue: string, fields: Record<string, unknown>) {
+  return {
+    ...fields,
+    key_hash: await sha256Hex(keyValue),
+    key_prefix: keyValue.slice(0, 8),
+    key_last4: keyValue.slice(-4),
+  };
+}
+
 function json(data: any, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: CORS_HEADERS });
 }
@@ -57,9 +85,9 @@ serve(async (req) => {
     if (req.method === "GET" && action === "my-keys") {
       if (!isAdmin && !isDeveloper) return json({ error: "Forbidden" }, 403);
       const { data } = await adminClient.from("dex_api_keys")
-        .select("id, key_value, label, is_active, created_at, revoked_at, allowed_services")
+        .select("id, label, is_active, created_at, revoked_at, allowed_services, key_prefix, key_last4")
         .eq("created_by", user.id).order("created_at", { ascending: false });
-      return json({ keys: data });
+      return json({ keys: (data || []).map(maskApiKey) });
     }
 
     // MY USAGE
@@ -127,9 +155,9 @@ serve(async (req) => {
     // LIST all keys
     if (req.method === "GET" && action === "list") {
       const { data } = await adminClient.from("dex_api_keys")
-        .select("id, key_value, label, is_active, created_at, revoked_at, created_by, allowed_services")
+        .select("id, label, is_active, created_at, revoked_at, created_by, allowed_services, key_prefix, key_last4")
         .order("created_at", { ascending: false });
-      return json({ keys: data });
+      return json({ keys: (data || []).map(maskApiKey) });
     }
 
     // USAGE analytics
@@ -144,10 +172,9 @@ serve(async (req) => {
     }
 
     if (req.method === "GET" && action === "protocol-overview") {
-      const [profilesRes, volumeRes, appTxRes, chainWallets] = await Promise.all([
+      const [profilesRes, volumeRes, chainWallets] = await Promise.all([
         adminClient.from("profiles").select("id", { count: "exact", head: true }),
         adminClient.from("protocol_volume").select("amount_usd, timestamp").order("timestamp", { ascending: false }).limit(1000),
-        adminClient.from("transactions").select("wallet_address, created_at").order("created_at", { ascending: false }).limit(1000),
         fetchOnchainWalletActivity(),
       ]);
 
@@ -156,13 +183,7 @@ serve(async (req) => {
       const weekMs = 7 * dayMs;
       const monthMs = 30 * dayMs;
 
-      const appActivity = (appTxRes.data || []).map((row: any) => ({
-        address: String(row.wallet_address || "").toLowerCase(),
-        timestamp: new Date(row.created_at).getTime(),
-        source: "app" as const,
-      })).filter((row) => row.address);
-
-      const allActivity = [...appActivity, ...chainWallets];
+      const allActivity = chainWallets;
 
       const countDistinctSince = (windowMs: number) => new Set(
         allActivity.filter((row) => row.timestamp >= now - windowMs).map((row) => row.address)
@@ -262,12 +283,11 @@ serve(async (req) => {
       if (reqAction === "approve") {
         // Generate key and assign to requester
         const keyValue = generateApiKey();
-        await adminClient.from("dex_api_keys").insert({
-          key_value: keyValue,
+        await adminClient.from("dex_api_keys").insert(await buildApiKeyInsert(keyValue, {
           label: reqData.label,
           created_by: reqData.requested_by,
           allowed_services: reqData.requested_services,
-        });
+        }));
       }
 
       await adminClient.from("dex_api_key_requests").update({
@@ -309,10 +329,10 @@ serve(async (req) => {
       const allowedServices = body.allowed_services || [];
       const keyValue = generateApiKey();
       const { data, error } = await adminClient.from("dex_api_keys")
-        .insert({ key_value: keyValue, label, created_by: createdBy, allowed_services: allowedServices })
+        .insert(await buildApiKeyInsert(keyValue, { label, created_by: createdBy, allowed_services: allowedServices }))
         .select().single();
       if (error) throw error;
-      return json({ key: data }, 201);
+      return json({ key: { ...maskApiKey(data), key_value: keyValue } }, 201);
     }
 
     // REVOKE key

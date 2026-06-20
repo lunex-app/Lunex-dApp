@@ -11,7 +11,10 @@ import SDKDeveloperGuide, { AVAILABLE_SERVICES } from "@/components/SDKDeveloper
 
 interface ApiKey {
   id: string;
-  key_value: string;
+  key_value?: string;
+  display_key?: string;
+  key_prefix?: string;
+  key_last4?: string;
   label: string;
   is_active: boolean;
   created_at: string;
@@ -172,7 +175,7 @@ const DeveloperDashboard = () => {
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => copyKey(key.id, key.key_value)} className="h-7 px-2">
+                    <Button variant="ghost" size="sm" onClick={() => key.key_value && copyKey(key.id, key.key_value)} disabled={!key.key_value} className="h-7 px-2">
                       {copiedId === key.id ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
                     </Button>
                     {key.is_active ? (
@@ -185,7 +188,8 @@ const DeveloperDashboard = () => {
                     </Button>
                   </div>
                 </div>
-                <code className="text-xs font-mono text-muted-foreground bg-muted/30 px-2 py-1 block overflow-hidden text-ellipsis">{key.key_value}</code>
+                <code className="text-xs font-mono text-muted-foreground bg-muted/30 px-2 py-1 block overflow-hidden text-ellipsis">{key.key_value || key.display_key || `${key.key_prefix || "lnx_****"}...${key.key_last4 || "****"}`}</code>
+                {!key.key_value && <p className="text-[10px] text-muted-foreground mt-1">Full key is only shown once when generated.</p>}
                 {key.allowed_services && key.allowed_services.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
                     {key.allowed_services.map(s => (

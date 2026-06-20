@@ -1,12 +1,14 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useAccount, useWalletClient, useSwitchChain } from "wagmi";
-import { parseUnits, pad, zeroHash, encodeFunctionData, decodeFunctionResult, createPublicClient, http, createWalletClient, custom } from "viem";
+import { parseUnits, formatUnits, pad, zeroHash, createPublicClient, http, createWalletClient, custom } from "viem";
 import { toast } from "sonner";
 import {
   BRIDGE_CHAINS,
+  bridgeViemChains,
   TOKEN_MESSENGER_ABI,
   MESSAGE_TRANSMITTER_ABI,
   ERC20_APPROVE_ABI,
+  FORWARDING_SERVICE_HOOK_DATA,
   IRIS_API_URL,
   LUNEX_TREASURY,
   type BridgeChainKey,
@@ -15,8 +17,9 @@ import {
   type BridgeTransaction,
   type BridgeStatus,
   saveBridgeTransaction,
-  loadBridgeTransactions,
 } from "../state/bridgeState";
+import { recordPointEvent } from "@/lib/points";
+import { humanizeError } from "@/lib/errors";
 
 /** Poll CCTP V2 attestation API using domain + txHash */
 function useAttestationV2() {
@@ -115,6 +118,19 @@ export function useBridge() {
 
   const attestationV2 = useAttestationV2();
 
+  // resumeTransaction is declared before startBridge but may call it; a ref keeps it
+  // pointing at the latest startBridge (avoids a stale walletClient closure).
+  const startBridgeRef = useRef<
+    (
+      amount: string,
+      fromChain: BridgeChainKey,
+      toChain: BridgeChainKey,
+      isFastPath?: boolean,
+      tokenSymbol?: "USDC" | "EURC",
+      gasTopUpAmount?: string
+    ) => Promise<void>
+  >();
+
   const getChainClient = useCallback((chain: BridgeChainKey) => {
     const config = BRIDGE_CHAINS[chain];
     return createPublicClient({ transport: http(config.rpcUrl) });
@@ -137,12 +153,8 @@ export function useBridge() {
       setStatusMessage(`Requesting switch to ${label}...`);
       try {
         await switchChainAsync({ chainId: targetChainId });
-      } catch (wagmiError: any) {
-        try {
-          await switchWalletChain(targetChainId);
-        } catch (rawError: any) {
-          throw rawError;
-        }
+      } catch {
+        await switchWalletChain(targetChainId);
       }
 
       let afterChainId = 0;
@@ -177,7 +189,7 @@ export function useBridge() {
           tx.status = "waiting_attestation";
         } else {
           // Restart from start
-          return startBridge(tx.amount, tx.fromChain, tx.toChain, false); 
+          return startBridgeRef.current?.(tx.amount, tx.fromChain, tx.toChain, false, tx.tokenSymbol ?? "USDC", tx.gasTopUpAmount);
         }
       }
 
@@ -197,6 +209,7 @@ export function useBridge() {
 
         const mintWalletClient = createWalletClient({
           account: address as `0x${string}`,
+          chain: bridgeViemChains[tx.toChain],
           transport: custom((window as any).ethereum)
         });
 
@@ -206,17 +219,29 @@ export function useBridge() {
           functionName: "receiveMessage",
           args: [attResult.message as `0x${string}`, attResult.attestation as `0x${string}`],
           account: address,
-          chain: null as any,
+          chain: bridgeViemChains[tx.toChain],
         });
 
         await getChainClient(tx.toChain).waitForTransactionReceipt({ hash: mintHash });
         
         setStatus("complete");
-        updateTx({ status: "complete", mintTxHash: mintHash, attestation: attResult.attestation });
+        updateTx({
+          status: "complete",
+          mintTxHash: mintHash,
+          attestation: attResult.attestation,
+          gasTopUpStatus: tx.gasTopUpAmount ? (to.topUpRelayer ? "relayer_pending" : "unsupported") : "not_requested",
+        });
+        recordPointEvent({
+          wallet: address,
+          action: "bridge",
+          volumeUsd: Number(tx.amount || 0),
+          txHash: mintHash,
+          description: `Recovered bridge from ${from.label} to ${to.label}`,
+        });
         toast.success("Bridge complete!");
       }
     } catch (err: any) {
-      const msg = err?.shortMessage || err?.message || "Resume failed";
+      const msg = humanizeError(err, "Couldn't resume the transfer. Please try again.");
       setStatus("failed");
       setError(msg);
       updateTx({ status: "failed", error: msg });
@@ -224,7 +249,14 @@ export function useBridge() {
   }, [address, ensureChain, updateTx, attestationV2, getChainClient]);
 
   const startBridge = useCallback(
-    async (amount: string, fromChain: BridgeChainKey, toChain: BridgeChainKey, isFastPath: boolean = false, tokenSymbol: "USDC" | "EURC" = "USDC") => {
+    async (
+      amount: string,
+      fromChain: BridgeChainKey,
+      toChain: BridgeChainKey,
+      isFastPath: boolean = false,
+      tokenSymbol: "USDC" | "EURC" = "USDC",
+      gasTopUpAmount?: string
+    ) => {
       if (!address || !walletClient) {
         setError("Wallet not connected");
         return;
@@ -234,18 +266,36 @@ export function useBridge() {
       const to = BRIDGE_CHAINS[toChain];
       const fromPublicClient = getChainClient(fromChain);
       const parsedAmount = parseUnits(amount, from.usdcDecimals);
+      const parsedTopUpAmount = gasTopUpAmount ? parseUnits(gasTopUpAmount, from.usdcDecimals) : 0n;
       
       const tokenAddress = tokenSymbol === "EURC" ? from.eurc : from.usdc;
       if (!tokenAddress) {
         setError(`${tokenSymbol} is not supported on ${from.label}`);
         return;
       }
+      if (parsedTopUpAmount > 0n) {
+        if (!isFastPath) {
+          setError("Destination gas top-up requires the CCTP fast path.");
+          return;
+        }
+        if (!to.topUpRelayer) {
+          setError(`No destination gas relayer is configured for ${to.label}.`);
+          return;
+        }
+        if (parsedTopUpAmount >= parsedAmount) {
+          setError("Gas top-up must be smaller than the bridge amount.");
+          return;
+        }
+      }
 
       const tx: BridgeTransaction = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         fromChain,
         toChain,
+        tokenSymbol,
         amount,
+        gasTopUpAmount: gasTopUpAmount || undefined,
+        gasTopUpStatus: gasTopUpAmount ? "requested" : "not_requested",
         status: "approving",
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -267,6 +317,7 @@ export function useBridge() {
         setStatusMessage(`Approving ${tokenSymbol}...`);
         const sourceWalletClient = createWalletClient({
           account: address as `0x${string}`,
+          chain: bridgeViemChains[fromChain],
           transport: custom((window as any).ethereum)
         });
 
@@ -274,9 +325,11 @@ export function useBridge() {
           address: tokenAddress,
           abi: ERC20_APPROVE_ABI,
           functionName: "approve",
-          args: [from.tokenMessenger, parsedAmount],
+          // Only the burn amount is pulled by the TokenMessenger (via transferFrom);
+          // the protocol fee is sent separately with a direct transfer below.
+          args: [from.tokenMessenger, burnAmount],
           account: address,
-          chain: null as any,
+          chain: bridgeViemChains[fromChain],
         });
         await fromPublicClient.waitForTransactionReceipt({ hash: approveHash });
 
@@ -289,7 +342,7 @@ export function useBridge() {
             functionName: "transfer",
             args: [LUNEX_TREASURY, protocolFee],
             account: address,
-            chain: null as any,
+            chain: bridgeViemChains[fromChain],
           });
           await fromPublicClient.waitForTransactionReceipt({ hash: feeHash });
         }
@@ -299,18 +352,44 @@ export function useBridge() {
         setStatusMessage(`Burning ${tokenSymbol}...`);
         updateTx({ status: "burning" });
         
-        const mintRecipient = pad(address, { size: 32 });
-        const maxFee = isFastPath ? (burnAmount * 10n / 10000n) : 0n;
+        const mintRecipientAddress = parsedTopUpAmount > 0n && to.topUpRelayer ? to.topUpRelayer : address;
+        const mintRecipient = pad(mintRecipientAddress, { size: 32 });
+        const useCircleForwarder = Boolean(parsedTopUpAmount > 0n && isFastPath);
+        const maxFee = isFastPath
+          ? useCircleForwarder
+            ? (burnAmount * 20n / 10000n) + 250000n
+            : (burnAmount * 10n / 10000n)
+          : 0n;
         const minFinalityThreshold = isFastPath ? 1000 : 2000;
 
-        const burnHash = await sourceWalletClient.writeContract({
-          address: from.tokenMessenger,
-          abi: TOKEN_MESSENGER_ABI,
-          functionName: "depositForBurn",
-          args: [burnAmount, to.domain, mintRecipient, tokenAddress, zeroHash, maxFee, minFinalityThreshold],
-          account: address,
-          chain: null as any,
-        });
+        const burnHash = await sourceWalletClient.writeContract(
+          useCircleForwarder
+            ? {
+                address: from.tokenMessenger,
+                abi: TOKEN_MESSENGER_ABI,
+                functionName: "depositForBurnWithHook",
+                args: [
+                  burnAmount,
+                  to.domain,
+                  mintRecipient,
+                  tokenAddress,
+                  zeroHash,
+                  maxFee,
+                  minFinalityThreshold,
+                  FORWARDING_SERVICE_HOOK_DATA,
+                ],
+                account: address,
+                chain: bridgeViemChains[fromChain],
+              }
+            : {
+                address: from.tokenMessenger,
+                abi: TOKEN_MESSENGER_ABI,
+                functionName: "depositForBurn",
+                args: [burnAmount, to.domain, mintRecipient, tokenAddress, zeroHash, maxFee, minFinalityThreshold],
+                account: address,
+                chain: bridgeViemChains[fromChain],
+              }
+        );
         await fromPublicClient.waitForTransactionReceipt({ hash: burnHash });
 
         // Wait Attestation
@@ -325,21 +404,42 @@ export function useBridge() {
         // Mint
         setStatus("minting");
         updateTx({ status: "minting" });
-        const mintHash = await sourceWalletClient.writeContract({
+        const mintWalletClient = createWalletClient({
+          account: address as `0x${string}`,
+          chain: bridgeViemChains[toChain],
+          transport: custom((window as any).ethereum)
+        });
+
+        const mintHash = await mintWalletClient.writeContract({
           address: to.messageTransmitter,
           abi: MESSAGE_TRANSMITTER_ABI,
           functionName: "receiveMessage",
           args: [attResult.message as `0x${string}`, attResult.attestation as `0x${string}`],
           account: address,
-          chain: null as any,
+          chain: bridgeViemChains[toChain],
         });
         await getChainClient(toChain).waitForTransactionReceipt({ hash: mintHash });
 
         setStatus("complete");
-        updateTx({ status: "complete", mintTxHash: mintHash, amountIn: amount, amountOut: (Number(amount) * (isFastPath ? 0.998 : 0.999)).toFixed(2) });
+        updateTx({
+          status: "complete",
+          mintTxHash: mintHash,
+          amountIn: amount,
+          // Minimum received = burned amount minus the CCTP max fee cap (protocol fee
+          // was already deducted from burnAmount). Reflects real on-chain values.
+          amountOut: Number(formatUnits(burnAmount - maxFee, from.usdcDecimals)).toFixed(2),
+          gasTopUpStatus: parsedTopUpAmount > 0n ? (to.topUpRelayer ? "relayer_pending" : "unsupported") : "not_requested",
+        });
+        recordPointEvent({
+          wallet: address,
+          action: "bridge",
+          volumeUsd: Number(amount || 0),
+          txHash: mintHash,
+          description: `Bridged ${amount} ${tokenSymbol} from ${from.label} to ${to.label}`,
+        });
         toast.success("Bridge complete!");
       } catch (err: any) {
-        const msg = err?.shortMessage || err?.message || "Bridge failed";
+        const msg = humanizeError(err, "The bridge transfer failed. Please try again.");
         setStatus("failed");
         setError(msg);
         updateTx({ status: "failed", error: msg });
@@ -347,6 +447,9 @@ export function useBridge() {
     },
     [address, walletClient, ensureChain, updateTx, attestationV2, getChainClient]
   );
+
+  // Keep the ref pointing at the current startBridge for resumeTransaction.
+  startBridgeRef.current = startBridge;
 
   const reset = useCallback(() => {
     setBridgeTx(null);

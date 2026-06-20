@@ -94,7 +94,7 @@
     font-family: 'Outfit', sans-serif;
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-size: 15px; /* Increased base font size for better accessibility */
+    font-size: 16px; /* Match Polaris base font size */
   }
 
   /* Remove number input spinners */

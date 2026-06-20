@@ -10,13 +10,16 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import BackButton from "@/components/BackButton";
 import SDKDeveloperGuide, { AVAILABLE_SERVICES } from "@/components/SDKDeveloperGuide";
 
 interface ApiKey {
   id: string;
-  key_value: string;
+  key_value?: string;
+  display_key?: string;
+  key_prefix?: string;
+  key_last4?: string;
   label: string;
   is_active: boolean;
   created_at: string;
@@ -99,7 +102,7 @@ const ADMIN_WALLETS = [
 
 const AdminDashboard = () => {
   const { user, session, signOut, isAdmin: isEmailAdmin } = useAuth();
-  const { address } = useAccount();
+  const { address } = useWallet();
   const isAdmin = isEmailAdmin || (address && ADMIN_WALLETS.some(a => a.toLowerCase() === address.toLowerCase()));
   
   const [keys, setKeys] = useState<ApiKey[]>([]);
@@ -189,8 +192,9 @@ const AdminDashboard = () => {
     try {
       const { data, error } = await supabase.from("protocol_settings" as any).select("*");
       if (!error && data && data.length > 0) {
+        const rows = data as unknown as Array<{ key: string; value: unknown }>;
         settings = settings.map(s => {
-           const dbVal = data.find(d => d.key === s.key);
+           const dbVal = rows.find(d => d.key === s.key);
            return dbVal ? { ...s, value: dbVal.value === true || dbVal.value === "true" } : s;
         });
         setProtocolSettings(settings);
@@ -339,7 +343,7 @@ const AdminDashboard = () => {
                   <span className="text-sm font-semibold">{key.label}</span>
                   <Button variant="ghost" size="sm" onClick={() => deleteKey(key.id)} className="h-7 px-2 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
-                <code className="text-[10px] font-mono text-muted-foreground">{key.key_value}</code>
+                <code className="text-[10px] font-mono text-muted-foreground">{key.key_value || key.display_key || `${key.key_prefix || "lnx_****"}...${key.key_last4 || "****"}`}</code>
               </div>
             ))}
           </div>

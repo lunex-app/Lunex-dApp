@@ -1,16 +1,19 @@
 import { useState, useMemo } from "react";
-import { 
-  Search, 
-  BookOpen, 
-  ChevronRight, 
-  RefreshCw, 
-  Layers, 
-  Box, 
-  Activity, 
-  Code, 
-  Shield, 
+import {
+  Search,
+  BookOpen,
+  ChevronRight,
+  ChevronLeft,
+  RefreshCw,
+  Layers,
+  Box,
+  Activity,
+  Code,
+  Shield,
   Terminal,
-  Server
+  Server,
+  Menu,
+  X
 } from "lucide-react";
 import BackButton from "@/components/BackButton";
 
@@ -206,9 +209,23 @@ Prior to mainnet launch, the protocol will undergo full third-party smart contra
   },
 ];
 
+// Flat ordered list of every doc section, for the hamburger menu + prev/next.
+const ALL_SECTIONS = docs.flatMap((cat) => cat.sections.map((s) => ({ ...s, category: cat.category })));
+
 const Docs = () => {
   const [search, setSearch] = useState("");
   const [activeSection, setActiveSection] = useState<string>("what-is-lunex");
+  const [navOpen, setNavOpen] = useState(false);
+
+  const currentIndex = ALL_SECTIONS.findIndex((s) => s.id === activeSection);
+  const prevSection = currentIndex > 0 ? ALL_SECTIONS[currentIndex - 1] : null;
+  const nextSection = currentIndex < ALL_SECTIONS.length - 1 ? ALL_SECTIONS[currentIndex + 1] : null;
+  const goTo = (id: string) => {
+    setActiveSection(id);
+    setNavOpen(false);
+    setSearch("");
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const filtered = useMemo(() => {
     if (!search.trim()) return docs;
@@ -239,12 +256,56 @@ const Docs = () => {
 
   return (
     <div className="page-fade-in min-h-[calc(100vh-3.5rem)]">
+      {/* Hamburger drawer — all features */}
+      {navOpen && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={() => setNavOpen(false)} />
+          <aside className="fixed left-0 top-0 z-[70] h-screen w-72 max-w-[80vw] overflow-y-auto border-r border-border bg-card p-4 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-widest text-primary">All Features</span>
+              <button onClick={() => setNavOpen(false)} className="text-muted-foreground hover:text-foreground" aria-label="Close">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {docs.map((cat) => (
+              <div key={cat.id} className="mb-5">
+                <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <span className="text-primary/70">{cat.icon}</span> {cat.category}
+                </p>
+                <div className="space-y-0.5">
+                  {cat.sections.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => goTo(s.id)}
+                      className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all ${
+                        activeSection === s.id ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                      }`}
+                    >
+                      {activeSection === s.id && <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+                      <span className="truncate">{s.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </aside>
+        </>
+      )}
+
       <div className="container max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <BackButton />
         
         {/* Header Section */}
         <div className="mb-12 border-b border-border pb-8 mt-4">
           <div className="flex items-center gap-3 mb-3">
+            <button
+              onClick={() => setNavOpen(true)}
+              className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:text-primary transition-colors shrink-0"
+              aria-label="Open docs menu"
+              title="All features"
+            >
+              <Menu className="h-4 w-4" />
+            </button>
             <div className="p-2 bg-primary/10 rounded-lg text-primary">
               <BookOpen className="h-7 w-7" />
             </div>
@@ -367,6 +428,32 @@ const Docs = () => {
                   </div>
                 </article>
               )}
+
+              {/* Prev / Next navigation */}
+              <div className="mt-8 grid grid-cols-2 gap-4">
+                {prevSection ? (
+                  <button
+                    onClick={() => goTo(prevSection.id)}
+                    className="group flex flex-col items-start gap-1 rounded-xl border border-border bg-card/40 p-4 text-left transition-all hover:border-primary/40 hover:bg-muted/20"
+                  >
+                    <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                      <ChevronLeft className="h-3 w-3" /> Previous
+                    </span>
+                    <span className="text-sm font-semibold text-foreground group-hover:text-primary line-clamp-1">{prevSection.title}</span>
+                  </button>
+                ) : <div />}
+                {nextSection ? (
+                  <button
+                    onClick={() => goTo(nextSection.id)}
+                    className="group flex flex-col items-end gap-1 rounded-xl border border-border bg-card/40 p-4 text-right transition-all hover:border-primary/40 hover:bg-muted/20"
+                  >
+                    <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                      Next <ChevronRight className="h-3 w-3" />
+                    </span>
+                    <span className="text-sm font-semibold text-foreground group-hover:text-primary line-clamp-1">{nextSection.title}</span>
+                  </button>
+                ) : <div />}
+              </div>
             </main>
           </div>
         )}

@@ -3,19 +3,21 @@ import { Loader2 } from "lucide-react";
 import { formatUnits } from "viem";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { useAccount } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useReadContract } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import { useRemoveLiquidity } from "@/hooks/useLiquidity";
 import { usePoolData } from "@/hooks/usePoolData";
 import { TransactionModal, computeTxStage } from "@/components/TransactionModal";
 import { useSectionHistory } from "@/hooks/useSectionHistory";
 import BackButton from "@/components/BackButton";
+import { stableSwapAbi } from "@/config/abis";
+import { CONTRACTS, arcTestnet } from "@/config/wagmi";
+import { DEFAULT_SLIPPAGE_PERCENT } from "@/lib/slippage";
 
 const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const RemoveLiquidity = () => {
-  const { isConnected } = useAccount();
-  const { openConnectModal } = useConnectModal();
+  const { isConnected, openConnect } = useWallet();
   const pool = usePoolData();
   const history = useSectionHistory("pool");
   const [percentage, setPercentage] = useState([100]);
@@ -24,11 +26,41 @@ const RemoveLiquidity = () => {
   const lpToRemoveRaw = (pool.lpBalanceRaw * BigInt(percentage[0])) / 100n;
   const lpToRemoveStr = formatUnits(lpToRemoveRaw, 18);
   const lpToRemove = parseFloat(lpToRemoveStr);
-  const shareOfPool = pool.lpTotalSupply > 0 ? lpToRemove / pool.lpTotalSupply : 0;
-  const usdcOut = mode === "eurc" ? 0 : pool.usdcReserve * shareOfPool * (mode === "both" ? 1 : 2);
-  const eurcOut = mode === "usdc" ? 0 : pool.eurcReserve * shareOfPool * (mode === "both" ? 1 : 2);
 
-  const liq = useRemoveLiquidity(lpToRemoveRaw, lpToRemoveStr, mode);
+  const usdcBalancedRaw = pool.lpTotalSupplyRaw > 0n ? (pool.usdcReserveRaw * lpToRemoveRaw) / pool.lpTotalSupplyRaw : 0n;
+  const eurcBalancedRaw = pool.lpTotalSupplyRaw > 0n ? (pool.eurcReserveRaw * lpToRemoveRaw) / pool.lpTotalSupplyRaw : 0n;
+
+  const { data: usdcOneCoinRaw } = useReadContract({
+    address: CONTRACTS.LUNEX_SWAP_POOL,
+    abi: stableSwapAbi,
+    functionName: "calc_withdraw_one_coin",
+    args: [lpToRemoveRaw, 0n],
+    chainId: arcTestnet.id,
+    query: { enabled: mode === "usdc" && lpToRemoveRaw > 0n, refetchInterval: 5000 },
+  });
+
+  const { data: eurcOneCoinRaw } = useReadContract({
+    address: CONTRACTS.LUNEX_SWAP_POOL,
+    abi: stableSwapAbi,
+    functionName: "calc_withdraw_one_coin",
+    args: [lpToRemoveRaw, 1n],
+    chainId: arcTestnet.id,
+    query: { enabled: mode === "eurc" && lpToRemoveRaw > 0n, refetchInterval: 5000 },
+  });
+
+  const expectedOneCoinRaw = mode === "usdc"
+    ? ((usdcOneCoinRaw as bigint | undefined) ?? 0n)
+    : mode === "eurc"
+      ? ((eurcOneCoinRaw as bigint | undefined) ?? 0n)
+      : 0n;
+  const usdcOut = mode === "eurc" ? 0 : parseFloat(formatUnits(mode === "usdc" ? expectedOneCoinRaw : usdcBalancedRaw, 6));
+  const eurcOut = mode === "usdc" ? 0 : parseFloat(formatUnits(mode === "eurc" ? expectedOneCoinRaw : eurcBalancedRaw, 6));
+
+  const liq = useRemoveLiquidity(lpToRemoveRaw, lpToRemoveStr, mode, String(DEFAULT_SLIPPAGE_PERCENT), {
+    usdcRaw: usdcBalancedRaw,
+    eurcRaw: eurcBalancedRaw,
+    oneCoinRaw: expectedOneCoinRaw,
+  });
 
   useEffect(() => {
     if (liq.isConfirmed && liq.actionTxHash) {
@@ -72,7 +104,7 @@ const RemoveLiquidity = () => {
   };
 
   const getButtonText = () => {
-    if (!isConnected) return "CONNECT WALLET";
+    if (!isConnected) return "CONNECT";
     if (pool.lpBalanceRaw <= 0n) return "NO LP TOKENS";
     if (percentage[0] === 0) return "SELECT AMOUNT";
     if (liq.isApproving) return "APPROVING LP...";
@@ -81,8 +113,8 @@ const RemoveLiquidity = () => {
   };
 
   const handleClick = () => {
-    if (!isConnected && openConnectModal) {
-      openConnectModal();
+    if (!isConnected) {
+      openConnect();
       return;
     }
     if (percentage[0] > 0 && lpToRemoveRaw > 0n) liq.execute();

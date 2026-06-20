@@ -1,16 +1,20 @@
 import { useState, useCallback, useEffect } from "react";
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseUnits, maxUint256 } from "viem";
 import { erc20Abi } from "@/config/abis";
 import { arcTestnet } from "@/config/wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import { toast } from "sonner";
+import { humanizeError } from "@/lib/errors";
 
 export function useApproveToken(
   tokenAddress: `0x${string}`,
   spenderAddress: `0x${string}`,
   decimals: number
 ) {
-  const { address } = useAccount();
+  // Owner is the active wallet (Circle smart account or injected EOA) so the
+  // allowance read targets the address that will actually send the write.
+  const { address } = useWallet();
   const [hasApprovedThisSession, setHasApprovedThisSession] = useState(false);
 
   const { data: allowance, refetch: refetchAllowance, isFetching: isAllowanceLoading } = useReadContract({
@@ -32,6 +36,7 @@ export function useApproveToken(
 
   const { isLoading: isApproveConfirming, isSuccess: isApproved } = useWaitForTransactionReceipt({
     hash: approveTxHash,
+    chainId: arcTestnet.id,
   });
 
   const isApproving = isApprovePending || isApproveConfirming;
@@ -45,7 +50,7 @@ export function useApproveToken(
 
   useEffect(() => {
     if (approveError) {
-      toast.error("Approval failed", { description: approveError.message.slice(0, 120) });
+      toast.error("Approval failed", { description: humanizeError(approveError, "Token approval failed. Please try again.") });
     }
   }, [approveError]);
 

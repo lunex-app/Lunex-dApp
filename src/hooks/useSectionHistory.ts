@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useAccount } from "wagmi";
-import { supabase } from "@/integrations/supabase/client";
+import { useWallet } from "@/context/WalletProvider";
 
 export interface SectionTx {
   txHash: string;
@@ -9,8 +8,26 @@ export interface SectionTx {
   data: Record<string, string>;
 }
 
+const storageKeyFor = (wallet: string, section: string) =>
+  `lunex:${wallet.toLowerCase()}:history:${section}`;
+
+function loadLocalHistory(wallet: string, section: string): SectionTx[] {
+  try {
+    const raw = localStorage.getItem(storageKeyFor(wallet, section));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalHistory(wallet: string, section: string, txs: SectionTx[]) {
+  localStorage.setItem(storageKeyFor(wallet, section), JSON.stringify(txs.slice(0, 20)));
+}
+
 export function useSectionHistory(section: string) {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const [txs, setTxs] = useState<SectionTx[]>([]);
   const knownTxHashesRef = useRef<Set<string>>(new Set());
 
@@ -21,33 +38,9 @@ export function useSectionHistory(section: string) {
       return;
     }
 
-    const { data } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("wallet_address", address.toLowerCase())
-      .eq("section", section)
-      .order("created_at", { ascending: false })
-      .limit(20);
-
-    if (data) {
-      const seen = new Set<string>();
-      const deduped = data.filter((row) => {
-        const key = row.tx_hash.toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-
-      knownTxHashesRef.current = seen;
-      setTxs(
-        deduped.map((r) => ({
-          txHash: r.tx_hash,
-          type: r.type,
-          timestamp: new Date(r.created_at).getTime(),
-          data: (r.data as Record<string, string>) || {},
-        }))
-      );
-    }
+    const localTxs = loadLocalHistory(address, section);
+    knownTxHashesRef.current = new Set(localTxs.map((tx) => tx.txHash.toLowerCase()));
+    setTxs(localTxs);
   }, [address, section]);
 
   useEffect(() => {
@@ -61,33 +54,13 @@ export function useSectionHistory(section: string) {
       const normalizedHash = tx.txHash.toLowerCase();
       if (knownTxHashesRef.current.has(normalizedHash)) return;
 
-      const { data: existing } = await supabase
-        .from("transactions")
-        .select("id")
-        .eq("wallet_address", address.toLowerCase())
-        .eq("section", section)
-        .in("tx_hash", [tx.txHash, normalizedHash])
-        .limit(1);
-
-      if (existing && existing.length > 0) {
-        knownTxHashesRef.current.add(normalizedHash);
-        return;
-      }
-
-      const now = new Date();
-      const newTx: SectionTx = { ...tx, txHash: normalizedHash, timestamp: now.getTime() };
+      const newTx: SectionTx = { ...tx, txHash: normalizedHash, timestamp: Date.now() };
       knownTxHashesRef.current.add(normalizedHash);
 
-      setTxs((prev) => [newTx, ...prev.filter((p) => p.txHash.toLowerCase() !== normalizedHash)].slice(0, 20));
-
-      await supabase.from("transactions").insert({
-        wallet_address: address.toLowerCase(),
-        type: tx.type,
-        section,
-        tx_hash: normalizedHash,
-        data: tx.data as any,
-        created_at: now.toISOString(),
-        status: "confirmed",
+      setTxs((prev) => {
+        const next = [newTx, ...prev.filter((p) => p.txHash.toLowerCase() !== normalizedHash)].slice(0, 20);
+        saveLocalHistory(address, section, next);
+        return next;
       });
     },
     [address, section]

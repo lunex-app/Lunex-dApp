@@ -27,11 +27,22 @@ function getAdminClient() {
   return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const encoded = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", encoded);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 async function validateApiKey(req: Request, service: string): Promise<{ valid: boolean; key: string; keyId: string | null; forbidden?: boolean }> {
   const apiKey = req.headers.get("x-api-key") || "";
   if (!apiKey) return { valid: false, key: "", keyId: null };
   const db = getAdminClient();
-  const { data } = await db.from("dex_api_keys").select("id, allowed_services").eq("key_value", apiKey).eq("is_active", true).maybeSingle();
+  const keyHash = await sha256Hex(apiKey);
+  let { data } = await db.from("dex_api_keys").select("id, allowed_services").eq("key_hash", keyHash).eq("is_active", true).maybeSingle();
+  if (!data) {
+    const legacy = await db.from("dex_api_keys").select("id, allowed_services").eq("key_value", apiKey).eq("is_active", true).maybeSingle();
+    data = legacy.data;
+  }
   if (!data) return { valid: false, key: apiKey, keyId: null };
   const services: string[] = data.allowed_services || [];
   if (services.length > 0 && !services.includes(service)) return { valid: true, key: apiKey, keyId: data.id, forbidden: true };

@@ -1,12 +1,13 @@
 import { Plus, Minus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import { usePoolData } from "@/hooks/usePoolData";
 import { SectionHistory } from "@/components/SectionHistory";
 import { useSectionHistory } from "@/hooks/useSectionHistory";
 import EmptyState from "@/components/EmptyState";
 import BackButton from "@/components/BackButton";
 import { Link } from "react-router-dom";
+import { estimatePoolApy, formatApy } from "@/hooks/useApy";
 
 const POOL_COLUMNS = [
   { key: "action", label: "Action" },
@@ -16,13 +17,25 @@ const POOL_COLUMNS = [
 ];
 
 const PoolOverview = () => {
-  const { isConnected } = useAccount();
+  const { isConnected } = useWallet();
   const pool = usePoolData();
   const history = useSectionHistory("pool");
   const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const hasPoolPosition = pool.lpBalanceRaw > 0n;
   const userUsdcValue = pool.lpTotalSupply > 0 ? (pool.lpBalance / pool.lpTotalSupply) * pool.usdcReserve : 0;
   const userEurcValue = pool.lpTotalSupply > 0 ? (pool.lpBalance / pool.lpTotalSupply) * pool.eurcReserve : 0;
+  const userPositionValue = userUsdcValue + userEurcValue;
+  const depositedValue = history.transactions.reduce((sum, tx) => {
+    if (tx.type !== "add_liquidity") return sum;
+    return sum + Number(tx.data.usdcAmount || 0) + Number(tx.data.eurcAmount || 0);
+  }, 0);
+  const withdrawnValue = history.transactions.reduce((sum, tx) => {
+    if (tx.type !== "remove_liquidity") return sum;
+    return sum + Number(tx.data.usdcAmount || 0) + Number(tx.data.eurcAmount || 0);
+  }, 0);
+  const netContributed = Math.max(0, depositedValue - withdrawnValue);
+  const reinvestedFees = Math.max(0, userPositionValue - netContributed);
+  const poolApy = estimatePoolApy(pool.totalLiquidity, 0, pool.feePercent);
 
   return (
     <div className="container max-w-4xl mx-auto py-16 px-4">
@@ -38,7 +51,7 @@ const PoolOverview = () => {
                <div className="border border-border bg-card rounded-sm overflow-hidden">
                   <div className="px-6 py-4 border-b border-border bg-muted/30 flex justify-between items-center">
                      <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Your Active Position</span>
-                     <span className="px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-[8px] font-bold tracking-widest uppercase">Auto-Compounding Enabled</span>
+                     <span className="px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-[8px] font-bold tracking-widest uppercase">Fee accrual tracked</span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-border">
                      <div className="p-6">
@@ -55,8 +68,9 @@ const PoolOverview = () => {
                         <p className="text-xl font-bold font-mono">{pool.poolShare.toFixed(4)}%</p>
                      </div>
                      <div className="p-6 bg-primary/5">
-                        <p className="text-[8px] text-primary font-bold uppercase tracking-widest mb-1">Fee Accumulation</p>
-                        <p className="text-sm font-bold font-mono text-green-500 uppercase">Automatic</p>
+                        <p className="text-[8px] text-primary font-bold uppercase tracking-widest mb-1">Reinvested Fees</p>
+                        <p className="text-sm font-bold font-mono text-green-500">${fmt(reinvestedFees)}</p>
+                        <p className="text-[8px] text-muted-foreground font-mono mt-1">Added back to LP value</p>
                      </div>
                   </div>
                </div>
@@ -95,7 +109,7 @@ const PoolOverview = () => {
                      { label: "USDC RESERVES", value: fmt(pool.usdcReserve) },
                      { label: "EURC RESERVES", value: fmt(pool.eurcReserve) },
                      { label: "TOTAL LIQUIDITY", value: `$${fmt(pool.totalLiquidity)}` },
-                     { label: "TOTAL LP SUPPLY", value: fmt(pool.lpTotalSupply) },
+                     { label: "EST. POOL APY", value: formatApy(poolApy) },
                   ].map((stat) => (
                      <div key={stat.label} className="p-6 bg-background">
                         <p className="text-[8px] text-muted-foreground font-bold mb-1 tracking-widest uppercase">{stat.label}</p>

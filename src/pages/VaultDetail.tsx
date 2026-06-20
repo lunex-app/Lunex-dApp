@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAccount, useReadContract } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useReadContract } from "wagmi";
+import { useWallet } from "@/context/WalletProvider";
 import { useTokenBalance } from "@/hooks/useTokenBalance";
 import { useVaultDeposit, useVaultWithdraw } from "@/hooks/useVault";
 import { useVaultData } from "@/hooks/useVaultData";
@@ -15,6 +15,7 @@ import { CONTRACTS, arcTestnet } from "@/config/wagmi";
 import BackButton from "@/components/BackButton";
 import { hasInsufficientRawBalance, hasInsufficientTokenBalance, parseTokenAmount } from "@/lib/tokenAmounts";
 import { TokenIcon } from "@/components/TokenIcon";
+import { formatApy, useDynamicApy } from "@/hooks/useApy";
 
 const VaultDetail = () => {
   const { token } = useParams<{ token: string }>();
@@ -24,10 +25,10 @@ const VaultDetail = () => {
   const vaultAddress = isUSDC ? CONTRACTS.LUNE_VAULT_USDC : CONTRACTS.LUNE_VAULT_EURC;
   const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const { isConnected } = useAccount();
-  const { openConnectModal } = useConnectModal();
+  const { isConnected, openConnect } = useWallet();
   const balance = useTokenBalance(tokenName);
   const vault = useVaultData(tokenName);
+  const dynamicApy = useDynamicApy(`vault-${tokenName.toLowerCase()}-share-price`, vault.sharePrice, 0);
   const history = useSectionHistory("yield");
 
   const [tab, setTab] = useState<"deposit" | "withdraw">("deposit");
@@ -123,7 +124,7 @@ const VaultDetail = () => {
   const hasInsufficientBalance = hasInsufficientDepositBalance || hasInsufficientWithdrawBalance;
 
   const getButtonText = () => {
-    if (!isConnected) return "CONNECT WALLET";
+    if (!isConnected) return "CONNECT";
     if (tab === "withdraw" && vault.userSharesRaw <= 0n) return "NO SHARES";
     if (!amount || parsedInputAmount <= 0n) return "ENTER AN AMOUNT";
     if (hasInsufficientDepositBalance) return `INSUFFICIENT ${tokenName}`;
@@ -134,8 +135,8 @@ const VaultDetail = () => {
   };
 
   const handleClick = () => {
-    if (!isConnected && openConnectModal) {
-      openConnectModal();
+    if (!isConnected) {
+      openConnect();
       return;
     }
     if (!amount || parsedInputAmount <= 0n || hasInsufficientBalance) return;
@@ -161,8 +162,8 @@ const VaultDetail = () => {
 
       <div className="grid grid-cols-2 gap-4 mb-8">
          <div className="p-4 border border-border bg-card rounded-sm text-center">
-            <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest mb-1">Standard APY</p>
-            <p className="text-lg font-bold font-mono text-primary">{tokenName === "USDC" ? "8.50%" : "7.20%"}</p>
+            <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest mb-1">Observed APY</p>
+            <p className="text-lg font-bold font-mono text-primary">{formatApy(dynamicApy)}</p>
          </div>
          <div className="p-4 border border-border bg-card rounded-sm text-center">
             <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest mb-1">Share Valuation</p>
@@ -270,7 +271,7 @@ const VaultDetail = () => {
         
         <div className="p-4 bg-muted/20 border-t border-border text-center">
            <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest leading-relaxed">
-              ERC-4626 standard compliant yield generation protocol
+              ERC-4626 vault yield is derived from observed share price movement
            </p>
         </div>
       </div>

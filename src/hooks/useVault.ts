@@ -1,117 +1,111 @@
-import { useCallback, useEffect, useRef } from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useCallback, useEffect } from "react";
 import { parseUnits } from "viem";
-import { vaultAbi } from "@/config/abis";
-import { CONTRACTS, TOKENS, arcTestnet, getExplorerTxUrl } from "@/config/wagmi";
+import { vaultAbi, erc20Abi } from "@/config/abis";
+import { CONTRACTS, TOKENS, getExplorerTxUrl } from "@/config/wagmi";
 import { useApproveToken } from "./useApproveToken";
 import { useVolumeTracker } from "./useVolumeTracker";
+import { useWallet } from "@/context/WalletProvider";
+import { useTx } from "./useTx";
+import type { Write } from "@/lib/circleTx";
 import { toast } from "sonner";
 
 export function useVaultDeposit(tokenSymbol: "USDC" | "EURC", amount: string) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useWallet();
   const token = TOKENS[tokenSymbol];
   const vaultAddress = tokenSymbol === "USDC" ? CONTRACTS.LUNE_VAULT_USDC : CONTRACTS.LUNE_VAULT_EURC;
   const approval = useApproveToken(token.address, vaultAddress, token.decimals);
   const { recordVolume } = useVolumeTracker();
-
-  const { writeContract, data: txHash, isPending: isActionPending, error, reset } = useWriteContract();
-  const { isLoading: isActionConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash: txHash });
+  const tx = useTx();
 
   useEffect(() => {
-    if (isConfirmed && txHash) {
+    if (tx.isConfirmed) {
       toast.success("Deposit successful!", {
         description: `Deposited ${amount} ${tokenSymbol}`,
-        action: { label: "View on ArcScan →", onClick: () => window.open(getExplorerTxUrl(txHash), "_blank") },
+        ...(tx.txHash && tx.txHash !== "0x"
+          ? { action: { label: "View on ArcScan →", onClick: () => window.open(getExplorerTxUrl(tx.txHash!), "_blank") } }
+          : {}),
       });
       const amountUsd = parseFloat(amount || "0");
       if (amountUsd > 0) {
-        recordVolume({ txHash, eventType: "vault_deposit", amountUsd, contract: vaultAddress });
+        recordVolume({ txHash: tx.txHash || "0x", eventType: "vault_deposit", amountUsd, contract: vaultAddress });
       }
+      approval.refetchAllowance();
     }
-  }, [isConfirmed, txHash]);
+     
+  }, [tx.isConfirmed, tx.txHash]);
 
-  useEffect(() => { if (error) toast.error("Deposit failed", { description: error.message.slice(0, 120) }); }, [error]);
+  useEffect(() => { if (tx.error) toast.error("Deposit failed", { description: tx.error.message.slice(0, 120) }); }, [tx.error]);
 
   const execute = useCallback(() => {
     if (!isConnected || !address || !amount) return;
-    if (approval.needsApproval(amount)) { approval.requestApproval(amount); return; }
-    writeContract({
-      address: vaultAddress, abi: vaultAbi, functionName: "deposit",
-      args: [parseUnits(amount, token.decimals), address], chain: arcTestnet, account: address,
-    });
-  }, [isConnected, address, amount, token, vaultAddress, approval, writeContract]);
-
-  const resetAll = useCallback(() => { reset(); approval.resetApprove(); }, [reset, approval.resetApprove]);
-
-  const lastApprovedTx = useRef<string | null>(null);
-  useEffect(() => {
-    if (approval.isApproved && approval.approveTxHash && lastApprovedTx.current !== approval.approveTxHash) {
-      lastApprovedTx.current = approval.approveTxHash;
-      setTimeout(() => {
-        if (!isActionPending && !isActionConfirming) execute();
-      }, 500);
+    const assets = parseUnits(amount, token.decimals);
+    const writes: Write[] = [];
+    if (approval.needsApproval(amount)) {
+      writes.push({ address: token.address, abi: erc20Abi, functionName: "approve", args: [vaultAddress, assets] });
     }
-  }, [approval.isApproved, approval.approveTxHash, execute, isActionPending, isActionConfirming]);
+    writes.push({ address: vaultAddress, abi: vaultAbi, functionName: "deposit", args: [assets, address] });
+    tx.execute(writes);
+  }, [isConnected, address, amount, token, vaultAddress, approval, tx]);
+
+  const resetAll = useCallback(() => { tx.reset(); approval.resetApprove(); }, [tx, approval.resetApprove]);
 
   return {
-    execute, isConfirmed, error, resetAll,
-    isApprovePending: approval.isApprovePending, approveTxHash: approval.approveTxHash,
-    isApproveConfirming: approval.isApproveConfirming, approveError: approval.approveError,
-    isActionPending, actionTxHash: txHash, isActionConfirming,
-    isApproving: approval.isApproving,
-    isBusy: approval.isApproving || isActionPending || isActionConfirming,
-    isApproved: approval.isApproved,
+    execute, isConfirmed: tx.isConfirmed, error: tx.error, resetAll,
+    isApprovePending: false, approveTxHash: undefined as string | undefined,
+    isApproveConfirming: false, approveError: null as Error | null,
+    isActionPending: tx.isPending, actionTxHash: tx.txHash, isActionConfirming: false,
+    isApproving: false,
+    isBusy: tx.isPending,
+    isApproved: !approval.needsApproval(amount),
     isAllowanceLoading: approval.isAllowanceLoading,
   };
 }
 
 export function useVaultWithdraw(tokenSymbol: "USDC" | "EURC", sharesRaw: bigint) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useWallet();
   const vaultAddress = tokenSymbol === "USDC" ? CONTRACTS.LUNE_VAULT_USDC : CONTRACTS.LUNE_VAULT_EURC;
   const { recordVolume } = useVolumeTracker();
-
-  const { writeContract, data: txHash, isPending: isActionPending, error, reset } = useWriteContract();
-  const { isLoading: isActionConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash: txHash });
+  const tx = useTx();
 
   useEffect(() => {
-    if (isConfirmed && txHash) {
+    if (tx.isConfirmed) {
       toast.success("Withdrawal successful!", {
         description: "Redeemed vault shares",
-        action: { label: "View on ArcScan →", onClick: () => window.open(getExplorerTxUrl(txHash), "_blank") },
+        ...(tx.txHash && tx.txHash !== "0x"
+          ? { action: { label: "View on ArcScan →", onClick: () => window.open(getExplorerTxUrl(tx.txHash!), "_blank") } }
+          : {}),
       });
-      recordVolume({ txHash, eventType: "vault_withdraw", amountUsd: 0, contract: vaultAddress });
+      recordVolume({ txHash: tx.txHash || "0x", eventType: "vault_withdraw", amountUsd: 0, contract: vaultAddress });
     }
-  }, [isConfirmed, txHash]);
+     
+  }, [tx.isConfirmed, tx.txHash]);
 
   useEffect(() => {
-    if (error) toast.error("Withdrawal failed", { description: error.message.slice(0, 120) });
-  }, [error]);
+    if (tx.error) toast.error("Withdrawal failed", { description: tx.error.message.slice(0, 120) });
+  }, [tx.error]);
 
   const execute = useCallback(() => {
     if (!isConnected || !address || sharesRaw <= 0n) return;
-    writeContract({
-      address: vaultAddress,
-      abi: vaultAbi,
-      functionName: "redeem",
-      args: [sharesRaw, address, address],
-      chain: arcTestnet,
-      account: address,
-    });
-  }, [isConnected, address, sharesRaw, vaultAddress, writeContract]);
+    tx.execute([
+      { address: vaultAddress, abi: vaultAbi, functionName: "redeem", args: [sharesRaw, address, address] },
+    ]);
+  }, [isConnected, address, sharesRaw, vaultAddress, tx]);
 
   return {
     execute,
-    isConfirmed,
-    error,
-    resetAll: reset,
+    isConfirmed: tx.isConfirmed,
+    error: tx.error,
+    resetAll: tx.reset,
     isApprovePending: false,
     approveTxHash: undefined as string | undefined,
     isApproveConfirming: false,
     approveError: null as Error | null,
-    isActionPending,
-    actionTxHash: txHash,
-    isActionConfirming,
+    isActionPending: tx.isPending,
+    actionTxHash: tx.txHash,
+    isActionConfirming: false,
     isApproving: false,
-    isBusy: isActionPending || isActionConfirming,
+    isBusy: tx.isPending,
+    isApproved: true,
+    isAllowanceLoading: false,
   };
 }

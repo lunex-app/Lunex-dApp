@@ -1,0 +1,6 @@
+node_modules
+.env
+*.dat
+circle-dev-wallet.json
+circle-dev-wallet-partial.json
+recovery_file_*

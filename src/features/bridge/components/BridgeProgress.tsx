@@ -18,7 +18,7 @@ interface BridgeProgressProps {
 }
 
 const STEPS = [
-  { key: "burning", label: "Burning USDC" },
+  { key: "burning", label: "Burning source asset" },
   { key: "waiting_attestation", label: "Waiting for attestation" },
   { key: "minting", label: "Minting on destination" },
   { key: "complete", label: "Bridge complete" },
@@ -151,12 +151,25 @@ export function BridgeProgress({
           <div className="bg-primary/5 border border-primary/20 p-4 rounded-sm space-y-3 animate-in zoom-in-95 duration-300">
              <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
                <span className="text-muted-foreground">Original Deposit</span>
-               <span className="text-foreground">{bridgeTx.amountIn} USDC ({BRIDGE_CHAINS[fromChain].label})</span>
+               <span className="text-foreground">{bridgeTx.amountIn} {bridgeTx.tokenSymbol ?? "USDC"} ({BRIDGE_CHAINS[fromChain].label})</span>
              </div>
              <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
                <span className="text-muted-foreground">Final Settlement</span>
-               <span className="text-primary font-mono">{bridgeTx.amountOut} USDC ({BRIDGE_CHAINS[toChain].label})</span>
+               <span className="text-primary font-mono">{bridgeTx.amountOut} {bridgeTx.tokenSymbol ?? "USDC"} ({BRIDGE_CHAINS[toChain].label})</span>
              </div>
+             {bridgeTx.gasTopUpAmount && (
+               <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
+                 <span className="text-muted-foreground">Gas Top-Up</span>
+                 <span className="text-yellow-500 font-mono">
+                   {bridgeTx.gasTopUpAmount} {bridgeTx.tokenSymbol ?? "USDC"} requested · {bridgeTx.gasTopUpStatus ?? "requested"}
+                 </span>
+               </div>
+             )}
+             {bridgeTx.gasTopUpStatus === "relayer_pending" && (
+               <p className="text-[9px] text-yellow-500 leading-relaxed">
+                 Destination funds were minted to the Lunex top-up relayer. Native gas delivery completes after the funded relayer operator processes this request.
+               </p>
+             )}
              <div className="h-px bg-primary/10 w-full" />
              <p className="text-[9px] text-center text-muted-foreground uppercase font-bold tracking-[0.2em]">Cross-Chain Routing Successful</p>
           </div>

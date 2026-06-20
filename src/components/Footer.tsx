@@ -1,4 +1,3 @@
-import { ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth, AuthProvider } from "@/hooks/useAuth";
 
@@ -19,24 +18,19 @@ const FooterInner = () => {
 
   return (
     <footer className="border-t border-border bg-background py-6">
-      <div className="container flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground tracking-wider">
-        {/* Left */}
-        <span className="uppercase">Lunex Finance • Copyright 2026</span>
-
-        {/* Center */}
-        <div className="flex items-center gap-4">
-          <a href="https://x.com/themirrorlabs" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors flex items-center gap-1 uppercase">
-            Built by Mirror Labs <ExternalLink className="h-3 w-3" />
-          </a>
+      <div className="container flex flex-col md:flex-row items-center justify-center gap-4 text-xs text-muted-foreground tracking-wider">
+        <div className="flex items-center justify-center gap-4 flex-wrap">
+          <Link to="/docs" className="hover:text-foreground transition-colors uppercase">
+            Docs
+          </Link>
+          <Link to="/stats" className="hover:text-foreground transition-colors uppercase">
+            Stats
+          </Link>
           {(isAdmin || isDeveloper) && (
             <Link to="/lunexsdk" className="hover:text-foreground transition-colors uppercase">
               SDK Portal
             </Link>
           )}
-        </div>
-
-        {/* Right */}
-        <div className="flex items-center gap-3">
           <a href="https://x.com/lunexfinance" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" aria-label="X (Twitter)">
             <XIcon />
           </a>
