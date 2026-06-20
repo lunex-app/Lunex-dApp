@@ -26,3 +26,6 @@ cache
 *.njsproj
 *.sln
 *.sw?
+
+# Generated Dune CSV exports (regenerate with scripts/dune-export.mjs)
+scripts/dune-export/

@@ -3,6 +3,7 @@ import { ArrowRight, Loader2, Zap, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChainSelector } from "./ChainSelector";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useGateway } from "../hooks/useGateway";
 import { useUnifiedBalance } from "../hooks/useUnifiedBalance";
 import { useWallet } from "@/context/WalletProvider";
@@ -18,10 +19,11 @@ const fmtFee = (fee: any) => {
 
 export function GatewayPanel() {
   const gateway = useGateway();
-  const { circle, uc, hasInjected, connectInjected, connectingInjected } = useWallet();
+  const { circle, uc, hasInjected } = useWallet();
+  const { openConnectModal } = useConnectModal();
   const isCircleWallet = Boolean(circle || uc);
-  // Gateway needs a browser wallet (multi-chain). A Circle user can attach one
-  // on demand without losing their Circle session.
+  // Gateway needs a real multi-chain EOA. A Circle user can connect one via
+  // RainbowKit (injected or WalletConnect/mobile) without losing their session.
   const needsInjected = !hasInjected;
   const [mode, setMode] = useState<"deposit" | "spend">("deposit");
   const [transferMode, setTransferMode] = useState<"instant" | "manual">("instant");
@@ -91,12 +93,10 @@ export function GatewayPanel() {
                 : "Gateway works across multiple chains. Connect a browser wallet like MetaMask to deposit and spend your unified USDC balance."}
             </p>
             <Button
-              onClick={() => connectInjected()}
-              disabled={connectingInjected}
+              onClick={() => openConnectModal?.()}
               className="h-9 w-full gap-2 font-black uppercase tracking-widest text-[10px]"
             >
-              {connectingInjected ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Connect browser wallet
+              Connect wallet
             </Button>
           </div>
         )}
