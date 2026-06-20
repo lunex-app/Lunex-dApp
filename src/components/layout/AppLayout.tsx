@@ -10,7 +10,6 @@ import {
   Crown,
   LayoutDashboard,
   BarChart3,
-  LineChart,
   BookOpen,
   Menu,
   X,
@@ -33,7 +32,7 @@ const NAV = [
   // { to: "/autopilot", icon: Bot, label: "Autopilot" },
   { to: "/points", icon: Crown, label: "Points" },
   { to: "/stats", icon: BarChart3, label: "Stats" },
-  { to: "/analytics", icon: LineChart, label: "Analytics" },
+  // Public analytics dashboard is route-only (/analytics), intentionally not in the nav.
   { to: "/docs", icon: BookOpen, label: "Docs" },
 ];
 

@@ -21,7 +21,13 @@ export const ARC_TOPICS = {
   withdraw: "0xfbde797d201c681b91056529119e0b02407c7bb96a4a2c75c01fc9667232c8db",
   // CCTP MessageTransmitter — MessageSent(bytes message) (outbound burns).
   messageSent: "0x8c5261668696ce22758910d05bab8f186d6eb247ceac2af2e82c7dc17669b036",
+  // CCTP v2 TokenMessenger — DepositForBurn(address burnToken, uint256 amount,
+  //   address depositor, bytes32 mintRecipient, ...). amount = data word 0.
+  depositForBurn: "0x0c8c1cbdc5190613ebd485511d4e2812cfa45eecb79d845893331fedad5130a5",
 } as const;
+
+// CCTP v2 sandbox contracts on Arc (shared across testnet chains).
+export const ARC_TOKEN_MESSENGER = "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA";
 
 // Block the swap pool was deployed at — bounds all-time scans.
 export const POOL_DEPLOY_BLOCK = 31_829_533;
@@ -70,12 +76,13 @@ export async function fetchAllLogs(
   address: string,
   topic0: string,
   fromBlock: number = POOL_DEPLOY_BLOCK,
+  maxPages: number = MAX_PAGES,
 ): Promise<ExplorerLog[]> {
   const out: ExplorerLog[] = [];
   const seen = new Set<string>();
   let cursor = fromBlock;
 
-  for (let page = 0; page < MAX_PAGES; page++) {
+  for (let page = 0; page < maxPages; page++) {
     const url =
       `${EXPLORER_URL}/api?module=logs&action=getLogs` +
       `&address=${address}&topic0=${topic0}&fromBlock=${cursor}&toBlock=latest`;

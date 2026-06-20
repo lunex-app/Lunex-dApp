@@ -8,6 +8,7 @@ import { arcTestnet, CONTRACTS } from "@/config/wagmi";
 import { stableSwapAbi, vaultAbi } from "@/config/abis";
 import {
   ARC_TOPICS,
+  ARC_TOKEN_MESSENGER,
   STABLE_DECIMALS,
   fetchAllLogs,
   logWord,
@@ -20,12 +21,23 @@ const DAY = 86_400; // seconds
 const SERIES_DAYS = 30;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CACHE_KEY = "lunex:onchain-analytics";
+// CCTP on Arc is extremely high-volume (Arc-wide, shared infra), so an all-time
+// scan isn't feasible in-browser — the Dune ETL carries the authoritative
+// series. Here we sample a recent block window for a live "bridge flow" figure.
+const BRIDGE_LOOKBACK_BLOCKS = 20_000;
+const BRIDGE_MAX_PAGES = 12;
 
 export interface DailyPoint {
   day: number; // unix seconds, midnight UTC
   label: string; // "Jun 18"
   volumeUsd: number;
   swaps: number;
+}
+
+export interface DailyWallets {
+  day: number;
+  label: string;
+  wallets: number;
 }
 
 export interface VaultStat {
@@ -36,17 +48,19 @@ export interface VaultStat {
 }
 
 export interface ProtocolAnalytics {
-  // Volume (USD, all-time)
+  // Volume (USD)
   swapVolumeUsd: number;
   liquidityVolumeUsd: number;
   vaultVolumeUsd: number;
-  totalVolumeUsd: number;
+  bridgeVolumeUsd: number; // recent CCTP flow (see note in UI)
+  totalVolumeUsd: number; // swaps + pool + vaults + bridge
   usdcToEurcUsd: number;
   eurcToUsdcUsd: number;
   // Counts
   swapCount: number;
   liquidityCount: number;
   vaultTxCount: number;
+  bridgeCount: number;
   totalTxCount: number;
   // TVL
   poolTvlUsd: number;
@@ -66,8 +80,7 @@ export interface ProtocolAnalytics {
   mau: number;
   // Time series (last 30 days)
   daily: DailyPoint[];
-  // CCTP (best-effort; cross-chain attribution is not Lunex-specific)
-  cctpMessages: number | null;
+  dailyWallets: DailyWallets[];
   // meta
   generatedAt: number;
 }
@@ -130,13 +143,21 @@ async function readVault(address: `0x${string}`, symbol: "USDC" | "EURC"): Promi
   }
 }
 
-/** Best-effort CCTP outbound message count from Arc (cross-chain, not Lunex-only). */
-async function readCctpMessages(): Promise<number | null> {
+/**
+ * Recent CCTP bridge volume on Arc — sum of DepositForBurn `amount` (data word 0)
+ * over a recent block window. CCTP is shared Arc-wide infrastructure that Lunex
+ * routes through; all-time totals live in the Dune dashboard.
+ */
+async function readBridgeFlow(): Promise<{ usd: number; count: number }> {
   try {
-    const logs = await fetchAllLogs("0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275", ARC_TOPICS.messageSent);
-    return logs.length || null;
+    const latest = Number(await client.getBlockNumber());
+    const fromBlock = Math.max(0, latest - BRIDGE_LOOKBACK_BLOCKS);
+    const logs = await fetchAllLogs(ARC_TOKEN_MESSENGER, ARC_TOPICS.depositForBurn, fromBlock, BRIDGE_MAX_PAGES);
+    let usd = 0;
+    for (const log of logs) usd += Number(logWord(log.data, 0)) / STABLE_DECIMALS;
+    return { usd, count: logs.length };
   } catch {
-    return null;
+    return { usd: 0, count: 0 };
   }
 }
 
@@ -167,7 +188,7 @@ export async function fetchProtocolAnalytics(force = false): Promise<ProtocolAna
     if (cached) return cached;
   }
 
-  const [swaps, adds, usdcDep, usdcWd, eurcDep, eurcWd, pool, usdcVault, eurcVault, cctpMessages] =
+  const [swaps, adds, usdcDep, usdcWd, eurcDep, eurcWd, pool, usdcVault, eurcVault, bridge] =
     await Promise.all([
       fetchAllLogs(CONTRACTS.LUNEX_SWAP_POOL, ARC_TOPICS.tokenExchange),
       fetchAllLogs(CONTRACTS.LUNEX_SWAP_POOL, ARC_TOPICS.addLiquidity),
@@ -178,7 +199,7 @@ export async function fetchProtocolAnalytics(force = false): Promise<ProtocolAna
       readPoolTvl(),
       readVault(CONTRACTS.LUNE_VAULT_USDC, "USDC"),
       readVault(CONTRACTS.LUNE_VAULT_EURC, "EURC"),
-      readCctpMessages(),
+      readBridgeFlow(),
     ]);
 
   // ---- Volume + directional split + daily series ----
@@ -233,12 +254,21 @@ export async function fetchProtocolAnalytics(force = false): Promise<ProtocolAna
   const dauSet = new Set<string>();
   const wauSet = new Set<string>();
   const mauSet = new Set<string>();
+  const dailyWalletSets = new Map<number, Set<string>>();
+  for (let i = 0; i < SERIES_DAYS; i++) dailyWalletSets.set(seriesStart + i * DAY, new Set());
   for (const { actor, t } of events) {
     allTime.add(actor);
     if (t >= nowSec - DAY) dauSet.add(actor);
     if (t >= nowSec - 7 * DAY) wauSet.add(actor);
     if (t >= nowSec - 30 * DAY) mauSet.add(actor);
+    if (t >= seriesStart) {
+      const bucket = Math.floor(t / DAY) * DAY;
+      dailyWalletSets.get(bucket)?.add(actor);
+    }
   }
+  const dailyWallets: DailyWallets[] = Array.from(dailyWalletSets.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([day, set]) => ({ day, label: dayLabel(day), wallets: set.size }));
 
   // ---- TVL + APR ----
   const poolTvlUsd = pool.usdc + pool.eurc;
@@ -254,13 +284,15 @@ export async function fetchProtocolAnalytics(force = false): Promise<ProtocolAna
     swapVolumeUsd,
     liquidityVolumeUsd,
     vaultVolumeUsd,
-    totalVolumeUsd: swapVolumeUsd + liquidityVolumeUsd + vaultVolumeUsd,
+    bridgeVolumeUsd: bridge.usd,
+    totalVolumeUsd: swapVolumeUsd + liquidityVolumeUsd + vaultVolumeUsd + bridge.usd,
     usdcToEurcUsd,
     eurcToUsdcUsd,
     swapCount: swaps.length,
     liquidityCount: adds.length,
     vaultTxCount: vaultLogs.length,
-    totalTxCount: swaps.length + adds.length + vaultLogs.length,
+    bridgeCount: bridge.count,
+    totalTxCount: swaps.length + adds.length + vaultLogs.length + bridge.count,
     poolTvlUsd,
     vaultTvlUsd,
     totalTvlUsd,
@@ -274,7 +306,7 @@ export async function fetchProtocolAnalytics(force = false): Promise<ProtocolAna
     wau: wauSet.size,
     mau: mauSet.size,
     daily,
-    cctpMessages,
+    dailyWallets,
     generatedAt: Date.now(),
   };
   saveCache(result);
