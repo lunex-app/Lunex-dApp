@@ -18,10 +18,8 @@ const FooterInner = () => {
 
   return (
     <footer className="border-t border-border bg-background py-6">
-      <div className="container flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-muted-foreground tracking-wider">
-        <span className="uppercase">Lunex Finance • Copyright 2026</span>
-
-        <div className="flex items-center justify-center md:justify-end gap-4 flex-wrap">
+      <div className="container flex flex-col md:flex-row items-center justify-center gap-4 text-xs text-muted-foreground tracking-wider">
+        <div className="flex items-center justify-center gap-4 flex-wrap">
           <Link to="/docs" className="hover:text-foreground transition-colors uppercase">
             Docs
           </Link>

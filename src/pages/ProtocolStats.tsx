@@ -3,7 +3,8 @@ import { DollarSign, Droplets, Shield, BarChart3, TrendingUp, Loader2 } from "lu
 import { usePoolData } from "@/hooks/usePoolData";
 import { useVaultData } from "@/hooks/useVaultData";
 import BackButton from "@/components/BackButton";
-import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
+import { isSupabaseConfigured } from "@/integrations/supabase/client";
+import { fetchTotalVolumeUsd } from "@/hooks/useVolumeTracker";
 import { estimatePoolApy, formatApy, useDynamicApy } from "@/hooks/useApy";
 
 const ProtocolStats = () => {
@@ -27,10 +28,7 @@ const ProtocolStats = () => {
         return;
       }
       try {
-        const { data } = await supabase.from("protocol_stats").select("*").eq("id", 1).single();
-        if (data?.total_volume_usd != null) {
-          setTotalVolume(Number(data.total_volume_usd));
-        }
+        setTotalVolume(await fetchTotalVolumeUsd());
       } catch (e) {
         console.error("Failed to fetch volume:", e);
       } finally {

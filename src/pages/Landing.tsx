@@ -4,7 +4,8 @@ import FaucetBanner from "@/components/FaucetBanner";
 import { usePoolData } from "@/hooks/usePoolData";
 import { useVaultData } from "@/hooks/useVaultData";
 import { useQuery } from "@tanstack/react-query";
-import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
+import { isSupabaseConfigured } from "@/integrations/supabase/client";
+import { fetchTotalVolumeUsd } from "@/hooks/useVolumeTracker";
 
 const Landing = () => {
   const pool = usePoolData();
@@ -13,18 +14,12 @@ const Landing = () => {
   const totalTvl = pool.totalLiquidity + usdcVault.totalAssets + eurcVault.totalAssets;
   const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const { data: stats } = useQuery({
-    queryKey: ["protocol-stats"],
-    queryFn: async () => {
-      if (!isSupabaseConfigured) return null;
-      const { data } = await supabase.from("protocol_stats").select("*").eq("id", 1).single();
-      return data;
-    },
+  const { data: totalVolume = 0 } = useQuery({
+    queryKey: ["protocol-total-volume"],
+    queryFn: fetchTotalVolumeUsd,
     enabled: isSupabaseConfigured,
     refetchInterval: 10000,
   });
-
-  const totalVolume = stats?.total_volume_usd ?? 0;
 
   return (
     <div className="page-fade-in">

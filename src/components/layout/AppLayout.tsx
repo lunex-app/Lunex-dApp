@@ -28,8 +28,9 @@ const NAV = [
   { to: "/pool", icon: Droplets, label: "Pool" },
   { to: "/yield", icon: Sprout, label: "Yield" },
   { to: "/bridge", icon: ArrowLeftRight, label: "Bridge" },
-  { to: "/pay", icon: CreditCard, label: "Pay" },
-  { to: "/autopilot", icon: Bot, label: "Autopilot" },
+  // Temporarily disabled for the main release:
+  // { to: "/pay", icon: CreditCard, label: "Pay" },
+  // { to: "/autopilot", icon: Bot, label: "Autopilot" },
   { to: "/points", icon: Crown, label: "Points" },
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/stats", icon: BarChart3, label: "Stats" },
@@ -110,14 +111,6 @@ function Sidebar({
           </NavLink>
         ))}
       </nav>
-
-      {!collapsed && (
-        <div className="mt-auto border-t border-border px-3 pt-4">
-          <span className="font-mono text-[10px] leading-tight text-muted-foreground">
-            Arc · USDC · sub-second finality
-          </span>
-        </div>
-      )}
     </aside>
   );
 }
@@ -151,9 +144,9 @@ function Topbar({
         >
           {collapsed ? <PanelLeft size={17} /> : <PanelLeftClose size={17} />}
         </button>
-        <NavLink to="/" className="flex items-center gap-2">
+        <NavLink to="/" className="flex items-center gap-1">
           <img src={lunexLogo} alt="LUNEX" className="h-7 w-auto shrink-0" />
-          <span className="text-base font-bold uppercase tracking-wide text-foreground hover:text-primary transition-colors">LUNEX</span>
+          <span className="-ml-0.5 text-base font-bold uppercase tracking-wide text-foreground hover:text-primary transition-colors">LUNEX</span>
         </NavLink>
         <span className="hidden font-mono text-xs text-muted-foreground md:inline">/ {label}</span>
       </div>

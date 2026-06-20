@@ -22,10 +22,12 @@ import Dashboard from "@/pages/Dashboard";
 import ProtocolStats from "@/pages/ProtocolStats";
 import Bridge from "@/pages/Bridge";
 import Docs from "@/pages/Docs";
-import Points from "@/pages/Points";
+import ComingSoon from "@/pages/ComingSoon";
 import LunexSDK from "@/pages/LunexSDK";
-import LunexPay from "@/pages/LunexPay";
-import Autopilot from "@/pages/Autopilot";
+// Temporarily disabled for the main release — re-enable when ready.
+// import Points from "@/pages/Points";
+// import LunexPay from "@/pages/LunexPay";
+// import Autopilot from "@/pages/Autopilot";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { MaintenanceGuard } from "@/components/MaintenanceGuard";
 import NotFound from "@/pages/NotFound";
@@ -50,9 +52,10 @@ const AppRoutes = () => {
           <Route path="/dashboard" element={<PageTransition><MaintenanceGuard><Dashboard /></MaintenanceGuard></PageTransition>} />
           <Route path="/stats" element={<PageTransition><MaintenanceGuard><ProtocolStats /></MaintenanceGuard></PageTransition>} />
           <Route path="/protocol" element={<PageTransition><MaintenanceGuard><ProtocolStats /></MaintenanceGuard></PageTransition>} />
-          <Route path="/points" element={<PageTransition><Points /></PageTransition>} />
+          <Route path="/points" element={<PageTransition><ComingSoon /></PageTransition>} />
+          {/* Temporarily disabled for the main release:
           <Route path="/pay" element={<PageTransition><MaintenanceGuard><LunexPay /></MaintenanceGuard></PageTransition>} />
-          <Route path="/autopilot" element={<PageTransition><MaintenanceGuard><Autopilot /></MaintenanceGuard></PageTransition>} />
+          <Route path="/autopilot" element={<PageTransition><MaintenanceGuard><Autopilot /></MaintenanceGuard></PageTransition>} /> */}
           <Route path="/docs" element={<PageTransition><Docs /></PageTransition>} />
           <Route path="/lunexsdk" element={<PageTransition><LunexSDK /></PageTransition>} />
           <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />

@@ -60,11 +60,6 @@ export default function WalletButton() {
           onClick={() => setMenuOpen((o) => !o)}
           className="bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 text-xs font-mono h-8 px-3 gap-2"
         >
-          {(balance != null || eurcBalance != null) && (
-            <span className="hidden sm:inline text-muted-foreground">
-              {(balance ?? 0).toFixed(2)} USDC · {(eurcBalance ?? 0).toFixed(2)} EURC
-            </span>
-          )}
           <span className="grid h-5 w-5 place-items-center rounded-full bg-primary text-[9px] text-primary-foreground">{tag}</span>
           <span>{shortAddr(address)}</span>
           <ChevronDown className="h-3 w-3 opacity-60" />
