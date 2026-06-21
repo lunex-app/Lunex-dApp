@@ -14,7 +14,7 @@ export function useTokenBalance(tokenSymbol: "USDC" | "EURC") {
     functionName: "balanceOf",
     args: address ? [address] : undefined,
     chainId: arcTestnet.id,
-    query: { enabled: !!address, refetchInterval: 5000 },
+    query: { enabled: !!address, refetchInterval: 3000, refetchOnWindowFocus: true },
   });
 
   const balance = rawBalance as bigint | undefined;

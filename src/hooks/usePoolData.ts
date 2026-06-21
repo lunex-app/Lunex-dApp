@@ -13,7 +13,7 @@ export function usePoolData() {
     functionName: "balances",
     args: [0n],
     chainId: arcTestnet.id,
-    query: { refetchInterval: 5000 },
+    query: { refetchInterval: 3000, refetchOnWindowFocus: true },
   });
 
   const { data: eurcReserveRaw, refetch: refetchEurcReserve } = useReadContract({
@@ -22,7 +22,7 @@ export function usePoolData() {
     functionName: "balances",
     args: [1n],
     chainId: arcTestnet.id,
-    query: { refetchInterval: 5000 },
+    query: { refetchInterval: 3000, refetchOnWindowFocus: true },
   });
 
   const { data: feeRaw, refetch: refetchFee } = useReadContract({
@@ -30,7 +30,7 @@ export function usePoolData() {
     abi: stableSwapAbi,
     functionName: "fee",
     chainId: arcTestnet.id,
-    query: { refetchInterval: 5000 },
+    query: { refetchInterval: 3000, refetchOnWindowFocus: true },
   });
 
   const { data: lpTokenRaw, refetch: refetchLpToken } = useReadContract({
@@ -38,7 +38,7 @@ export function usePoolData() {
     abi: stableSwapAbi,
     functionName: "lpToken",
     chainId: arcTestnet.id,
-    query: { refetchInterval: 5000 },
+    query: { refetchInterval: 3000, refetchOnWindowFocus: true },
   });
 
   const lpTokenAddress = (lpTokenRaw as `0x${string}` | undefined) ?? CONTRACTS.LUNEX_LP;
@@ -61,7 +61,7 @@ export function usePoolData() {
     functionName: "balanceOf",
     args: address ? [address] : undefined,
     chainId: arcTestnet.id,
-    query: { enabled: !!address, refetchInterval: 5000 },
+    query: { enabled: !!address, refetchInterval: 3000, refetchOnWindowFocus: true },
   });
 
   const {
@@ -73,7 +73,7 @@ export function usePoolData() {
     abi: erc20Abi,
     functionName: "totalSupply",
     chainId: arcTestnet.id,
-    query: { refetchInterval: 5000 },
+    query: { refetchInterval: 3000, refetchOnWindowFocus: true },
   });
 
   const lpDecimals = typeof lpDecimalsRaw === "number" ? lpDecimalsRaw : 18;

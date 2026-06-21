@@ -42,7 +42,10 @@ export function GatewayPanel() {
   // (whether it's the only wallet or attached alongside a Circle session).
   const { refreshGatewayBalance } = gateway;
   useEffect(() => {
-    if (hasInjected) refreshGatewayBalance();
+    if (!hasInjected) return;
+    refreshGatewayBalance();
+    const id = setInterval(refreshGatewayBalance, 6000); // keep it fresh (pending → confirmed)
+    return () => clearInterval(id);
   }, [hasInjected, refreshGatewayBalance]);
 
   const feeRows = useMemo(() => {
@@ -99,11 +102,19 @@ export function GatewayPanel() {
             </div>
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm font-bold text-primary">{gateway.gatewayBalance.toFixed(2)} USDC</span>
+              {gateway.gatewayPending > 0 && (
+                <span className="font-mono text-[10px] text-amber-500">+{gateway.gatewayPending.toFixed(2)} pending</span>
+              )}
               <button onClick={() => gateway.refreshGatewayBalance()} className="text-muted-foreground hover:text-primary" title="Refresh">
                 <RefreshCw className="h-3 w-3" />
               </button>
             </div>
           </div>
+        )}
+        {gateway.gatewayPending > 0 && (
+          <p className="text-[10px] text-muted-foreground leading-relaxed -mt-3">
+            Pending deposits become spendable once the source chain finalises (a few minutes on testnet).
+          </p>
         )}
 
         <ChainSelector
@@ -161,7 +172,7 @@ export function GatewayPanel() {
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
               placeholder="0.00"
-              className="h-14 text-2xl font-black font-mono"
+              className="h-12 text-xl font-black font-mono"
             />
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-muted-foreground">USDC</span>
           </div>

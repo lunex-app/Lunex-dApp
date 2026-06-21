@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useReadContracts } from "wagmi";
+import { useAccount, useReadContracts } from "wagmi";
 import { createPublicClient, formatUnits, http } from "viem";
 import {
   createUnifiedBalanceKitContext,
@@ -15,9 +15,12 @@ import {
 import { useWallet } from "@/context/WalletProvider";
 
 export function useUnifiedBalance() {
-  // Use the active wallet address (Circle smart account or injected) so the
-  // unified balance shows for every login type, not just injected wallets.
-  const { address } = useWallet();
+  // Bridge/Gateway move funds from the connected multi-chain EOA (RainbowKit:
+  // injected or WalletConnect), so read balances from THAT wallet. Fall back to
+  // the Circle session address only when no EOA is connected.
+  const { address: injectedAddress } = useAccount();
+  const { address: walletAddress } = useWallet();
+  const address = injectedAddress ?? walletAddress;
   const [gatewayBalances, setGatewayBalances] = useState<GetBalancesResult | null>(null);
   const [gatewayError, setGatewayError] = useState<string | null>(null);
   const [isGatewayLoading, setIsGatewayLoading] = useState(false);
@@ -54,8 +57,8 @@ export function useUnifiedBalance() {
     contracts,
     query: {
       enabled: !!address,
-      refetchInterval: 15000, // Sync every 15s
-      staleTime: 5000,
+      refetchInterval: 3000, // near-real-time: sync every 3s
+      staleTime: 1500,
     },
   });
 
@@ -156,7 +159,7 @@ export function useUnifiedBalance() {
     const interval = setInterval(() => {
       fetchGatewayBalances();
       fetchNativeBalances();
-    }, 30_000);
+    }, 6_000);
     return () => clearInterval(interval);
   }, [address, context]);
 
