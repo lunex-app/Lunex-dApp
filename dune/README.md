@@ -2,6 +2,19 @@
 
 **Live dashboard:** https://dune.com/lunexfinance1264/lunex-protocol-arc-analytics
 
+### Wallet analytics on Dune
+- **Top Wallets** (live, on the dashboard) — top 50 wallets by lifetime volume.
+  Refresh with `node scripts/dune-wallets.mjs` → re-run the `Lunex — Top Wallets`
+  query (query 7770453) with the new VALUES.
+- **Wallet Lookup** (query 7770522, parameterized `{{wallet}}`) — looks up ANY
+  wallet's Lunex activity. It reads the uploaded per-event tables, so first run
+  `node scripts/dune-export.mjs` and upload `lunex_swaps.csv`, `lunex_liquidity.csv`,
+  `lunex_vault_txs.csv`, `lunex_bridge_fees.csv` via Dune → **Upload data** (free),
+  naming them `lunex_swaps` etc. Then the query resolves and can be added to the
+  dashboard as a parameterized panel. (The in-app `/analytics` wallet search
+  already does any-wallet lookup live, no upload needed.)
+
+
 Built via the Dune MCP with Lunex's on-chain numbers inlined as SQL `VALUES`
 (Arc isn't natively on Dune). It's a point-in-time snapshot; to refresh, re-run
 `node scripts/dune-build-data.mjs` and update the query `VALUES`. The
