@@ -3,6 +3,7 @@ import { DollarSign, Droplets, Shield, BarChart3, TrendingUp, Loader2 } from "lu
 import { usePoolData } from "@/hooks/usePoolData";
 import { useVaultData } from "@/hooks/useVaultData";
 import BackButton from "@/components/BackButton";
+import { WalletSearch } from "@/components/WalletSearch";
 import { fetchTotalVolumeUsd } from "@/hooks/useVolumeTracker";
 import { estimatePoolApy, formatApy, useDynamicApy } from "@/hooks/useApy";
 
@@ -52,6 +53,10 @@ const ProtocolStats = () => {
              </p>
           </div>
         </div>
+      </div>
+
+      <div className="mb-10">
+        <WalletSearch />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">

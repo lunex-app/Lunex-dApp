@@ -25,6 +25,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import BackButton from "@/components/BackButton";
+import { WalletSearch } from "@/components/WalletSearch";
 import { fetchProtocolAnalytics, type ProtocolAnalytics } from "@/lib/onchainAnalytics";
 import { EXPLORER_URL } from "@/config/wagmi";
 
@@ -143,6 +144,10 @@ const Analytics = () => {
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
+      </div>
+
+      <div className="mb-10">
+        <WalletSearch />
       </div>
 
       {!data ? (
