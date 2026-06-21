@@ -1,4 +1,5 @@
 import { useWallet } from "@/context/WalletProvider";
+import { WalletSearch } from "@/components/WalletSearch";
 import { useTokenBalances } from "@/hooks/useTokenBalance";
 import { usePoolData } from "@/hooks/usePoolData";
 import { useVaultData } from "@/hooks/useVaultData";
@@ -16,7 +17,7 @@ const ACTIVITY_COLUMNS = [
 ];
 
 const Dashboard = () => {
-  const { isConnected } = useWallet();
+  const { isConnected, address } = useWallet();
   const balances = useTokenBalances();
   const pool = usePoolData();
   const usdcVault = useVaultData("USDC");
@@ -52,6 +53,10 @@ const Dashboard = () => {
         <BackButton />
         <h1 className="text-3xl font-bold tracking-tight mt-6 uppercase">Portfolio Overview</h1>
         <p className="text-muted-foreground text-sm font-mono mt-1">Consolidated view of your protocol assets and performance</p>
+      </div>
+
+      <div className="mb-8">
+        <WalletSearch initialAddress={address} />
       </div>
 
       <div className="space-y-8">
