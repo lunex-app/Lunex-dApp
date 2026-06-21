@@ -136,7 +136,11 @@ function Topbar({ onOpenMobile }: { onOpenMobile: () => void }) {
         >
           <Menu size={18} />
         </button>
-        <span className="font-mono text-xs text-muted-foreground">/ {label}</span>
+        <NavLink to="/" className="flex items-center gap-1.5" aria-label="Lunex home">
+          <img src={lunexLogo} alt="" className="h-7 w-auto shrink-0" />
+          <span className="text-base font-bold uppercase tracking-wide text-foreground hover:text-primary transition-colors">Lunex</span>
+        </NavLink>
+        <span className="hidden font-mono text-xs text-muted-foreground md:inline">/ {label}</span>
       </div>
       <div className="flex items-center gap-2 sm:gap-2.5">
         <ThemeSwitcher />
