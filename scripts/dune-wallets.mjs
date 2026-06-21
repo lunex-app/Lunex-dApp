@@ -29,13 +29,32 @@ const addrTopic = (a) => "0x" + "0".repeat(24) + a.toLowerCase().replace(/^0x/, 
 const topicAddr = (l, i) => (l.topics[i] ? "0x" + l.topics[i].slice(26).toLowerCase() : null);
 const tsOf = (l) => (l.timeStamp ? parseInt(l.timeStamp, 16) : 0);
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Retry a page until it succeeds (or genuinely returns no records); THROW on
+// unrecoverable failure so we never ship partial/inaccurate aggregates.
+async function fetchPage(url) {
+  let lastErr;
+  for (let a = 0; a < 6; a++) {
+    try {
+      const r = await fetch(url);
+      const j = await r.json();
+      if (Array.isArray(j.result)) return j.result;
+      const msg = String(j.message ?? "").toLowerCase();
+      if (msg.includes("no records") || msg.includes("not found")) return [];
+      lastErr = new Error(j.message || "non-array result");
+    } catch (e) { lastErr = e; }
+    await sleep(500 * (a + 1));
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("explorer page failed");
+}
+
 async function fetchLogs(address, topic0, extra = "") {
   const out = [], seen = new Set();
   let cursor = DEPLOY_BLOCK;
   for (let p = 0; p < 200; p++) {
     const url = `${EXPLORER}/api?module=logs&action=getLogs&address=${address}&topic0=${topic0}${extra}&fromBlock=${cursor}&toBlock=latest`;
-    let rows = [];
-    try { const r = await fetch(url); const j = await r.json(); if (!Array.isArray(j.result)) break; rows = j.result; } catch { break; }
+    const rows = await fetchPage(url);
     if (!rows.length) break;
     let max = cursor;
     for (const row of rows) { const k = `${row.transactionHash}:${row.logIndex}`; if (!seen.has(k)) { seen.add(k); out.push(row); } const b = parseInt(row.blockNumber, 16); if (b > max) max = b; }
@@ -83,36 +102,32 @@ async function main() {
     return { w, total: r0(total), swapVol: r0(r.swapVol), liqVol: r0(r.liqVol), vaultVol: r0(r.vaultVol), bridgeVol: r0(bridgeVol), bridgeN: r.bridgeN, txn, last: day(r.last) };
   }).filter((r) => r.txn > 0 && r.total >= 1).sort((a, b) => b.total - a.total);
 
-  const values = rows.map((r) =>
-    `('${r.w}',${r.total},${r.swapVol},${r.liqVol},${r.vaultVol},${r.bridgeVol},${r.bridgeN},${r.txn},'${r.last}')`
-  ).join(",");
+  // Lean 5-col inline so the whole thing fits in a single parameterized query.
+  // Cap at the top 1000 wallets by volume (covers every meaningful user; the
+  // in-app /analytics search covers the long tail live).
+  const dexVol = (r) => r.swapVol + r.liqVol + r.vaultVol;
+  const values = rows
+    .slice(0, 300)
+    .map((r) => `('${r.w}',${r.total},${dexVol(r)},${r.bridgeVol},${r.txn})`)
+    .join(",\n  ");
 
   const sql = `-- Lunex wallet lookup — enter an address in the {{wallet}} parameter
-SELECT
-  wallet,
-  total_volume_usd,
-  swap_volume_usd,
-  liquidity_volume_usd,
-  vault_volume_usd,
-  bridge_volume_usd,
-  bridges,
-  transactions,
-  last_active
+SELECT wallet, total_volume_usd, dex_volume_usd, bridge_volume_usd, transactions
 FROM (VALUES
   ${values}
-) AS t(wallet, total_volume_usd, swap_volume_usd, liquidity_volume_usd, vault_volume_usd, bridge_volume_usd, bridges, transactions, last_active)
+) AS t(wallet, total_volume_usd, dex_volume_usd, bridge_volume_usd, transactions)
 WHERE wallet = lower('{{wallet}}')`;
 
   const dir = join(dirname(fileURLToPath(import.meta.url)), "dune-export");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "wallet-lookup.sql"), sql);
 
-  // Compact top-50 leaderboard (small enough to create directly via the MCP).
-  const top = rows.slice(0, 50);
+  // Top-200 leaderboard.
+  const top = rows.slice(0, 200);
   const topValues = top
     .map((r, i) => `(${i + 1},'${r.w}',${r.total},${r.swapVol + r.liqVol + r.vaultVol},${r.bridgeVol},${r.txn})`)
     .join(",\n  ");
-  const leaderboard = `-- Lunex — Top 50 Wallets by lifetime volume
+  const leaderboard = `-- Lunex — Top 200 Wallets by lifetime volume
 SELECT rank, wallet, total_volume_usd, dex_volume_usd, bridge_volume_usd, transactions
 FROM (VALUES
   ${topValues}
