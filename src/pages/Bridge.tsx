@@ -207,7 +207,7 @@ const Bridge = () => {
                     placeholder="0.00"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="bg-muted/10 border-border text-2xl font-bold font-mono h-16 rounded-sm focus-visible:ring-primary pl-4"
+                    className="bg-muted/10 border-border text-xl font-bold font-mono h-12 rounded-sm focus-visible:ring-primary pl-4"
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold font-mono text-muted-foreground uppercase">{tokenSymbol}</div>
                 </div>

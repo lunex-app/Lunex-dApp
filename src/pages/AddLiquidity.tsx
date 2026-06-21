@@ -115,7 +115,7 @@ const AddLiquidity = () => {
                     value={value} 
                     onChange={(e) => onChange(e.target.value)} 
                     disabled={!isConnected} 
-                    className="flex-1 bg-transparent text-3xl font-bold text-foreground outline-none placeholder:text-muted-foreground/20 font-mono disabled:opacity-50 min-w-0" 
+                    className="flex-1 bg-transparent text-2xl font-bold text-foreground outline-none placeholder:text-muted-foreground/20 font-mono disabled:opacity-50 min-w-0" 
                   />
                   <div className="flex items-center gap-2 bg-background px-3 py-1.5 border border-border rounded-sm">
                      <TokenIcon symbol={token} size="sm" />

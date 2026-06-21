@@ -13,7 +13,7 @@ export function useVaultData(tokenSymbol: "USDC" | "EURC") {
     abi: vaultAbi,
     functionName: "totalAssets",
     chainId: arcTestnet.id,
-    query: { refetchInterval: 5000 },
+    query: { refetchInterval: 3000, refetchOnWindowFocus: true },
   });
 
   const { data: sharePriceRaw, refetch: refetchSharePrice } = useReadContract({
@@ -21,7 +21,7 @@ export function useVaultData(tokenSymbol: "USDC" | "EURC") {
     abi: vaultAbi,
     functionName: "sharePrice",
     chainId: arcTestnet.id,
-    query: { refetchInterval: 5000 },
+    query: { refetchInterval: 3000, refetchOnWindowFocus: true },
   });
 
   const {
@@ -34,7 +34,7 @@ export function useVaultData(tokenSymbol: "USDC" | "EURC") {
     functionName: "balanceOf",
     args: address ? [address] : undefined,
     chainId: arcTestnet.id,
-    query: { enabled: !!address, refetchInterval: 5000 },
+    query: { enabled: !!address, refetchInterval: 3000, refetchOnWindowFocus: true },
   });
 
   const {
@@ -47,7 +47,7 @@ export function useVaultData(tokenSymbol: "USDC" | "EURC") {
     functionName: "convertToAssets",
     args: userSharesRaw !== undefined ? [userSharesRaw as bigint] : undefined,
     chainId: arcTestnet.id,
-    query: { enabled: !!address && userSharesRaw !== undefined, refetchInterval: 5000 },
+    query: { enabled: !!address && userSharesRaw !== undefined, refetchInterval: 3000, refetchOnWindowFocus: true },
   });
 
   const userSharesRawBigInt = (userSharesRaw as bigint | undefined) ?? 0n;

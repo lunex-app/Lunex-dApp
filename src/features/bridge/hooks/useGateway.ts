@@ -33,6 +33,7 @@ export function useGateway() {
   const [lastEstimate, setLastEstimate] = useState<EstimateSpendResult | null>(null);
   const [lastSpendMode, setLastSpendMode] = useState<GatewayTransferMode>("instant");
   const [gatewayBalance, setGatewayBalance] = useState<number | null>(null);
+  const [gatewayPending, setGatewayPending] = useState<number>(0);
 
   const createAdapter = useCallback(async () => {
     // EIP-1193 provider from the active wagmi connector (works for injected and
@@ -69,19 +70,24 @@ export function useGateway() {
         includePending: true,
         networkType: "testnet",
       });
-      // Sum the available balance across chains into one unified figure.
-       
+      // The kit returns totalConfirmedBalance / totalPendingBalance (strings),
+      // with a per-account `breakdown`. Confirmed is what's spendable now.
+
       const anyRes = res as any;
-      const total =
-        typeof anyRes?.totalBalance === "string"
-          ? Number(anyRes.totalBalance)
-          : Array.isArray(anyRes?.balances)
-            ? anyRes.balances.reduce((sum: number, b: { balance?: string }) => sum + Number(b?.balance ?? 0), 0)
-            : 0;
+      let total = Number(anyRes?.totalConfirmedBalance ?? NaN);
+      if (!Number.isFinite(total)) {
+        // Fall back to summing the per-chain confirmed breakdown.
+        const items: { confirmedBalance?: string }[] =
+          anyRes?.breakdown?.flatMap((a: { breakdown?: unknown[] }) => a.breakdown ?? []) ?? [];
+        total = items.reduce((sum, b) => sum + Number(b?.confirmedBalance ?? 0), 0);
+      }
+      const pending = Number(anyRes?.totalPendingBalance ?? 0);
+      setGatewayPending(Number.isFinite(pending) ? pending : 0);
       setGatewayBalance(Number.isFinite(total) ? total : 0);
       return total;
     } catch {
       setGatewayBalance(null);
+      setGatewayPending(0);
       return null;
     }
   }, [address]);
@@ -184,6 +190,16 @@ export function useGateway() {
       setLastSpend(null);
       setLastSpendMode(mode);
       try {
+        // Spend draws from the CONFIRMED Gateway balance. A just-made deposit is
+        // pending until the source chain finalises, so guide the user instead of
+        // letting the transfer fail opaquely.
+        const confirmed = await refreshGatewayBalance();
+        if (confirmed != null && Number(confirmed) + 1e-9 < Number(amount)) {
+          throw new Error(
+            `Only ${Number(confirmed).toFixed(2)} USDC is confirmed in your Gateway balance. ` +
+              `Recent deposits stay pending until the source chain finalises — wait for it to confirm, deposit more, or lower the amount.`,
+          );
+        }
         // Burn-intent signing is chain-agnostic (EIP-712). Only the MANUAL mint
         // is an on-chain tx, so switch to the destination chain for that path.
         // Instant (forwarder) mode needs no chain switch at all.
@@ -198,10 +214,12 @@ export function useGateway() {
         refreshGatewayBalance();
         return result;
       } catch (err: unknown) {
+        // Surface the raw error to the console for debugging; show a friendly one.
+        console.error("Gateway spend error:", err);
         const message = humanizeGatewayError((err as Error)?.message || "Gateway transfer failed");
         setError(message);
         setStatus("failed");
-        toast.error("Gateway transfer failed", { description: message.slice(0, 160) });
+        toast.error("Gateway transfer failed", { description: message.slice(0, 200) });
         throw err;
       }
     },
@@ -224,6 +242,7 @@ export function useGateway() {
     lastEstimate,
     lastSpendMode,
     gatewayBalance,
+    gatewayPending,
     refreshGatewayBalance,
     deposit,
     estimateSpend,
