@@ -38,13 +38,29 @@ const topicAddr = (l, i) => (l.topics[i] ? "0x" + l.topics[i].slice(26).toLowerC
 const tsOf = (l) => (l.timeStamp ? parseInt(l.timeStamp, 16) : 0);
 const dayOf = (ts) => new Date(ts * 1000).toISOString().slice(0, 10);
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function fetchPage(url) {
+  let lastErr;
+  for (let a = 0; a < 6; a++) {
+    try {
+      const r = await fetch(url);
+      const j = await r.json();
+      if (Array.isArray(j.result)) return j.result;
+      const msg = String(j.message ?? "").toLowerCase();
+      if (msg.includes("no records") || msg.includes("not found")) return [];
+      lastErr = new Error(j.message || "non-array result");
+    } catch (e) { lastErr = e; }
+    await sleep(500 * (a + 1));
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("explorer page failed");
+}
+
 async function fetchLogs(address, topic0, extra = "") {
   const out = [], seen = new Set();
   let cursor = DEPLOY_BLOCK;
   for (let p = 0; p < 200; p++) {
     const url = `${EXPLORER}/api?module=logs&action=getLogs&address=${address}&topic0=${topic0}${extra}&fromBlock=${cursor}&toBlock=latest`;
-    let rows = [];
-    try { const r = await fetch(url); const j = await r.json(); if (!Array.isArray(j.result)) break; rows = j.result; } catch { break; }
+    const rows = await fetchPage(url);
     if (!rows.length) break;
     let max = cursor;
     for (const row of rows) { const k = `${row.transactionHash}:${row.logIndex}`; if (!seen.has(k)) { seen.add(k); out.push(row); } const b = parseInt(row.blockNumber, 16); if (b > max) max = b; }
