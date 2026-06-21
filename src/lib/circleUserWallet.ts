@@ -285,9 +285,17 @@ type Call = { address: `0x${string}`; abi: Abi; functionName: string; args: read
  * contract-execution challenge, the user signs it here with their PIN. Circle
  * sponsors gas (SCA), so no native balance is required.
  */
+// Deeply convert BigInt → string (including inside arrays/tuples, e.g. a
+// uint256[2] arg) so the params survive JSON.stringify in the API request.
+function toAbiParam(v: unknown): unknown {
+  if (typeof v === "bigint") return v.toString();
+  if (Array.isArray(v)) return v.map(toAbiParam);
+  return v;
+}
+
 export async function ucWrite(session: UcSession, call: Call): Promise<void> {
   const abiFunctionSignature = humanSignature(call);
-  const abiParameters = call.args.map((a) => (typeof a === "bigint" ? a.toString() : a));
+  const abiParameters = call.args.map(toAbiParam);
   // Validate encodability up-front (throws clearly if the call is malformed).
   encodeFunctionData({ abi: call.abi, functionName: call.functionName, args: call.args as never });
   const { challengeId } = await api<{ challengeId: string }>("/api/uc/execute", {
