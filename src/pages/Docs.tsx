@@ -256,9 +256,9 @@ const Docs = () => {
 
   return (
     <div className="page-fade-in min-h-[calc(100vh-3.5rem)]">
-      {/* Hamburger drawer — all features */}
+      {/* Hamburger drawer — mobile only; desktop uses the persistent sidebar */}
       {navOpen && (
-        <>
+        <div className="lg:hidden">
           <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={() => setNavOpen(false)} />
           <aside className="fixed left-0 top-0 z-[70] h-screen w-72 max-w-[80vw] overflow-y-auto border-r border-border bg-card p-4 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
@@ -289,18 +289,18 @@ const Docs = () => {
               </div>
             ))}
           </aside>
-        </>
+        </div>
       )}
 
       <div className="container max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <BackButton />
         
         {/* Header Section */}
-        <div className="mb-12 border-b border-border pb-8 mt-4">
-          <div className="flex items-center gap-3 mb-3">
+        <div className="mb-10 border-b border-border pb-8 mt-4 text-center">
+          <div className="flex items-center justify-center gap-3 mb-3">
             <button
               onClick={() => setNavOpen(true)}
-              className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:text-primary transition-colors shrink-0"
+              className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:text-primary transition-colors shrink-0 lg:hidden"
               aria-label="Open docs menu"
               title="All features"
             >
@@ -311,13 +311,13 @@ const Docs = () => {
             </div>
             <h1 className="text-3xl font-bold tracking-tight">Lunex Developer Documentation</h1>
           </div>
-          <p className="text-base text-muted-foreground max-w-2xl">
+          <p className="text-base text-muted-foreground max-w-2xl mx-auto">
             Official guides, integration protocols, and architectural overviews for the Lunex Finance ecosystem on Arc Network.
           </p>
         </div>
 
         {/* Search */}
-        <div className="relative mb-10 max-w-2xl">
+        <div className="relative mb-10 max-w-2xl mx-auto">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <input
             type="text"
@@ -328,6 +328,33 @@ const Docs = () => {
           />
         </div>
 
+        <div className="lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-10 lg:items-start">
+          {/* Persistent desktop sidebar — replaces the drawer on large screens */}
+          <aside className="hidden lg:block sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pr-2">
+            {docs.map((cat) => (
+              <div key={cat.id} className="mb-5">
+                <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <span className="text-primary/70">{cat.icon}</span> {cat.category}
+                </p>
+                <div className="space-y-0.5">
+                  {cat.sections.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => goTo(s.id)}
+                      className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all ${
+                        activeSection === s.id ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                      }`}
+                    >
+                      {activeSection === s.id && <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+                      <span className="truncate">{s.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </aside>
+
+          <div className="min-w-0">
         {isSearching ? (
           /* Search Results */
           <div className="max-w-4xl">
@@ -410,6 +437,8 @@ const Docs = () => {
             </main>
           </div>
         )}
+          </div>
+        </div>
       </div>
     </div>
   );

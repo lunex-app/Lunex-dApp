@@ -21,6 +21,7 @@
 ## Table of Contents
 
 - [Overview](#-overview)
+- [Preview](#-preview)
 - [Why Arc](#-why-arc)
 - [Features](#-features)
 - [Circle Integrations](#-circle-integrations)
@@ -54,6 +55,30 @@ Lunex unifies the three primitives a stablecoin user needs into one frictionless
 The entire protocol is wrapped in a **passwordless onboarding layer** built on Circle Programmable Wallets — users sign in with a **passkey** or **email + PIN** and transact **gaslessly**, with no seed phrases.
 
 Every metric the protocol reports is **decoded directly from on-chain events** and published to a public analytics surface — both in-app and on a custom Dune dashboard.
+
+---
+
+## 🖼️ Preview
+
+> Drop product screenshots into `docs/screenshots/` (filenames below) and they render here automatically.
+
+<div align="center">
+
+![Lunex banner](docs/banner.png)
+
+</div>
+
+| Landing | StableSwap |
+| :-----: | :--------: |
+| ![Landing](docs/screenshots/landing.png) | ![Swap](docs/screenshots/swap.png) |
+
+| CCTP Bridge & Gateway | Yield Vaults |
+| :-------------------: | :----------: |
+| ![Bridge](docs/screenshots/bridge.png) | ![Yield](docs/screenshots/yield.png) |
+
+| Analytics | Passwordless Wallet |
+| :-------: | :-----------------: |
+| ![Analytics](docs/screenshots/analytics.png) | ![Wallet](docs/screenshots/wallet.png) |
 
 ---
 
@@ -394,7 +419,7 @@ A `netlify.toml`, `.nvmrc`, and `.npmrc` (legacy-peer-deps) are included so CI i
 
 ## 📄 License
 
-Released under the **MIT License**.
+Released under the **MIT License** — see [`LICENSE`](LICENSE) for the full text.
 
 ---
 

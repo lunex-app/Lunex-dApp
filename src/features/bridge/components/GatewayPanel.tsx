@@ -35,6 +35,13 @@ export function GatewayPanel() {
   const srcUsdcRaw = balancesByChain[fromChain]?.usdc ?? 0n;
   const srcUsdc = Number(formatUnits(srcUsdcRaw, BRIDGE_CHAINS[fromChain].usdcDecimals));
 
+  // The amount field draws from a DIFFERENT source per mode:
+  //  • deposit  → moves USDC FROM the connected wallet INTO Gateway → use wallet balance.
+  //  • spend/instant → mints FROM the unified Gateway balance → use the confirmed Gateway balance.
+  const gatewayAvail = gateway.gatewayBalance ?? 0;
+  const availForMode = mode === "deposit" ? srcUsdc : gatewayAvail;
+  const availLabel = mode === "deposit" ? `${BRIDGE_CHAINS[fromChain].label} wallet` : "Gateway";
+
   const isBusy = gateway.status === "depositing" || gateway.status === "spending" || gateway.status === "estimating";
   const validAmount = Number(amount) > 0;
 
@@ -160,10 +167,10 @@ export function GatewayPanel() {
             <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">USDC Amount</label>
             <button
               type="button"
-              onClick={() => setAmount(srcUsdc > 0 ? String(srcUsdc) : "")}
+              onClick={() => setAmount(availForMode > 0 ? String(availForMode) : "")}
               className="text-[10px] font-bold uppercase tracking-widest text-primary hover:underline"
             >
-              Balance: {srcUsdc.toFixed(2)} USDC · Max
+              {availLabel}: {availForMode.toFixed(2)} USDC · Max
             </button>
           </div>
           <div className="relative">
@@ -176,8 +183,12 @@ export function GatewayPanel() {
             />
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-muted-foreground">USDC</span>
           </div>
-          {validAmount && Number(amount) > srcUsdc && (
-            <p className="text-[10px] text-destructive font-bold uppercase tracking-widest">Amount exceeds your {BRIDGE_CHAINS[fromChain].label} USDC balance</p>
+          {validAmount && Number(amount) > availForMode && (
+            <p className="text-[10px] text-destructive font-bold uppercase tracking-widest">
+              {mode === "deposit"
+                ? `Amount exceeds your ${BRIDGE_CHAINS[fromChain].label} USDC balance`
+                : "Amount exceeds your confirmed Gateway balance"}
+            </p>
           )}
         </div>
 

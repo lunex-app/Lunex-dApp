@@ -174,7 +174,7 @@ export function useGateway() {
         return result;
       } catch (err: unknown) {
         const message = (err as Error)?.message || "Gateway estimate failed";
-        setError(humanizeGatewayError(message));
+        setError(humanizeGatewayError(message, mode));
         setStatus("failed");
         throw err;
       }
@@ -216,7 +216,7 @@ export function useGateway() {
       } catch (err: unknown) {
         // Surface the raw error to the console for debugging; show a friendly one.
         console.error("Gateway spend error:", err);
-        const message = humanizeGatewayError((err as Error)?.message || "Gateway transfer failed");
+        const message = humanizeGatewayError((err as Error)?.message || "Gateway transfer failed", mode);
         setError(message);
         setStatus("failed");
         toast.error("Gateway transfer failed", { description: message.slice(0, 200) });
@@ -252,7 +252,7 @@ export function useGateway() {
 }
 
 /** Turn Circle's raw Gateway errors into actionable guidance. */
-function humanizeGatewayError(message: string): string {
+function humanizeGatewayError(message: string, mode: GatewayTransferMode = "instant"): string {
   const m = message.toLowerCase();
   if (m.includes("insufficient") && (m.includes("maxfee") || m.includes("fee") || m.includes("balance"))) {
     return "Not enough Gateway balance to cover the amount plus Circle's forwarding fee. Deposit a little more, reduce the amount, or switch to Manual mint mode.";
@@ -263,6 +263,15 @@ function humanizeGatewayError(message: string): string {
   if (m.includes("no deposit") || m.includes("no balance") || m.includes("not found")) {
     return "No Gateway balance found on the source chain. Deposit USDC into Gateway first, then spend it on the destination chain.";
   }
-  // Anything else → scrub library/RPC noise out before showing it.
-  return humanizeError(message, "Gateway transfer failed. Please try again.");
+  if (m.includes("user rejected") || m.includes("user denied") || m.includes("rejected the request")) {
+    return "You declined the signature in your wallet. Approve the request to complete the transfer.";
+  }
+  // Anything else: in Instant mode the most common cause is the Forwarding
+  // Service not covering this route/fee — point users to Manual mint, which
+  // settles the destination mint from their own wallet.
+  const fallback =
+    mode === "instant"
+      ? "Instant transfer couldn't be completed — Circle's Forwarding Service may not support this route yet, or your Gateway balance can't cover the amount plus the forwarding fee. Try Manual mint mode, or top up your Gateway balance."
+      : "Gateway transfer failed. Please try again.";
+  return humanizeError(message, fallback);
 }

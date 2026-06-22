@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, DollarSign, BarChart3, ArrowLeftRight, ShieldCheck, Zap, Sprout, Repeat, Fingerprint } from "lucide-react";
 import FaucetBanner from "@/components/FaucetBanner";
+import lunexLogo from "@/assets/lunex-logo.png";
 import { usePoolData } from "@/hooks/usePoolData";
 import { useVaultData } from "@/hooks/useVaultData";
 import { useQuery } from "@tanstack/react-query";
@@ -23,6 +24,18 @@ const Landing = () => {
   return (
     <div className="page-fade-in">
       <FaucetBanner />
+      {/* Brand header — landing stands alone (no sidebar), so the Lunex mark lives here */}
+      <header className="container flex items-center justify-between py-5">
+        <Link to="/" className="flex items-center gap-2.5" aria-label="Lunex home">
+          <img src={lunexLogo} alt="Lunex" className="h-9 w-auto" />
+        </Link>
+        <Link
+          to="/dashboard"
+          className="inline-flex items-center gap-2 border border-primary/30 bg-primary/10 text-primary px-4 py-2 text-xs font-bold uppercase tracking-widest hover:bg-primary/20 transition-colors"
+        >
+          Launch App <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </header>
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 grid-bg opacity-30" />
         <div className="container relative py-28 md:py-40 text-center">
@@ -33,11 +46,11 @@ const Landing = () => {
             <span className="text-foreground whitespace-nowrap">Stable</span>
             <span className="text-primary whitespace-nowrap">Swap</span>
           </h1>
-          <p className="text-muted-foreground text-base md:text-lg max-w-xl mx-auto mb-4 leading-relaxed">
+          <p className="text-muted-foreground text-base md:text-lg max-w-3xl mx-auto mb-4 leading-relaxed">
             The stablecoin liquidity hub for the dollar-and-euro economy. Swap USDC/EURC at near-zero slippage,
             bridge across 6 chains with Circle CCTP, and earn auto-compounding yield — all gas-paid in USDC on Arc.
           </p>
-          <p className="text-muted-foreground/70 text-xs md:text-sm max-w-lg mx-auto mb-10">
+          <p className="text-muted-foreground/70 text-xs md:text-sm max-w-2xl mx-auto mb-10">
             No seed phrases. Sign in with a passkey or email and transact gaslessly in seconds.
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
