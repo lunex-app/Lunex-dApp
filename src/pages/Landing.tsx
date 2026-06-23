@@ -33,11 +33,11 @@ const Landing = () => {
             <span className="text-foreground whitespace-nowrap">Stable</span>
             <span className="text-primary whitespace-nowrap">Swap</span>
           </h1>
-          <p className="text-muted-foreground text-base md:text-lg max-w-xl mx-auto mb-4 leading-relaxed">
+          <p className="text-muted-foreground text-base md:text-lg max-w-3xl mx-auto mb-4 leading-relaxed">
             The stablecoin liquidity hub for the dollar-and-euro economy. Swap USDC/EURC at near-zero slippage,
             bridge across 6 chains with Circle CCTP, and earn auto-compounding yield — all gas-paid in USDC on Arc.
           </p>
-          <p className="text-muted-foreground/70 text-xs md:text-sm max-w-lg mx-auto mb-10">
+          <p className="text-muted-foreground/70 text-xs md:text-sm max-w-2xl mx-auto mb-10">
             No seed phrases. Sign in with a passkey or email and transact gaslessly in seconds.
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
