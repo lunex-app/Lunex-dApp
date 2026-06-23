@@ -1,16 +1,13 @@
-import { useState } from "react";
 import { useWallet } from "@/context/WalletProvider";
 import { useTokenBalances } from "@/hooks/useTokenBalance";
 import { usePoolData } from "@/hooks/usePoolData";
 import { useVaultData } from "@/hooks/useVaultData";
-import { Wallet, KeyRound } from "lucide-react";
+import { Wallet } from "lucide-react";
 import { useSectionHistory } from "@/hooks/useSectionHistory";
 import { SectionHistory } from "@/components/SectionHistory";
 import EmptyState from "@/components/EmptyState";
 import BackButton from "@/components/BackButton";
 import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { GenerateWalletDialog } from "@/components/GenerateWalletDialog";
 // import { NotifyPanel } from "@/components/NotifyPanel"; // disabled for this release
 
 const ACTIVITY_COLUMNS = [
@@ -20,7 +17,6 @@ const ACTIVITY_COLUMNS = [
 
 const Dashboard = () => {
   const { isConnected } = useWallet();
-  const [showGenerate, setShowGenerate] = useState(false);
   const balances = useTokenBalances();
   const pool = usePoolData();
   const usdcVault = useVaultData("USDC");
@@ -46,16 +42,6 @@ const Dashboard = () => {
         <BackButton />
         <h1 className="text-3xl font-bold uppercase tracking-tight mb-8">Dashboard</h1>
         <div className="border border-border bg-card"><EmptyState variant="deposits" title="Wallet not connected" description="Connect your wallet to view your positions and balances." /></div>
-        <div className="mt-6 flex items-center justify-center">
-          <Button
-            variant="outline"
-            onClick={() => setShowGenerate(true)}
-            className="gap-2 text-xs font-bold uppercase tracking-wider"
-          >
-            <KeyRound className="h-4 w-4" /> Generate a Wallet
-          </Button>
-        </div>
-        {showGenerate && <GenerateWalletDialog onClose={() => setShowGenerate(false)} />}
       </div>
     );
   }
@@ -67,27 +53,6 @@ const Dashboard = () => {
         <h1 className="text-3xl font-bold tracking-tight mt-6 uppercase">Portfolio Overview</h1>
         <p className="text-muted-foreground text-sm font-mono mt-1">Consolidated view of your protocol assets and performance</p>
       </div>
-
-      {/* Generate wallet */}
-      <div className="mb-8">
-        <section className="border border-border bg-card rounded-sm shadow-sm p-6 space-y-4">
-          <div className="flex items-center gap-2">
-            <KeyRound className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-bold uppercase tracking-widest text-foreground">Generate Wallet</h2>
-          </div>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Create a self-custody wallet right in your browser — a BIP-39 seed phrase encrypted under
-            your password and stored locally. Gasless on Arc and ready for swaps, sends, and bridging.
-          </p>
-          <Button
-            onClick={() => setShowGenerate(true)}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold uppercase tracking-wider gap-2"
-          >
-            <KeyRound className="h-4 w-4" /> Generate / Unlock Wallet
-          </Button>
-        </section>
-      </div>
-      {showGenerate && <GenerateWalletDialog onClose={() => setShowGenerate(false)} />}
 
       <div className="space-y-8">
          <div className="space-y-8">

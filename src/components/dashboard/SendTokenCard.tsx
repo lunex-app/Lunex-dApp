@@ -16,7 +16,7 @@ import {
 /**
  * Dashboard "Send Token" card. Sends USDC/EURC to any address from the chosen
  * connected wallet — passkey & email send on Arc (gasless/PIN); a connected EOA
- * (WalletConnect / injected / burner) can send across all 6 chains.
+ * (WalletConnect / injected) can send across all 6 chains.
  */
 export function SendTokenCard() {
   const { circle, uc, hasInjected, balance, eurcBalance, openConnect } = useWallet();

@@ -19,7 +19,6 @@ import {
   ucEurcBalance,
   type UcSession,
 } from "@/lib/circleUserWallet";
-import { useBurner } from "@/lib/burner/store";
 
 /**
  * Wallet layer for Lunex. Circle wallets are primary: a passkey Modular smart
@@ -160,17 +159,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
      
   }, []);
 
-  // Restore the in-app generated (burner) wallet from its sessionStorage
-  // mnemonic on load, then reconnect its wagmi connector so useAccount() sees it
-  // (survives refresh, not browser close). No password prompt.
-  useEffect(() => {
-    useBurner.getState().restoreSession();
-    if (!useBurner.getState().unlocked) return;
-    const burnerC = connectors.find((c) => c.id === "lunex-burner");
-    if (burnerC) connectAsync({ connector: burnerC }).catch(() => {});
-
-  }, []);
-
   // Connect a browser wallet (injected EOA) on demand. Circle wallets are
   // Arc-only, so Gateway/CCTP (multi-chain) need an injected wallet; a Circle
   // user can attach one here without losing their Circle session.
@@ -240,8 +228,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       } catch {
         /* ignore */
       }
-      // Also tear down any EOA/burner wagmi session and lock the burner.
-      useBurner.getState().lock();
+      // Also tear down any connected EOA (WalletConnect / injected) wagmi session.
       disconnectAsync().catch(() => {});
     },
     refreshBalance,

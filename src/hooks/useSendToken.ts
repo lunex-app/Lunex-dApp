@@ -43,7 +43,7 @@ export function resolveToken(token: SendToken, chainKey: BridgeChainKey): { addr
  * Send USDC/EURC to any address from the chosen wallet:
  *  - passkey (Circle Modular) → gasless user-op on Arc;
  *  - email (Circle UC) → PIN-signed transfer on Arc;
- *  - eoa (WalletConnect / injected / burner) → wagmi tx on the selected chain
+ *  - eoa (WalletConnect / injected) → wagmi tx on the selected chain
  *    (multi-chain), auto-switching the wallet's network first.
  */
 export function useSendToken() {

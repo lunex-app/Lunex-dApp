@@ -3,7 +3,6 @@ import { connectorsForWallets } from "@rainbow-me/rainbowkit";
 import { injectedWallet, metaMaskWallet, walletConnectWallet } from "@rainbow-me/rainbowkit/wallets";
 import { defineChain } from "viem";
 import { baseSepolia as viemBaseSepolia, sepolia, arbitrumSepolia, avalancheFuji, polygonAmoy } from "viem/chains";
-import { burnerConnector } from "@/lib/burner/connector";
 
 // RPC endpoint comes from env (set VITE_ARC_RPC_URL to your dedicated QuickNode
 // endpoint). Falls back to Arc's public RPC — a public, non-secret URL.
@@ -71,10 +70,9 @@ const WC_PROJECT_ID =
   "f0d6f8162be1beccf221b4e2f8bd7026";
 
 // RainbowKit wallets (injected/MetaMask via EIP-6963 + WalletConnect QR for
-// mobile) built with connectorsForWallets so we can ALSO register Lunex's
-// in-app generated "burner" wallet as a wagmi connector. getDefaultConfig can't
-// take custom connectors (it Omits `connectors`), so we compose the config by
-// hand — RainbowKitProvider + useConnectModal still work against it.
+// mobile) built with connectorsForWallets. We compose the wagmi config by hand
+// (instead of getDefaultConfig) so the connector list is explicit; RainbowKit's
+// RainbowKitProvider + useConnectModal still work against it.
 const rainbowConnectors = connectorsForWallets(
   [
     {
@@ -87,7 +85,7 @@ const rainbowConnectors = connectorsForWallets(
 
 export const wagmiConfig = createConfig({
   chains: [arcTestnet, viemBaseSepolia, sepolia, arbitrumSepolia, avalancheFuji, polygonAmoy],
-  connectors: [...rainbowConnectors, burnerConnector()],
+  connectors: rainbowConnectors,
   transports: {
     [arcTestnet.id]: http(),
     [viemBaseSepolia.id]: http(),

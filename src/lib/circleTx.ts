@@ -41,9 +41,9 @@ export async function run(writes: Write[], signer?: Signer): Promise<Hash> {
   if (signer && "kind" in signer && signer.kind === "passkey") {
     return circleWrite(signer, writes);
   }
-  // Injected EOA (incl. the in-app generated burner) via wagmi. These writes
-  // target the Lunex contracts on Arc, so make sure the wallet is on Arc first —
-  // a generated wallet may be sitting on Base/Polygon/etc. after a send/bridge.
+  // Injected / WalletConnect EOA via wagmi. These writes target the Lunex
+  // contracts on Arc, so make sure the wallet is on Arc first — it may be sitting
+  // on Base/Polygon/etc. after a send or bridge.
   if (getAccount(wagmiConfig).chainId !== arcTestnet.id) {
     await switchChain(wagmiConfig, { chainId: arcTestnet.id });
   }
