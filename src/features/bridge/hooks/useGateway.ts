@@ -12,7 +12,6 @@ import { BRIDGE_CHAINS, type BridgeChainKey } from "../config/bridgeConfig";
 import { humanizeError } from "@/lib/errors";
 
 type GatewayStatus = "idle" | "depositing" | "estimating" | "spending" | "complete" | "failed";
-export type GatewayTransferMode = "instant" | "manual";
 
 // Class API. Telemetry disabled — keeps the dApp from POSTing to Circle's
 // analytics endpoint on every op.
@@ -31,7 +30,6 @@ export function useGateway() {
   const [lastDeposit, setLastDeposit] = useState<DepositResult | null>(null);
   const [lastSpend, setLastSpend] = useState<SpendResult | null>(null);
   const [lastEstimate, setLastEstimate] = useState<EstimateSpendResult | null>(null);
-  const [lastSpendMode, setLastSpendMode] = useState<GatewayTransferMode>("instant");
   const [gatewayBalance, setGatewayBalance] = useState<number | null>(null);
   const [gatewayPending, setGatewayPending] = useState<number>(0);
 
@@ -92,10 +90,17 @@ export function useGateway() {
     }
   }, [address]);
 
-  /** Build the SpendParams shared by estimate and spend. */
+  /**
+   * Build the SpendParams shared by estimate and spend.
+   *
+   * Lunex does NOT use Circle's Forwarding Service: the destination mint is
+   * always signed by the user's own wallet adapter (useForwarder: false). The
+   * forwarder relayer was the source of the opaque "route not supported / fee"
+   * failures, so we mint directly from the connected EOA instead.
+   */
   const buildSpendParams = useCallback(
-     
-    (adapter: any, fromChain: BridgeChainKey, toChain: BridgeChainKey, amount: string, mode: GatewayTransferMode): any => {
+
+    (adapter: any, fromChain: BridgeChainKey, toChain: BridgeChainKey, amount: string): any => {
       const from = BRIDGE_CHAINS[fromChain];
       const to = BRIDGE_CHAINS[toChain];
       return {
@@ -106,21 +111,13 @@ export function useGateway() {
           // Pull exactly from the chosen source chain (matches the UI selector).
           allocations: { amount, chain: from.circleName },
         },
-        to:
-          mode === "instant"
-            ? {
-                // Forwarding Service mints on the destination — no adapter needed.
-                chain: to.circleName,
-                recipientAddress: address as string,
-                useForwarder: true,
-              }
-            : {
-                // Manual mint — the user's wallet signs the destination mint tx.
-                adapter,
-                chain: to.circleName,
-                recipientAddress: address as string,
-                useForwarder: false,
-              },
+        to: {
+          // Self-signed mint on the destination — no Forwarding Service.
+          adapter,
+          chain: to.circleName,
+          recipientAddress: address as string,
+          useForwarder: false,
+        },
       };
     },
     [address]
@@ -161,20 +158,20 @@ export function useGateway() {
   );
 
   const estimateSpend = useCallback(
-    async (fromChain: BridgeChainKey, toChain: BridgeChainKey, amount: string, mode: GatewayTransferMode = "instant") => {
+    async (fromChain: BridgeChainKey, toChain: BridgeChainKey, amount: string) => {
       if (!address) throw new Error("Connect a wallet first");
       setStatus("estimating");
       setError(null);
       setLastEstimate(null);
       try {
         const adapter = await createAdapter();
-        const result = await gatewayKit.estimateSpend(buildSpendParams(adapter, fromChain, toChain, amount, mode));
+        const result = await gatewayKit.estimateSpend(buildSpendParams(adapter, fromChain, toChain, amount));
         setLastEstimate(result);
         setStatus("idle");
         return result;
       } catch (err: unknown) {
         const message = (err as Error)?.message || "Gateway estimate failed";
-        setError(humanizeGatewayError(message, mode));
+        setError(humanizeGatewayError(message));
         setStatus("failed");
         throw err;
       }
@@ -183,12 +180,11 @@ export function useGateway() {
   );
 
   const spend = useCallback(
-    async (fromChain: BridgeChainKey, toChain: BridgeChainKey, amount: string, mode: GatewayTransferMode = "instant") => {
+    async (fromChain: BridgeChainKey, toChain: BridgeChainKey, amount: string) => {
       if (!address) throw new Error("Connect a wallet first");
       setStatus("spending");
       setError(null);
       setLastSpend(null);
-      setLastSpendMode(mode);
       try {
         // Spend draws from the CONFIRMED Gateway balance. A just-made deposit is
         // pending until the source chain finalises, so guide the user instead of
@@ -200,12 +196,11 @@ export function useGateway() {
               `Recent deposits stay pending until the source chain finalises — wait for it to confirm, deposit more, or lower the amount.`,
           );
         }
-        // Burn-intent signing is chain-agnostic (EIP-712). Only the MANUAL mint
-        // is an on-chain tx, so switch to the destination chain for that path.
-        // Instant (forwarder) mode needs no chain switch at all.
-        if (mode === "manual") await ensureChain(toChain);
+        // The mint is always signed by the user's wallet on the destination chain
+        // (no Forwarding Service), so switch the wallet to the destination first.
+        await ensureChain(toChain);
         const adapter = await createAdapter();
-        const result = await gatewayKit.spend(buildSpendParams(adapter, fromChain, toChain, amount, mode));
+        const result = await gatewayKit.spend(buildSpendParams(adapter, fromChain, toChain, amount));
         setLastSpend(result);
         setStatus("complete");
         toast.success("Gateway transfer complete", {
@@ -216,7 +211,7 @@ export function useGateway() {
       } catch (err: unknown) {
         // Surface the raw error to the console for debugging; show a friendly one.
         console.error("Gateway spend error:", err);
-        const message = humanizeGatewayError((err as Error)?.message || "Gateway transfer failed", mode);
+        const message = humanizeGatewayError((err as Error)?.message || "Gateway transfer failed");
         setError(message);
         setStatus("failed");
         toast.error("Gateway transfer failed", { description: message.slice(0, 200) });
@@ -240,7 +235,6 @@ export function useGateway() {
     lastDeposit,
     lastSpend,
     lastEstimate,
-    lastSpendMode,
     gatewayBalance,
     gatewayPending,
     refreshGatewayBalance,
@@ -252,13 +246,10 @@ export function useGateway() {
 }
 
 /** Turn Circle's raw Gateway errors into actionable guidance. */
-function humanizeGatewayError(message: string, mode: GatewayTransferMode = "instant"): string {
+function humanizeGatewayError(message: string): string {
   const m = message.toLowerCase();
   if (m.includes("insufficient") && (m.includes("maxfee") || m.includes("fee") || m.includes("balance"))) {
-    return "Not enough Gateway balance to cover the amount plus Circle's forwarding fee. Deposit a little more, reduce the amount, or switch to Manual mint mode.";
-  }
-  if (m.includes("forwarder") || m.includes("forwarding")) {
-    return "Instant (forwarder) transfer isn't available for this route right now. Switch to Manual mint mode to complete the transfer.";
+    return "Not enough Gateway balance to cover the amount plus network fees. Deposit a little more or reduce the amount.";
   }
   if (m.includes("no deposit") || m.includes("no balance") || m.includes("not found")) {
     return "No Gateway balance found on the source chain. Deposit USDC into Gateway first, then spend it on the destination chain.";
@@ -266,12 +257,8 @@ function humanizeGatewayError(message: string, mode: GatewayTransferMode = "inst
   if (m.includes("user rejected") || m.includes("user denied") || m.includes("rejected the request")) {
     return "You declined the signature in your wallet. Approve the request to complete the transfer.";
   }
-  // Anything else: in Instant mode the most common cause is the Forwarding
-  // Service not covering this route/fee — point users to Manual mint, which
-  // settles the destination mint from their own wallet.
-  const fallback =
-    mode === "instant"
-      ? "Instant transfer couldn't be completed — Circle's Forwarding Service may not support this route yet, or your Gateway balance can't cover the amount plus the forwarding fee. Try Manual mint mode, or top up your Gateway balance."
-      : "Gateway transfer failed. Please try again.";
-  return humanizeError(message, fallback);
+  if (m.includes("chain") && (m.includes("switch") || m.includes("mismatch") || m.includes("unsupported"))) {
+    return "Your wallet is on the wrong network. Approve the network switch to the destination chain and try again.";
+  }
+  return humanizeError(message, "Gateway transfer failed. Please try again.");
 }

@@ -29,7 +29,6 @@ export function GatewayPanel() {
   // RainbowKit (injected or WalletConnect/mobile) without losing their session.
   const needsInjected = !hasInjected;
   const [mode, setMode] = useState<"deposit" | "spend">("deposit");
-  const [transferMode, setTransferMode] = useState<"instant" | "manual">("instant");
   const [amount, setAmount] = useState("");
   const [fromChain, setFromChain] = useState<BridgeChainKey>("arc");
   const [toChain, setToChain] = useState<BridgeChainKey>("base");
@@ -40,8 +39,8 @@ export function GatewayPanel() {
   const srcUsdc = Number(formatUnits(srcUsdcRaw, BRIDGE_CHAINS[fromChain].usdcDecimals));
 
   // The amount field draws from a DIFFERENT source per mode:
-  //  • deposit  → moves USDC FROM the connected wallet INTO Gateway → use wallet balance.
-  //  • spend/instant → mints FROM the unified Gateway balance → use the confirmed Gateway balance.
+  //  • deposit → moves USDC FROM the connected wallet INTO Gateway → use wallet balance.
+  //  • spend   → mints FROM the unified Gateway balance → use the confirmed Gateway balance.
   const gatewayAvail = gateway.gatewayBalance ?? 0;
   const availForMode = mode === "deposit" ? srcUsdc : gatewayAvail;
   const availLabel = mode === "deposit" ? `${BRIDGE_CHAINS[fromChain].label} wallet` : "Gateway";
@@ -69,7 +68,7 @@ export function GatewayPanel() {
     if (mode === "deposit") {
       await gateway.deposit(fromChain, amount);
     } else {
-      await gateway.spend(fromChain, toChain, amount, transferMode);
+      await gateway.spend(fromChain, toChain, amount);
     }
   };
 
@@ -83,7 +82,7 @@ export function GatewayPanel() {
               onClick={() => setMode(nextMode)}
               className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest ${mode === nextMode ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground"}`}
             >
-              {nextMode === "deposit" ? "Deposit to Gateway" : "Instant Transfer"}
+              {nextMode === "deposit" ? "Deposit to Gateway" : "Transfer"}
             </button>
           ))}
         </div>
@@ -93,8 +92,8 @@ export function GatewayPanel() {
           <h2 className="text-2xl font-bold uppercase tracking-tight">{mode === "deposit" ? "Create Unified USDC Balance" : "Spend Unified Balance"}</h2>
           <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
             {mode === "deposit"
-              ? "Deposit USDC into the Gateway Wallet on a source chain. Deposits are required before Gateway can mint instantly on other chains."
-              : "Spend your unified Gateway balance: Circle's Forwarding Service mints USDC on the destination chain in under a second — no source-chain finality wait."}
+              ? "Deposit USDC into the Gateway Wallet on a source chain. Deposits are required before Gateway can mint on other chains."
+              : "Spend your unified Gateway balance: USDC is minted on the destination chain straight from your wallet — no source-chain finality wait."}
           </p>
         </div>
 
@@ -152,23 +151,10 @@ export function GatewayPanel() {
         )}
 
         {mode === "spend" && (
-          <div className="space-y-3">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Mint mode</label>
-            <div className="flex gap-px bg-border h-11">
-              {(["instant", "manual"] as const).map((nextMode) => (
-                <button
-                  key={nextMode}
-                  onClick={() => setTransferMode(nextMode)}
-                  className={`flex-1 text-[10px] font-black uppercase tracking-widest ${transferMode === nextMode ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"}`}
-                >
-                  {nextMode === "instant" ? "Instant Relayer" : "Manual Mint"}
-                </button>
-              ))}
-            </div>
-            <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Instant mode uses Circle's Forwarding Service and needs fee headroom in the Gateway balance. Manual mode avoids the forwarder fee but requires the wallet to sign the destination mint.
-            </p>
-          </div>
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            Your wallet signs the mint on the destination chain — you'll be asked to switch networks to{" "}
+            <strong className="text-foreground">{BRIDGE_CHAINS[toChain].label}</strong> and confirm.
+          </p>
         )}
 
         <div className="space-y-3">
@@ -206,7 +192,7 @@ export function GatewayPanel() {
             <Button
               variant="outline"
               disabled={!validAmount || isBusy || needsInjected || fromChain === toChain}
-              onClick={() => gateway.estimateSpend(fromChain, toChain, amount, transferMode)}
+              onClick={() => gateway.estimateSpend(fromChain, toChain, amount)}
               className="h-12 gap-2 font-black uppercase tracking-widest text-[10px]"
             >
               {gateway.status === "estimating" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
@@ -239,7 +225,7 @@ export function GatewayPanel() {
           </div>
           <div>
             <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">Mint</p>
-            <p className="text-sm font-bold uppercase">{mode === "spend" ? transferMode : "deposit"}</p>
+            <p className="text-sm font-bold uppercase">{mode === "spend" ? "self-signed" : "deposit"}</p>
           </div>
         </div>
 

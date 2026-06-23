@@ -21,9 +21,9 @@ import RemoveLiquidity from "@/pages/RemoveLiquidity";
 import YieldOverview from "@/pages/YieldOverview";
 import VaultDetail from "@/pages/VaultDetail";
 import Dashboard from "@/pages/Dashboard";
-import ProtocolStats from "@/pages/ProtocolStats";
 import AnalyticsPage from "@/pages/Analytics";
 import Bridge from "@/pages/Bridge";
+import Send from "@/pages/Send";
 import Docs from "@/pages/Docs";
 import ComingSoon from "@/pages/ComingSoon";
 import LunexSDK from "@/pages/LunexSDK";
@@ -52,10 +52,9 @@ const AppRoutes = () => {
           <Route path="/yield" element={<PageTransition><MaintenanceGuard module="maintenance_yield"><YieldOverview /></MaintenanceGuard></PageTransition>} />
           <Route path="/yield/:token" element={<PageTransition><MaintenanceGuard module="maintenance_yield"><VaultDetail /></MaintenanceGuard></PageTransition>} />
           <Route path="/bridge" element={<PageTransition><MaintenanceGuard module="maintenance_bridge"><Bridge /></MaintenanceGuard></PageTransition>} />
+          <Route path="/send" element={<PageTransition><MaintenanceGuard><Send /></MaintenanceGuard></PageTransition>} />
           <Route path="/dashboard" element={<PageTransition><MaintenanceGuard><Dashboard /></MaintenanceGuard></PageTransition>} />
-          <Route path="/stats" element={<PageTransition><MaintenanceGuard><ProtocolStats /></MaintenanceGuard></PageTransition>} />
           <Route path="/analytics" element={<PageTransition><AnalyticsPage /></PageTransition>} />
-          <Route path="/protocol" element={<PageTransition><MaintenanceGuard><ProtocolStats /></MaintenanceGuard></PageTransition>} />
           <Route path="/points" element={<PageTransition><ComingSoon /></PageTransition>} />
           {/* Temporarily disabled for the main release:
           <Route path="/pay" element={<PageTransition><MaintenanceGuard><LunexPay /></MaintenanceGuard></PageTransition>} />

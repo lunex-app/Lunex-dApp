@@ -294,47 +294,24 @@ const Bridge = () => {
                 <Switch checked={isFastPath} onCheckedChange={setIsFastPath} className="data-[state=checked]:bg-primary" />
               </div>
 
-              <div className="space-y-4 p-4 bg-muted/20 border border-border rounded-sm">
+              {/* Destination Gas Top-Up — Coming Soon (disabled, non-interactive). */}
+              <div className="space-y-4 p-4 bg-muted/20 border border-border rounded-sm opacity-60 cursor-not-allowed select-none" aria-disabled="true">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${gasTopUpEnabled ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+                    <div className="p-2 rounded-full bg-muted text-muted-foreground">
                       <Fuel className="h-4 w-4" />
                     </div>
                     <div>
                       <span className="text-[10px] font-bold uppercase tracking-widest">Destination Gas Top-Up</span>
                       <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-tighter mt-0.5">
-                        Uses Circle forwarding on fast CCTP routes
+                        Receive native gas on the destination chain
                       </p>
                     </div>
                   </div>
-                  <Switch checked={gasTopUpEnabled} onCheckedChange={setGasTopUpEnabled} className="data-[state=checked]:bg-primary" />
+                  <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-primary">
+                    Coming Soon
+                  </span>
                 </div>
-                {gasTopUpEnabled && (
-                  <div className="space-y-2 animate-in fade-in duration-200">
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        value={gasTopUpAmount}
-                        onChange={(event) => setGasTopUpAmount(event.target.value)}
-                        placeholder="0.00"
-                        className="h-11 font-mono"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-muted-foreground">{tokenSymbol}</span>
-                    </div>
-                    <p className="text-[10px] text-yellow-500 leading-relaxed">
-                      Gas top-up sends the destination mint to the Lunex relayer so a funded operator can split settlement and deliver native gas. Fast path must stay enabled; destination relayer liquidity is required.
-                    </p>
-                    {BRIDGE_CHAINS[toChain].topUpRelayer ? (
-                      <p className="text-[9px] text-muted-foreground font-mono break-all">
-                        Relayer: {BRIDGE_CHAINS[toChain].topUpRelayer}
-                      </p>
-                    ) : (
-                      <p className="text-[9px] text-destructive font-bold uppercase tracking-widest">
-                        No top-up relayer configured for {BRIDGE_CHAINS[toChain].label}
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
 
               {isCircleWallet && (

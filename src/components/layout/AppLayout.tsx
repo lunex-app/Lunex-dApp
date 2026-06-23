@@ -5,11 +5,9 @@ import {
   Droplets,
   Sprout,
   ArrowLeftRight,
-  CreditCard,
-  Bot,
+  Send,
   Crown,
   LayoutDashboard,
-  BarChart3,
   BookOpen,
   Menu,
   X,
@@ -27,11 +25,8 @@ const NAV = [
   { to: "/pool", icon: Droplets, label: "Pool" },
   { to: "/yield", icon: Sprout, label: "Yield" },
   { to: "/bridge", icon: ArrowLeftRight, label: "Bridge" },
-  // Temporarily disabled for the main release:
-  // { to: "/pay", icon: CreditCard, label: "Pay" },
-  // { to: "/autopilot", icon: Bot, label: "Autopilot" },
+  { to: "/send", icon: Send, label: "Send" },
   { to: "/points", icon: Crown, label: "Points" },
-  { to: "/stats", icon: BarChart3, label: "Stats" },
   // Public analytics dashboard is route-only (/analytics), intentionally not in the nav.
   { to: "/docs", icon: BookOpen, label: "Docs" },
 ];
@@ -42,11 +37,9 @@ const PATH_LABELS: Record<string, string> = {
   "/pool": "liquidity",
   "/yield": "yield-vaults",
   "/bridge": "cctp-bridge",
-  "/pay": "lunex-pay",
-  "/autopilot": "autopilot",
+  "/send": "send",
   "/points": "points",
   "/dashboard": "dashboard",
-  "/stats": "protocol-stats",
   "/analytics": "analytics",
   "/docs": "docs",
 };

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useWallet } from "@/context/WalletProvider";
-import { WalletSearch } from "@/components/WalletSearch";
 import { useTokenBalances } from "@/hooks/useTokenBalance";
 import { usePoolData } from "@/hooks/usePoolData";
 import { useVaultData } from "@/hooks/useVaultData";
@@ -11,7 +10,6 @@ import EmptyState from "@/components/EmptyState";
 import BackButton from "@/components/BackButton";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SendTokenCard } from "@/components/dashboard/SendTokenCard";
 import { GenerateWalletDialog } from "@/components/GenerateWalletDialog";
 // import { NotifyPanel } from "@/components/NotifyPanel"; // disabled for this release
 
@@ -21,7 +19,7 @@ const ACTIVITY_COLUMNS = [
 ];
 
 const Dashboard = () => {
-  const { isConnected, address } = useWallet();
+  const { isConnected } = useWallet();
   const [showGenerate, setShowGenerate] = useState(false);
   const balances = useTokenBalances();
   const pool = usePoolData();
@@ -70,13 +68,8 @@ const Dashboard = () => {
         <p className="text-muted-foreground text-sm font-mono mt-1">Consolidated view of your protocol assets and performance</p>
       </div>
 
+      {/* Generate wallet */}
       <div className="mb-8">
-        <WalletSearch initialAddress={address} />
-      </div>
-
-      {/* Send tokens + generate wallet */}
-      <div className="grid md:grid-cols-2 gap-8 mb-8 items-start">
-        <SendTokenCard />
         <section className="border border-border bg-card rounded-sm shadow-sm p-6 space-y-4">
           <div className="flex items-center gap-2">
             <KeyRound className="h-4 w-4 text-primary" />

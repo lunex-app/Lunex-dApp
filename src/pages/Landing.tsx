@@ -127,7 +127,7 @@ const Landing = () => {
               <DollarSign className="h-5 w-5 text-primary mx-auto mb-1" />
               <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">USDC<br />gas</p>
             </div>
-            <Link to="/stats" className="text-center group">
+            <Link to="/analytics" className="text-center group">
               <BarChart3 className="h-5 w-5 text-primary mx-auto mb-1" />
               <p className="text-[9px] font-bold uppercase tracking-widest text-primary group-hover:underline">Live<br />analytics</p>
             </Link>

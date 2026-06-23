@@ -23,8 +23,8 @@ const FooterInner = () => {
           <Link to="/docs" className="hover:text-foreground transition-colors uppercase">
             Docs
           </Link>
-          <Link to="/stats" className="hover:text-foreground transition-colors uppercase">
-            Stats
+          <Link to="/analytics" className="hover:text-foreground transition-colors uppercase">
+            Analytics
           </Link>
           {(isAdmin || isDeveloper) && (
             <Link to="/lunexsdk" className="hover:text-foreground transition-colors uppercase">
