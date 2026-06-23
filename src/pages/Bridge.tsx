@@ -1,8 +1,16 @@
 import { useState, useMemo, useEffect } from "react";
-import { ArrowRight, Loader2, Zap, Info, ArrowLeftRight, ExternalLink, Fuel, X, RotateCw, History } from "lucide-react";
+import { ArrowRight, Loader2, Zap, Info, ArrowLeftRight, ExternalLink, Fuel, X, RotateCw, History, Menu, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useWallet } from "@/context/WalletProvider";
 import { useBridge } from "@/features/bridge/hooks/useBridge";
 import { useUnifiedBalance } from "@/features/bridge/hooks/useUnifiedBalance";
@@ -18,6 +26,14 @@ import { type BridgeChainKey, BRIDGE_CHAINS, getExplorerTxUrl } from "@/features
 import { getPendingBridgeTransactions, type BridgeTransaction } from "@/features/bridge/state/bridgeState";
 import BackButton from "@/components/BackButton";
 import { formatUnits, parseUnits } from "viem";
+
+// Bridge sub-tools, surfaced via the right-side hamburger menu.
+const BRIDGE_TABS = [
+  { value: "bridge", label: "CCTP Transfer", icon: ArrowLeftRight },
+  { value: "gateway", label: "Gateway", icon: Zap },
+  { value: "recovery", label: "Recovery", icon: RotateCw },
+  { value: "history", label: "History", icon: History },
+] as const;
 
 const Bridge = () => {
   const { address, isConnected, openConnect, circle, uc } = useWallet();
@@ -128,20 +144,45 @@ const Bridge = () => {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="flex flex-wrap justify-start gap-2 mb-8 h-auto bg-transparent p-0">
-          <TabsTrigger value="bridge" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-            <ArrowLeftRight className="h-3.5 w-3.5" /> Transfer
-          </TabsTrigger>
-          <TabsTrigger value="gateway" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-            <Zap className="h-3.5 w-3.5" /> Gateway
-          </TabsTrigger>
-          <TabsTrigger value="recovery" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-            <RotateCw className="h-3.5 w-3.5" /> Recovery
-          </TabsTrigger>
-          <TabsTrigger value="history" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-            <History className="h-3.5 w-3.5" /> History
-          </TabsTrigger>
-        </TabsList>
+        {/* Tools live behind a hamburger on the right; the active panel is labelled. */}
+        <div className="mb-8 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            {(() => {
+              const Active = BRIDGE_TABS.find((t) => t.value === activeTab) ?? BRIDGE_TABS[0];
+              return (
+                <>
+                  <Active.icon className="h-4 w-4 text-primary" />
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-foreground">{Active.label}</span>
+                </>
+              );
+            })()}
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:text-primary"
+                aria-label="Bridge tools menu"
+                title="Bridge tools"
+              >
+                <Menu className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-muted-foreground">Bridge tools</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {BRIDGE_TABS.map((t) => (
+                <DropdownMenuItem
+                  key={t.value}
+                  onClick={() => setActiveTab(t.value)}
+                  className="gap-2 text-xs font-semibold"
+                >
+                  <t.icon className="h-3.5 w-3.5 text-primary" /> {t.label}
+                  {activeTab === t.value && <Check className="ml-auto h-3.5 w-3.5 text-primary" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         <TabsContent value="bridge" className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <BridgeWalletBar

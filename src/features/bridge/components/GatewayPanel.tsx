@@ -7,6 +7,7 @@ import { BridgeWalletBar } from "./BridgeWalletBar";
 import { useGateway } from "../hooks/useGateway";
 import { useUnifiedBalance } from "../hooks/useUnifiedBalance";
 import { useWallet } from "@/context/WalletProvider";
+import { useAccount } from "wagmi";
 import { BRIDGE_CHAINS, type BridgeChainKey } from "../config/bridgeConfig";
 import { formatUnits } from "viem";
 
@@ -20,6 +21,9 @@ const fmtFee = (fee: any) => {
 export function GatewayPanel() {
   const gateway = useGateway();
   const { circle, uc, hasInjected } = useWallet();
+  // The unified Gateway balance is read from the connected multi-chain EOA
+  // (WalletConnect or injected) — Circle smart accounts are Arc-only.
+  const { address: eoaAddress } = useAccount();
   const isCircleWallet = Boolean(circle || uc);
   // Gateway needs a real multi-chain EOA. A Circle user can connect one via
   // RainbowKit (injected or WalletConnect/mobile) without losing their session.
@@ -49,11 +53,11 @@ export function GatewayPanel() {
   // (whether it's the only wallet or attached alongside a Circle session).
   const { refreshGatewayBalance } = gateway;
   useEffect(() => {
-    if (!hasInjected) return;
+    if (!eoaAddress) return;
     refreshGatewayBalance();
     const id = setInterval(refreshGatewayBalance, 6000); // keep it fresh (pending → confirmed)
     return () => clearInterval(id);
-  }, [hasInjected, refreshGatewayBalance]);
+  }, [eoaAddress, refreshGatewayBalance]);
 
   const feeRows = useMemo(() => {
     const fees = (gateway.lastEstimate as any)?.fees;
@@ -117,6 +121,11 @@ export function GatewayPanel() {
               </button>
             </div>
           </div>
+        )}
+        {eoaAddress && (
+          <p className="-mt-3 text-[10px] font-mono text-muted-foreground">
+            Gateway balance for {eoaAddress.slice(0, 6)}…{eoaAddress.slice(-4)}
+          </p>
         )}
         {gateway.gatewayPending > 0 && (
           <p className="text-[10px] text-muted-foreground leading-relaxed -mt-3">

@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Fingerprint, LogOut, ChevronDown, Copy, Check, X, Mail, ArrowLeft, Loader2 } from "lucide-react";
+import { Fingerprint, LogOut, ChevronDown, Copy, Check, X, Mail, ArrowLeft, Loader2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/context/WalletProvider";
 import { humanizeError } from "@/lib/errors";
+import { GenerateWalletDialog } from "@/components/GenerateWalletDialog";
 
 function shortAddr(a?: string, head = 6, tail = 4) {
   if (!a) return "";
@@ -94,18 +95,16 @@ export default function WalletButton() {
                   </span>
                 </div>
               )}
-              {(circle || uc) && (
-                <button
-                  onClick={() => {
-                    disconnect();
-                    setMenuOpen(false);
-                    toast.success("Disconnected");
-                  }}
-                  className="font-mono flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs text-destructive hover:bg-background"
-                >
-                  <LogOut className="h-3.5 w-3.5" /> Disconnect
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  disconnect();
+                  setMenuOpen(false);
+                  toast.success("Disconnected");
+                }}
+                className="font-mono flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs text-destructive hover:bg-background"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Disconnect
+              </button>
             </div>
           </>
         )}
@@ -153,6 +152,7 @@ function ConnectModal({ connecting, circleEnabled, ucEnabled, lastUsername, last
   const [view, setView] = useState<"options" | "passkey" | "email">("options");
   const [username, setUsername] = useState(lastUsername ?? "");
   const [email, setEmail] = useState(lastUcEmail ?? "");
+  const [showGenerate, setShowGenerate] = useState(false);
 
   // Close on Escape.
   useEffect(() => {
@@ -219,9 +219,16 @@ function ConnectModal({ connecting, circleEnabled, ucEnabled, lastUsername, last
                 </div>
               </button>
             )}
-            {!circleEnabled && !ucEnabled && (
-              <p className="text-xs text-muted-foreground">No wallet providers are configured.</p>
-            )}
+            <button
+              onClick={() => setShowGenerate(true)}
+              className="flex w-full items-center gap-3 rounded-md border border-border bg-background p-3 text-left transition-colors hover:border-primary"
+            >
+              <Wallet className="h-5 w-5 text-primary shrink-0" />
+              <div>
+                <div className="text-sm font-semibold">Generate Wallet</div>
+                <div className="text-[11px] text-muted-foreground">Create a self-custody wallet in your browser. Gasless on Arc.</div>
+              </div>
+            </button>
           </div>
         )}
 
@@ -276,6 +283,14 @@ function ConnectModal({ connecting, circleEnabled, ucEnabled, lastUsername, last
           </div>
         )}
       </div>
+      {showGenerate && (
+        <GenerateWalletDialog
+          onClose={() => {
+            setShowGenerate(false);
+            onClose();
+          }}
+        />
+      )}
     </div>,
     document.body
   );
