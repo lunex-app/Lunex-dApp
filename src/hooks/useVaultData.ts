@@ -4,9 +4,12 @@ import { vaultAbi } from "@/config/abis";
 import { CONTRACTS, arcTestnet } from "@/config/wagmi";
 import { useWallet } from "@/context/WalletProvider";
 
-export function useVaultData(tokenSymbol: "USDC" | "EURC") {
+export function useVaultData(tokenSymbol: "USDC" | "EURC" | "USDT") {
   const { address } = useWallet();
-  const vaultAddress = tokenSymbol === "USDC" ? CONTRACTS.LUNE_VAULT_USDC : CONTRACTS.LUNE_VAULT_EURC;
+  const vaultAddress =
+    tokenSymbol === "USDC" ? CONTRACTS.LUNE_VAULT_USDC :
+    tokenSymbol === "EURC" ? CONTRACTS.LUNE_VAULT_EURC :
+    CONTRACTS.LUNE_VAULT_USDT;
 
   const { data: totalAssetsRaw, refetch: refetchAssets } = useReadContract({
     address: vaultAddress,

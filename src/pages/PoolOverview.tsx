@@ -16,6 +16,12 @@ const POOL_COLUMNS = [
   { key: "lpTokens", label: "LP Tokens" },
 ];
 
+const POOL_PAIRS = [
+  { id: "USDC/EURC", a: "USDC", b: "EURC", aColor: "bg-[#2775CA]", bColor: "bg-[#3D8FFD]", badge: "Live" },
+  { id: "USDC/USDT", a: "USDC", b: "USDT", aColor: "bg-[#2775CA]", bColor: "bg-[#26A17B]", badge: "New" },
+  { id: "EURC/USDT", a: "EURC", b: "USDT", aColor: "bg-[#3D8FFD]", bColor: "bg-[#26A17B]", badge: "New" },
+];
+
 const PoolOverview = () => {
   const { isConnected } = useWallet();
   const pool = usePoolData();
@@ -75,23 +81,23 @@ const PoolOverview = () => {
                   </div>
                </div>
             ) : !pool.isLpBalanceLoading ? (
-               <div className="border border-border bg-card rounded-sm"><EmptyState variant="pool" title="No active pool position" description="Provide liquidity to the USDC/EURC pair to earn protocol fees automatically." action={<Link to="/pool/add"><Button size="sm" className="gap-2 bg-primary text-primary-foreground font-bold tracking-widest uppercase text-[10px]"><Plus className="h-3 w-3" /> Add Liquidity</Button></Link>} /></div>
+               <div className="border border-border bg-card rounded-sm"><EmptyState variant="pool" title="No active pool position" description="Provide liquidity to earn protocol fees automatically." action={<Link to="/pool/add"><Button size="sm" className="gap-2 bg-primary text-primary-foreground font-bold tracking-widest uppercase text-[10px]"><Plus className="h-3 w-3" /> Add Liquidity</Button></Link>} /></div>
             ) : (
                <div className="h-40 flex items-center justify-center border border-border bg-card rounded-sm"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             )}
          </div>
       )}
 
-      {/* Pool Stats */}
+      {/* Primary pool stats */}
       <h3 className="text-[10px] font-bold tracking-[0.3em] uppercase mb-6 text-muted-foreground border-b border-border pb-4">USDC / EURC Protocol Pool</h3>
-      <div className="grid lg:grid-cols-3 gap-8">
+      <div className="grid lg:grid-cols-3 gap-8 mb-12">
          <div className="lg:col-span-2 space-y-4">
             <div className="border border-border bg-card rounded-sm p-8">
                <div className="flex items-center justify-between mb-8">
                   <div className="flex items-center gap-3">
                      <div className="flex -space-x-2">
-                        <div className="h-8 w-8 rounded-full bg-primary border-2 border-card flex items-center justify-center text-[10px] font-bold">U</div>
-                        <div className="h-8 w-8 rounded-full bg-secondary border-2 border-card flex items-center justify-center text-[10px] font-bold">E</div>
+                        <div className="h-8 w-8 rounded-full bg-[#2775CA] border-2 border-card flex items-center justify-center text-[10px] font-bold text-white">U</div>
+                        <div className="h-8 w-8 rounded-full bg-[#3D8FFD] border-2 border-card flex items-center justify-center text-[10px] font-bold text-white">E</div>
                      </div>
                      <div>
                         <h2 className="text-xl font-bold">USDC-EURC</h2>
@@ -126,6 +132,43 @@ const PoolOverview = () => {
                <SectionHistory transactions={history.transactions} columns={POOL_COLUMNS} section="pool" />
             </div>
          </div>
+      </div>
+
+      {/* USDT pools */}
+      <h3 className="text-[10px] font-bold tracking-[0.3em] uppercase mb-6 text-muted-foreground border-b border-border pb-4">USDT Pools</h3>
+      <div className="grid md:grid-cols-2 gap-6 mb-12">
+        {POOL_PAIRS.filter(p => p.id !== "USDC/EURC").map((pair) => (
+          <div key={pair.id} className="border border-border bg-card rounded-sm p-6 hover:border-primary/40 transition-colors group relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 opacity-[0.03] rotate-45 transform translate-x-8 -translate-y-8 bg-primary transition-all group-hover:opacity-[0.06]" />
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="flex -space-x-2">
+                  <div className={`h-8 w-8 rounded-full ${pair.aColor} border-2 border-card flex items-center justify-center text-[10px] font-bold text-white`}>{pair.a[0]}</div>
+                  <div className={`h-8 w-8 rounded-full ${pair.bColor} border-2 border-card flex items-center justify-center text-[10px] font-bold text-white`}>{pair.b[0]}</div>
+                </div>
+                <div>
+                  <h2 className="text-base font-bold">{pair.id}</h2>
+                  <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">StableSwap · 0.04% Fee</p>
+                </div>
+              </div>
+              <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[9px] font-bold tracking-widest uppercase">{pair.badge}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-px bg-border border border-border mb-5">
+              <div className="p-4 bg-background">
+                <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest mb-1">Reserves</p>
+                <p className="text-sm font-bold font-mono">-</p>
+              </div>
+              <div className="p-4 bg-background">
+                <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest mb-1">TVL</p>
+                <p className="text-sm font-bold font-mono">-</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Link to="/pool/add" className="flex-1"><Button size="sm" className="w-full bg-primary text-primary-foreground font-bold tracking-widest uppercase text-[10px]">Add</Button></Link>
+              <Link to="/pool/remove" className="flex-1"><Button variant="outline" size="sm" className="w-full border-border font-bold tracking-widest uppercase text-[10px]">Remove</Button></Link>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -9,6 +9,8 @@ import {
   Crown,
   LayoutDashboard,
   BookOpen,
+  Bot,
+  CalendarClock,
   Menu,
   X,
   PanelLeftClose,
@@ -26,7 +28,10 @@ const NAV = [
   { to: "/yield", icon: Sprout, label: "Yield" },
   { to: "/bridge", icon: ArrowLeftRight, label: "Bridge" },
   { to: "/send", icon: Send, label: "Send" },
+  { to: "/faucet", icon: Droplets, label: "Faucet" },
   { to: "/points", icon: Crown, label: "Points" },
+  { to: "/autopilot", icon: Bot, label: "Lunex AI" },
+  { to: "/agent-network", icon: CalendarClock, label: "Recurring" },
   // Public analytics dashboard is route-only (/analytics), intentionally not in the nav.
   { to: "/docs", icon: BookOpen, label: "Docs" },
 ];
@@ -38,9 +43,12 @@ const PATH_LABELS: Record<string, string> = {
   "/yield": "yield-vaults",
   "/bridge": "cctp-bridge",
   "/send": "send",
+  "/faucet": "faucet",
   "/points": "points",
   "/dashboard": "dashboard",
   "/analytics": "analytics",
+  "/autopilot": "autopilot",
+  "/agent-network": "recurring",
   "/docs": "docs",
 };
 

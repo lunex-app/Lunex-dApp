@@ -1,236 +1,703 @@
-import { useMemo, useState } from "react";
-import { Bot, Loader2, Send, Sparkles, User } from "lucide-react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import {
+  Bot, Zap, TrendingUp, TrendingDown, Minus,
+  RefreshCw, Trash2, CheckCircle, Clock,
+  Send, User, LayoutDashboard, MessageSquare,
+  Sparkles, ArrowLeftRight, Droplets, Sprout,
+  ArrowDownToLine, Link2, AlertCircle,
+} from "lucide-react";
+import { formatUnits } from "viem";
 import { useWallet } from "@/context/WalletProvider";
 import BackButton from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
-import { useSwap } from "@/hooks/useSwap";
-import { useBridge } from "@/features/bridge/hooks/useBridge";
-import { useVaultDeposit } from "@/hooks/useVault";
-import { useAddLiquidity } from "@/hooks/useLiquidity";
-import { createId, protocolStorage, type AutopilotIntent } from "@/lib/localProtocol";
+import { useAutopilotAgent, type AgentLogEntry, type AgentDecision } from "@/hooks/useAutopilotAgent";
+import { useFullAgent, type ActionResult } from "@/hooks/useFullAgent";
+import { resolveAmount } from "@/lib/agentParser";
+import { callAutopilotLLM } from "@/lib/autopilotLLM";
+import { BRIDGE_CHAINS } from "@/features/bridge/config/bridgeConfig";
+import { cn } from "@/lib/utils";
 
-type IntentKind = "swap" | "bridge" | "vault" | "pool" | "pay" | "stream" | "limit_order" | "unknown";
-
-interface ParsedIntent {
-  kind: IntentKind;
-  amount: string;
-  fromToken: "USDC" | "EURC";
-  toToken: "USDC" | "EURC";
-  fromChain: "arc" | "base" | "ethereum" | "arbitrum" | "avalanche" | "polygon";
-  toChain: "arc" | "base" | "ethereum" | "arbitrum" | "avalanche" | "polygon";
-  needsBackend: boolean;
-  summary: string;
-}
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ChatMessage {
   id: string;
   role: "user" | "agent";
   content: string;
-  intent?: ParsedIntent;
+  timestamp: number;
+  txHash?: string;
+  isStreaming?: boolean;
+  status?: "ok" | "error";
 }
 
-const chainAliases: Record<string, ParsedIntent["fromChain"]> = {
-  arc: "arc",
-  base: "base",
-  ethereum: "ethereum",
-  eth: "ethereum",
-  arbitrum: "arbitrum",
-  avalanche: "avalanche",
-  fuji: "avalanche",
-  polygon: "polygon",
-  amoy: "polygon",
-};
+// ── Dashboard helpers ─────────────────────────────────────────────────────────
 
-function parseIntent(prompt: string): ParsedIntent {
-  const text = prompt.toLowerCase();
-  const amount = text.match(/(\d+(?:\.\d+)?)/)?.[1] ?? "";
-  const tokenMatches = [...text.matchAll(/\b(usdc|eurc)\b/g)].map((match) => match[1].toUpperCase() as "USDC" | "EURC");
-  const fromToken = tokenMatches[0] ?? "USDC";
-  const toToken = tokenMatches[1] ?? (fromToken === "USDC" ? "EURC" : "USDC");
-  const chainMatches = Object.keys(chainAliases).filter((alias) => text.includes(alias)).map((alias) => chainAliases[alias]);
-  const fromChain = chainMatches[0] ?? "arc";
-  const toChain = chainMatches[1] ?? (fromChain === "arc" ? "base" : "arc");
-
-  let kind: IntentKind = "unknown";
-  if (text.includes("limit")) kind = "limit_order";
-  else if (text.includes("bridge") || text.includes("cctp") || text.includes("gateway")) kind = "bridge";
-  else if (text.includes("vault") || text.includes("yield") || text.includes("deposit")) kind = "vault";
-  else if (text.includes("liquidity") || text.includes("pool") || text.includes("lp")) kind = "pool";
-  else if (text.includes("pay") || text.includes("invoice")) kind = "pay";
-  else if (text.includes("stream") || text.includes("salary") || text.includes("vesting")) kind = "stream";
-  else if (text.includes("swap") || tokenMatches.length >= 2) kind = "swap";
-
-  const needsBackend = kind === "pay" || kind === "stream" || kind === "limit_order" || kind === "unknown";
-  const summary = kind === "unknown"
-    ? "I need a supported intent like swap, bridge, vault deposit, liquidity, pay, stream, or limit order."
-    : `${kind.replace("_", " ")} ${amount || "0"} ${fromToken}${kind === "bridge" ? ` from ${fromChain} to ${toChain}` : kind === "swap" ? ` to ${toToken}` : ""}`;
-
-  return { kind, amount, fromToken, toToken, fromChain, toChain, needsBackend, summary };
+function decisionIcon(d: AgentDecision) {
+  if (d === "rebalance_to_vault") return <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />;
+  if (d === "rebalance_to_pool") return <TrendingDown className="h-3.5 w-3.5 text-blue-400" />;
+  return <Minus className="h-3.5 w-3.5 text-muted-foreground" />;
+}
+function decisionLabel(d: AgentDecision) {
+  if (d === "rebalance_to_vault") return "→ VAULT";
+  if (d === "rebalance_to_pool") return "→ POOL";
+  return "HOLD";
+}
+function decisionColor(d: AgentDecision) {
+  if (d === "rebalance_to_vault") return "text-emerald-400";
+  if (d === "rebalance_to_pool") return "text-blue-400";
+  return "text-muted-foreground";
+}
+function formatUptime(startedAt: number | null) {
+  if (!startedAt) return "-";
+  const s = Math.floor((Date.now() - startedAt) / 1000);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
 }
 
-function assistantCopy(intent: ParsedIntent) {
-  if (!intent.amount || Number(intent.amount) <= 0) return "I found the route, but I need a valid amount before I can execute.";
-  if (intent.needsBackend) {
-    return "This intent needs deployed automation infrastructure before I can execute it inside the agent. I can still save the intent and prepare the transaction shape.";
-  }
-  return `I can execute this ${intent.kind} here. Review the route and confirm with your wallet.`;
-}
-
-const Autopilot = () => {
-  const { address, isConnected, openConnect } = useWallet();
-  const [prompt, setPrompt] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: "welcome", role: "agent", content: "Tell me what to do with USDC or EURC. I can execute swaps, CCTP bridges, vault deposits, and liquidity actions directly from this page when the route is supported." },
-  ]);
-  const latestIntent = useMemo(() => [...messages].reverse().find((message) => message.intent)?.intent, [messages]);
-
-  const swap = useSwap({
-    fromSymbol: latestIntent?.kind === "swap" ? latestIntent.fromToken : "USDC",
-    toSymbol: latestIntent?.kind === "swap" ? latestIntent.toToken : "EURC",
-    amount: latestIntent?.kind === "swap" ? latestIntent.amount : "",
-    slippage: "0.5",
-  });
-  const bridge = useBridge();
-  const vaultDeposit = useVaultDeposit(latestIntent?.fromToken ?? "USDC", latestIntent?.kind === "vault" ? latestIntent.amount : "");
-  const liquidity = useAddLiquidity(
-    latestIntent?.kind === "pool" && latestIntent.fromToken === "USDC" ? latestIntent.amount : "",
-    latestIntent?.kind === "pool" && latestIntent.fromToken === "EURC" ? latestIntent.amount : "",
-    "0.5"
-  );
-
-  const submitPrompt = () => {
-    if (!prompt.trim()) return;
-    const parsed = parseIntent(prompt);
-    setMessages((items) => [
-      ...items,
-      { id: createId("user"), role: "user", content: prompt.trim() },
-      { id: createId("agent"), role: "agent", content: assistantCopy(parsed), intent: parsed },
-    ]);
-    setPrompt("");
-    if (address) {
-      const intent: AutopilotIntent = {
-        id: createId("intent"),
-        wallet: address,
-        prompt: prompt.trim(),
-        intent: parsed.kind,
-        summary: parsed.summary,
-        steps: [parsed.summary],
-        status: parsed.needsBackend ? "needs_review" : "ready",
-        createdAt: Date.now(),
-      };
-      protocolStorage.saveAutopilotIntent(address, intent);
-    }
-  };
-
-  const executeIntent = async () => {
-    if (!latestIntent) return;
-    if (!isConnected) {
-      openConnect();
-      return;
-    }
-    if (!latestIntent.amount || Number(latestIntent.amount) <= 0 || latestIntent.needsBackend) return;
-
-    if (latestIntent.kind === "swap") swap.executeSwap();
-    if (latestIntent.kind === "bridge") await bridge.startBridge(latestIntent.amount, latestIntent.fromChain, latestIntent.toChain, false, latestIntent.fromToken);
-    if (latestIntent.kind === "vault") vaultDeposit.execute();
-    if (latestIntent.kind === "pool") liquidity.execute();
-  };
-
-  const busy = swap.isBusy || bridge.status === "approving" || bridge.status === "burning" || bridge.status === "waiting_attestation" || bridge.status === "minting" || vaultDeposit.isBusy || liquidity.isBusy;
-  const canExecute = latestIntent && !latestIntent.needsBackend && latestIntent.amount && Number(latestIntent.amount) > 0;
-
+function LogEntry({ entry }: { entry: AgentLogEntry }) {
   return (
-    <div className="container max-w-6xl mx-auto py-10 px-4">
-      <div className="mb-6">
-        <BackButton />
-        <div className="flex items-center gap-3 mt-6">
-          <Bot className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold tracking-tight uppercase">Lunex Autopilot</h1>
+    <div className="flex gap-3 py-3 border-b border-border/40 last:border-0">
+      <div className="mt-0.5 shrink-0">{decisionIcon(entry.decision)}</div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 mb-1">
+          <span className={cn("text-[10px] font-black tracking-widest uppercase", decisionColor(entry.decision))}>{decisionLabel(entry.decision)}</span>
+          {entry.executed
+            ? <span className="flex items-center gap-1 text-[9px] text-emerald-400 font-semibold"><CheckCircle className="h-2.5 w-2.5" />EXECUTED</span>
+            : entry.decision !== "hold" && <span className="flex items-center gap-1 text-[9px] text-muted-foreground"><Clock className="h-2.5 w-2.5" />LOGGED</span>}
+          <span className="ml-auto text-[9px] text-muted-foreground font-mono">{new Date(entry.timestamp).toLocaleTimeString()}</span>
         </div>
-      </div>
-
-      <div className="grid lg:grid-cols-[1fr_340px] gap-6 min-h-[680px]">
-        <section className="border border-border bg-card rounded-sm flex flex-col overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">Intent workspace</p>
-          </div>
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
-            {messages.map((message) => (
-              <div key={message.id} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                {message.role === "agent" && <div className="h-8 w-8 border border-primary/30 bg-primary/10 text-primary flex items-center justify-center"><Bot className="h-4 w-4" /></div>}
-                <div className={`max-w-[78%] border p-4 text-sm ${message.role === "user" ? "border-primary/30 bg-primary text-primary-foreground" : "border-border bg-background"}`}>
-                  <p>{message.content}</p>
-                  {message.intent && (
-                    <div className="mt-3 border-t border-border/50 pt-3 grid sm:grid-cols-3 gap-3 text-[10px] font-mono">
-                      <span>{message.intent.kind.replace("_", " ")}</span>
-                      <span>{message.intent.amount || "0"} {message.intent.fromToken}</span>
-                      <span>{message.intent.kind === "bridge" ? `${message.intent.fromChain} → ${message.intent.toChain}` : `${message.intent.fromToken} → ${message.intent.toToken}`}</span>
-                    </div>
-                  )}
-                </div>
-                {message.role === "user" && <div className="h-8 w-8 border border-border bg-muted/20 flex items-center justify-center"><User className="h-4 w-4" /></div>}
-              </div>
-            ))}
-          </div>
-          <div className="p-4 border-t border-border bg-background">
-            <Textarea
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  submitPrompt();
-                }
-              }}
-              placeholder="Example: bridge 100 USDC from Arc to Base Sepolia via CCTP"
-              className="min-h-[96px] resize-none"
-            />
-            <div className="flex justify-end mt-3">
-              <Button onClick={submitPrompt} className="gap-2 font-black uppercase tracking-widest text-[10px]">
-                <Send className="h-4 w-4" /> Send
-              </Button>
-            </div>
-          </div>
-        </section>
-
-        <aside className="border border-border bg-card rounded-sm p-5 h-fit space-y-5">
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">Current intent</p>
-          {latestIntent ? (
-            <>
-              <div>
-                <p className="text-xl font-black uppercase">{latestIntent.kind.replace("_", " ")}</p>
-                <p className="text-xs text-muted-foreground mt-1">{latestIntent.summary}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="border border-border bg-muted/10 p-3">
-                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground">Amount</p>
-                  <p className="font-mono font-bold">{latestIntent.amount || "0"} {latestIntent.fromToken}</p>
-                </div>
-                <div className="border border-border bg-muted/10 p-3">
-                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground">Output</p>
-                  <p className="font-mono font-bold">{latestIntent.kind === "swap" ? latestIntent.toToken : latestIntent.toChain}</p>
-                </div>
-              </div>
-              {latestIntent.needsBackend && (
-                <div className="border border-yellow-500/30 bg-yellow-500/10 p-4 text-xs text-yellow-500">
-                  This requires an API/backend executor or deployed automation contract for proper intent execution.
-                </div>
-              )}
-              <Button disabled={!canExecute || busy} onClick={executeIntent} className="w-full h-12 gap-2 font-black uppercase tracking-widest text-[10px]">
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                Execute Intent
-              </Button>
-              {bridge.error && <p className="text-xs text-destructive">{bridge.error}</p>}
-            </>
-          ) : (
-            <p className="text-xs text-muted-foreground">No active intent.</p>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">{entry.reasoning}</p>
+        <div className="flex gap-3 mt-1.5 text-[9px] font-mono text-muted-foreground/70">
+          <span>Pool {entry.poolApr.toFixed(2)}%</span>
+          <span>Vault {entry.vaultApy.toFixed(2)}%</span>
+          {entry.txHash && entry.txHash !== "0x" && (
+            <a href={`https://testnet.arcscan.app/tx/${entry.txHash}`} target="_blank" rel="noopener noreferrer" className="text-primary underline-offset-2 hover:underline">view tx ↗</a>
           )}
-        </aside>
+        </div>
       </div>
     </div>
   );
+}
+
+// ── Chat UI primitives ────────────────────────────────────────────────────────
+
+function TypingIndicator() {
+  return (
+    <div className="flex items-start gap-3 px-4 py-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20">
+        <Bot className="h-4 w-4 text-primary" />
+      </div>
+      <div className="flex items-center gap-1.5 rounded-2xl rounded-tl-sm bg-muted/30 border border-border/50 px-4 py-3 mt-0.5">
+        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:0ms]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:150ms]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:300ms]" />
+      </div>
+    </div>
+  );
+}
+
+function renderMd(content: string) {
+  return content.split(/(\*\*[^*]+\*\*)/g).map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{part.slice(2, -2)}</strong>;
+    return part.split("\n").map((line, j, arr) => <span key={`${i}-${j}`}>{line}{j < arr.length - 1 && <br />}</span>);
+  });
+}
+
+function AgentMessage({ msg }: { msg: ChatMessage }) {
+  return (
+    <div className="flex items-start gap-3 px-4 py-3">
+      <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full border mt-0.5",
+        msg.status === "error" ? "bg-destructive/10 border-destructive/30" : "bg-primary/10 border-primary/20")}>
+        {msg.status === "error" ? <AlertCircle className="h-4 w-4 text-destructive" /> : <Bot className="h-4 w-4 text-primary" />}
+      </div>
+      <div className="max-w-[82%]">
+        <div className={cn("rounded-2xl rounded-tl-sm border px-4 py-3 text-sm leading-relaxed",
+          msg.status === "error" ? "bg-destructive/5 border-destructive/20 text-destructive" : "bg-muted/30 border-border/50 text-foreground")}>
+          {renderMd(msg.content)}
+          {msg.isStreaming && <span className="inline-block w-0.5 h-4 bg-primary ml-0.5 animate-pulse align-text-bottom" />}
+        </div>
+        {msg.txHash && msg.txHash !== "0x" && (
+          <a href={`https://testnet.arcscan.app/tx/${msg.txHash}`} target="_blank" rel="noopener noreferrer"
+            className="mt-1 ml-1 inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:underline underline-offset-2">
+            <CheckCircle className="h-3 w-3" /> Transaction confirmed ↗
+          </a>
+        )}
+        <p className="mt-1 ml-1 text-[10px] text-muted-foreground">{new Date(msg.timestamp).toLocaleTimeString()}</p>
+      </div>
+    </div>
+  );
+}
+
+function UserMessage({ msg }: { msg: ChatMessage }) {
+  return (
+    <div className="flex items-start justify-end gap-3 px-4 py-3">
+      <div className="max-w-[75%]">
+        <div className="rounded-2xl rounded-tr-sm bg-primary px-4 py-3 text-sm leading-relaxed text-primary-foreground">{msg.content}</div>
+        <p className="mt-1 mr-1 text-right text-[10px] text-muted-foreground">{new Date(msg.timestamp).toLocaleTimeString()}</p>
+      </div>
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted border border-border mt-0.5">
+        <User className="h-4 w-4 text-muted-foreground" />
+      </div>
+    </div>
+  );
+}
+
+// ── Quick-start chips ─────────────────────────────────────────────────────────
+
+const CHIPS = [
+  { label: "What's my portfolio?", icon: <LayoutDashboard className="h-3 w-3" /> },
+  { label: "Swap 10 USDC to EURC", icon: <ArrowLeftRight className="h-3 w-3" /> },
+  { label: "Add 10 USDC to pool", icon: <Droplets className="h-3 w-3" /> },
+  { label: "Deposit 10 USDC to vault", icon: <Sprout className="h-3 w-3" /> },
+  { label: "Remove all liquidity", icon: <ArrowDownToLine className="h-3 w-3" /> },
+  { label: "Bridge 5 USDC to Base", icon: <Link2 className="h-3 w-3" /> },
+];
+
+const WELCOME: ChatMessage = {
+  id: "welcome",
+  role: "agent",
+  content: `Hi! I'm **Lunex AI** - your autonomous DeFi agent. I can execute any action on the protocol directly from this chat. What would you like to do?`,
+  timestamp: Date.now(),
 };
 
-export default Autopilot;
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+type Tab = "chat" | "dashboard";
+
+export default function Autopilot() {
+  const { isConnected, openConnect } = useWallet();
+  const agent = useAutopilotAgent();
+  const full = useFullAgent();
+
+  const [activeTab, setActiveTab] = useState<Tab>("chat");
+  const [, setTick] = useState(0);
+
+  // Chat state
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
+  const [input, setInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+
+  // Streaming state
+  const [streamTarget, setStreamTarget] = useState("");
+  const [streamIndex, setStreamIndex] = useState(0);
+  const [streamId, setStreamId] = useState<string | null>(null);
+
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const isBusyRef = useRef(false);
+
+  // Uptime ticker
+  useEffect(() => {
+    if (!agent.config.active) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [agent.config.active]);
+
+  // Auto-scroll
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isTyping]);
+
+  // Streaming engine - 6ms per char
+  useEffect(() => {
+    if (!streamTarget || !streamId || streamIndex >= streamTarget.length) {
+      if (streamId && streamTarget.length > 0 && streamIndex >= streamTarget.length) {
+        setMessages((p) => p.map((m) => m.id === streamId ? { ...m, isStreaming: false } : m));
+        setStreamId(null); setStreamTarget(""); setStreamIndex(0);
+      }
+      return;
+    }
+    const t = setTimeout(() => {
+      setMessages((p) => p.map((m) => m.id === streamId ? { ...m, content: streamTarget.slice(0, streamIndex + 1) } : m));
+      setStreamIndex((i) => i + 1);
+    }, 6);
+    return () => clearTimeout(t);
+  }, [streamTarget, streamIndex, streamId]);
+
+  const startStream = useCallback((text: string, extra?: Partial<ChatMessage>): string => {
+    const id = `agent_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+    setMessages((p) => [...p, { id, role: "agent", content: "", timestamp: Date.now(), isStreaming: true, ...extra }]);
+    setStreamId(id); setStreamTarget(text); setStreamIndex(0);
+    return id;
+  }, []);
+
+  const addMessage = useCallback((content: string, extra?: Partial<ChatMessage>) => {
+    const id = `agent_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+    setMessages((p) => [...p, { id, role: "agent", content, timestamp: Date.now(), ...extra }]);
+  }, []);
+
+  // Wait for the current stream to finish
+  const waitForStream = useCallback((text: string) =>
+    new Promise<void>((resolve) => {
+      const duration = text.length * 6 + 300;
+      setTimeout(resolve, duration);
+    }), []);
+
+  // ── Action executor - routes Claude's structured response to protocol calls ──
+
+  const executeAction = useCallback(async (action: string, params: Record<string, unknown>) => {
+    if (!isConnected) { openConnect(); return; }
+
+    const ctx = full.getContext();
+    let result: ActionResult | null = null;
+
+    try {
+      switch (action) {
+        case "swap": {
+          const from = (params.fromToken as "USDC" | "EURC") ?? "USDC";
+          const to = (params.toToken as "USDC" | "EURC") ?? (from === "USDC" ? "EURC" : "USDC");
+          const balRaw = from === "USDC" ? ctx.usdcBalanceRaw : ctx.eurcBalanceRaw;
+          const raw = resolveAmount(params.amount as string, balRaw);
+          result = await full.performSwap(from, to, formatUnits(raw, 6));
+          break;
+        }
+        case "add_liquidity": {
+          result = await full.addLiquidity(
+            String(params.usdcAmount ?? "0"),
+            String(params.eurcAmount ?? "0"),
+          );
+          break;
+        }
+        case "remove_liquidity": {
+          result = await full.removeLiquidity(
+            (params.mode as "both" | "usdc" | "eurc") ?? "both",
+            Number(params.percent ?? 100),
+          );
+          break;
+        }
+        case "vault_deposit": {
+          const token = (params.token as "USDC" | "EURC") ?? "USDC";
+          const balRaw = token === "USDC" ? ctx.usdcBalanceRaw : ctx.eurcBalanceRaw;
+          const raw = resolveAmount(params.amount as string, balRaw);
+          result = await full.vaultDeposit(token, raw);
+          break;
+        }
+        case "vault_withdraw": {
+          const token = (params.token as "USDC" | "EURC") ?? "USDC";
+          const shares = token === "USDC" ? ctx.vaultUsdcSharesRaw : ctx.vaultEurcSharesRaw;
+          result = await full.vaultWithdraw(token, shares);
+          break;
+        }
+        case "send": {
+          const token = (params.token as "USDC" | "EURC") ?? "USDC";
+          const balRaw = token === "USDC" ? ctx.usdcBalanceRaw : ctx.eurcBalanceRaw;
+          const raw = resolveAmount(params.amount as string, balRaw);
+          result = await full.send(token, String(params.to ?? ""), formatUnits(raw, 6));
+          break;
+        }
+        case "bridge": {
+          result = await full.startBridge(
+            String(params.amount ?? "0"),
+            (params.fromChain as string) ?? "arc",
+            (params.toChain as string) ?? "ethereum",
+            (params.token as "USDC" | "EURC") ?? "USDC",
+          );
+          break;
+        }
+        case "evaluate": {
+          await agent.runOnce();
+          const spread = ctx.vaultUsdcApy - ctx.poolApr;
+          addMessage(
+            Math.abs(spread) > agent.config.thresholdPct
+              ? `Evaluation complete ⚡\n\nSpread **${Math.abs(spread).toFixed(2)}%** exceeds threshold **${agent.config.thresholdPct}%**. The **${spread > 0 ? "vault" : "pool"}** is outperforming. Say **"execute rebalance"** to act.`
+              : `Evaluation complete. Spread **${Math.abs(spread).toFixed(2)}%** is below the **${agent.config.thresholdPct}%** threshold - current allocation is near-optimal.`
+          );
+          return;
+        }
+        case "start_agent":
+          agent.updateConfig({ active: true });
+          return;
+        case "stop_agent":
+          agent.updateConfig({ active: false });
+          return;
+        default:
+          return;
+      }
+    } catch (e: unknown) {
+      addMessage(`Something went wrong executing the action: ${e instanceof Error ? e.message.slice(0, 120) : "Unknown error"}`, { status: "error" });
+      return;
+    }
+
+    if (result) {
+      addMessage(
+        result.ok ? `✓ ${result.detail}` : `✗ ${result.error}`,
+        { status: result.ok ? "ok" : "error", txHash: result.txHash },
+      );
+    }
+  }, [isConnected, openConnect, full, agent, addMessage]);
+
+  // ── Main send handler ────────────────────────────────────────────────────────
+
+  const sendMessage = useCallback(async (text: string) => {
+    if (!text.trim() || isTyping || isBusyRef.current) return;
+    isBusyRef.current = true;
+
+    setMessages((p) => [...p, { id: `user_${Date.now()}`, role: "user", content: text.trim(), timestamp: Date.now() }]);
+    setInput("");
+    setIsTyping(true);
+
+    // Build conversation history for Claude (last 8 completed messages)
+    const history = messages
+      .filter((m) => !m.isStreaming && m.content.trim())
+      .slice(-8)
+      .map((m) => ({ role: m.role, content: m.content }));
+
+    // Strip bigint fields - JSON.stringify throws on bigints; Claude only needs human-readable numbers
+    const rawCtx = full.getContext();
+    const llmCtx: Record<string, unknown> = {
+      usdcBalance: rawCtx.usdcBalance,
+      eurcBalance: rawCtx.eurcBalance,
+      lpBalance: rawCtx.lpBalance,
+      vaultUsdcDeposited: rawCtx.vaultUsdcDeposited,
+      vaultEurcDeposited: rawCtx.vaultEurcDeposited,
+      poolApr: rawCtx.poolApr,
+      vaultUsdcApy: rawCtx.vaultUsdcApy,
+      vaultEurcApy: rawCtx.vaultEurcApy,
+      totalLiquidity: rawCtx.totalLiquidity,
+      bridgeStatus: rawCtx.bridgeStatus,
+      agentActive: agent.config.active,
+    };
+
+    let llmResponse: { text: string; action?: string | null; params?: Record<string, unknown> };
+    try {
+      llmResponse = await callAutopilotLLM(text, llmCtx, history);
+    } catch (e: unknown) {
+      setIsTyping(false);
+      const msg = e instanceof Error ? e.message : String(e);
+      addMessage(
+        msg.includes("ANTHROPIC_API_KEY")
+          ? `**API key not configured.**\n\nAdd \`ANTHROPIC_API_KEY=sk-ant-...\` to your \`.env.local\` file, then restart the dev server.`
+          : `Couldn't reach the AI: ${msg.slice(0, 120)}`,
+        { status: "error" },
+      );
+      isBusyRef.current = false;
+      return;
+    }
+
+    setIsTyping(false);
+
+    // Stream Claude's text response
+    startStream(llmResponse.text);
+
+    // Execute action after streaming completes
+    if (llmResponse.action) {
+      await waitForStream(llmResponse.text);
+      await executeAction(llmResponse.action, llmResponse.params ?? {});
+    }
+
+    isBusyRef.current = false;
+  }, [isTyping, messages, full, startStream, waitForStream, executeAction, addMessage]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
+  };
+
+  const ctx = full.getContext();
+  const spread = agent.vaultApy - agent.poolApr;
+  const spreadAboveThreshold = Math.abs(spread) > agent.config.thresholdPct;
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-3.5rem)]">
+      {/* ── Header ── */}
+      <div className="shrink-0 border-b border-border bg-background/80 backdrop-blur-sm px-6 py-4">
+        <div className="max-w-6xl mx-auto">
+          <BackButton />
+          <div className="flex items-center justify-between mt-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 border border-primary/20">
+                <Bot className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold tracking-tight">Lunex AI</h1>
+                <p className="text-[11px] text-muted-foreground">Autonomous DeFi agent</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className={cn("text-[10px] font-black uppercase tracking-widest px-3 py-1",
+                agent.config.active ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "text-muted-foreground")}>
+                {agent.config.active ? "● ACTIVE" : "○ PAUSED"}
+              </Badge>
+              <div className="flex rounded-lg border border-border overflow-hidden">
+                {(["chat", "dashboard"] as Tab[]).map((tab) => (
+                  <button key={tab} onClick={() => setActiveTab(tab)}
+                    className={cn("flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold transition-colors border-l border-border first:border-l-0",
+                      activeTab === tab ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted/40")}>
+                    {tab === "chat" ? <><MessageSquare className="h-3.5 w-3.5" />Chat</> : <><LayoutDashboard className="h-3.5 w-3.5" />Dashboard</>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Chat Tab ── */}
+      {activeTab === "chat" && (
+        <div className="flex flex-1 min-h-0">
+          {/* Messages column */}
+          <div className="flex flex-1 flex-col min-h-0">
+            <div className="flex-1 overflow-y-auto py-4">
+              <div className="max-w-3xl mx-auto">
+                {messages.map((msg) =>
+                  msg.role === "agent" ? <AgentMessage key={msg.id} msg={msg} /> : <UserMessage key={msg.id} msg={msg} />
+                )}
+                {isTyping && <TypingIndicator />}
+                <div ref={chatEndRef} />
+              </div>
+            </div>
+
+            {/* Suggestion chips - only shown at start */}
+            {messages.length <= 2 && !isTyping && !streamId && (
+              <div className="max-w-3xl mx-auto px-4 pb-2">
+                <div className="flex flex-wrap gap-2">
+                  {CHIPS.map((c) => (
+                    <button key={c.label} onClick={() => sendMessage(c.label)}
+                      className="flex items-center gap-1.5 rounded-full border border-border bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors">
+                      <span className="text-primary">{c.icon}</span>{c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Input bar */}
+            <div className="shrink-0 border-t border-border bg-background/80 backdrop-blur-sm p-4">
+              <div className="max-w-3xl mx-auto flex gap-3 items-end">
+                <Textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder='Ask anything or say "swap 50 USDC to EURC", "bridge 100 USDC to Base"…'
+                  rows={1}
+                  className="flex-1 resize-none min-h-[44px] max-h-[140px] text-sm leading-relaxed rounded-xl border-border bg-muted/20 focus:border-primary/50 focus:bg-background transition-colors overflow-y-auto"
+                  style={{ height: "auto" }}
+                  onInput={(e) => { const t = e.currentTarget; t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 140) + "px"; }}
+                  disabled={isTyping || !!streamId || isBusyRef.current}
+                />
+                <Button onClick={() => sendMessage(input)} disabled={!input.trim() || isTyping || !!streamId || isBusyRef.current}
+                  size="icon" className="h-11 w-11 rounded-xl shrink-0">
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right sidebar */}
+          <div className="hidden lg:flex w-[280px] shrink-0 flex-col border-l border-border bg-card/50 p-5 gap-5 overflow-y-auto">
+            <div className="space-y-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">Quick Controls</p>
+              <div className="flex items-center justify-between">
+                <div><p className="text-sm font-bold">Autonomous Mode</p><p className="text-[10px] text-muted-foreground mt-0.5">Evaluates every 30s</p></div>
+                <Switch checked={agent.config.active} onCheckedChange={(v) => { if (!isConnected) { openConnect(); return; } agent.updateConfig({ active: v }); sendMessage(v ? "start autonomous mode" : "stop autonomous mode"); }} />
+              </div>
+              <div className="flex items-center justify-between">
+                <div><p className="text-sm font-bold">Auto-Execute</p><p className="text-[10px] text-muted-foreground mt-0.5">Sends txs automatically</p></div>
+                <Switch checked={agent.config.autoExecute} onCheckedChange={(v) => agent.updateConfig({ autoExecute: v })} disabled={!agent.config.active} />
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <p className="text-sm font-bold">Threshold</p>
+                  <p className="text-sm font-mono text-primary">{agent.config.thresholdPct.toFixed(1)}%</p>
+                </div>
+                <Slider min={0.5} max={5} step={0.5} value={[agent.config.thresholdPct]} onValueChange={([v]) => agent.updateConfig({ thresholdPct: v })} disabled={agent.config.active} className="py-1" />
+              </div>
+            </div>
+
+            {/* Yields */}
+            <div className="border border-border rounded-sm p-3 space-y-2">
+              <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-black">Live Yields</p>
+              <div className="flex justify-between"><span className="text-[11px] text-muted-foreground">Pool APR</span><span className="text-[11px] font-mono font-bold text-blue-400">{agent.poolApr.toFixed(2)}%</span></div>
+              <div className="flex justify-between"><span className="text-[11px] text-muted-foreground">Vault APY</span><span className="text-[11px] font-mono font-bold text-emerald-400">{agent.vaultApy.toFixed(2)}%</span></div>
+              <div className="flex justify-between border-t border-border pt-2">
+                <span className="text-[11px] text-muted-foreground">Spread</span>
+                <span className={cn("text-[11px] font-mono font-bold", spreadAboveThreshold ? "text-primary" : "text-muted-foreground")}>
+                  {spread >= 0 ? "+" : ""}{spread.toFixed(2)}%{spreadAboveThreshold && " ⚡"}
+                </span>
+              </div>
+            </div>
+
+            {/* Positions */}
+            <div className="border border-border rounded-sm p-3 space-y-2">
+              <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-black">Positions</p>
+              {[
+                ["USDC", ctx.usdcBalance.toFixed(4)],
+                ["EURC", ctx.eurcBalance.toFixed(4)],
+                ["Pool LP", ctx.lpBalance.toFixed(4)],
+                ["Vault USDC", ctx.vaultUsdcDeposited.toFixed(4)],
+                ["Vault EURC", ctx.vaultEurcDeposited.toFixed(4)],
+              ].map(([l, v]) => (
+                <div key={l} className="flex justify-between">
+                  <span className="text-[11px] text-muted-foreground">{l}</span>
+                  <span className="text-[11px] font-mono">{v}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Bridge status */}
+            {!["idle", "complete", "failed"].includes(full.bridge.status) && (
+              <div className="border border-primary/20 bg-primary/5 rounded-sm p-3 space-y-1">
+                <p className="text-[9px] uppercase tracking-widest text-primary font-black">Bridge In Progress</p>
+                <p className="text-[11px] text-muted-foreground capitalize">{full.bridge.status.replace(/_/g, " ")}</p>
+                {full.bridge.statusMessage && <p className="text-[10px] text-muted-foreground">{full.bridge.statusMessage}</p>}
+              </div>
+            )}
+
+            {/* Action shortcuts */}
+            <div className="mt-auto space-y-2">
+              {spreadAboveThreshold && (
+                <Button onClick={() => sendMessage("execute rebalance")} className="w-full gap-2 font-black uppercase tracking-widest text-[10px] h-9"
+                  disabled={!isConnected || isTyping || !!streamId}>
+                  <Zap className="h-3.5 w-3.5" />Execute Rebalance
+                </Button>
+              )}
+              <Button onClick={() => sendMessage("what's my portfolio?")} variant="outline"
+                className="w-full gap-2 font-black uppercase tracking-widest text-[10px] h-9" disabled={isTyping || !!streamId}>
+                <Sparkles className="h-3.5 w-3.5" />Portfolio
+              </Button>
+              <Button onClick={() => sendMessage("evaluate")} variant="outline"
+                className="w-full gap-2 font-black uppercase tracking-widest text-[10px] h-9" disabled={isTyping || !!streamId}>
+                <RefreshCw className="h-3.5 w-3.5" />Evaluate
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Dashboard Tab ── */}
+      {activeTab === "dashboard" && (
+        <div className="flex-1 overflow-y-auto">
+          <div className="container max-w-6xl mx-auto py-8 px-4">
+            <div className="grid lg:grid-cols-[1fr_340px] gap-6">
+              <div className="space-y-5">
+                {/* Yield comparison */}
+                <div className="border border-border bg-card rounded-sm p-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground mb-4">Live Yield Comparison</p>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="border border-border bg-muted/10 p-4">
+                      <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Pool APR</p>
+                      <p className="text-2xl font-black font-mono text-blue-400">{agent.poolApr.toFixed(2)}%</p>
+                      <p className="text-[9px] text-muted-foreground mt-1">USDC/EURC swap fees</p>
+                    </div>
+                    <div className="border border-border bg-muted/10 p-4">
+                      <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Vault APY</p>
+                      <p className="text-2xl font-black font-mono text-emerald-400">{agent.vaultApy.toFixed(2)}%</p>
+                      <p className="text-[9px] text-muted-foreground mt-1">luneUSDC auto-compound</p>
+                    </div>
+                    <div className={cn("border p-4", spreadAboveThreshold ? "border-primary/40 bg-primary/5" : "border-border bg-muted/10")}>
+                      <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Spread</p>
+                      <p className={cn("text-2xl font-black font-mono", spread > 0 ? "text-emerald-400" : spread < 0 ? "text-blue-400" : "text-foreground")}>
+                        {spread >= 0 ? "+" : ""}{spread.toFixed(2)}%
+                      </p>
+                      <p className="text-[9px] text-muted-foreground mt-1">{spreadAboveThreshold ? "⚡ Threshold met" : `Need >${agent.config.thresholdPct}%`}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Positions */}
+                <div className="border border-border bg-card rounded-sm p-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground mb-4">Managed Positions</p>
+                  <div className="grid grid-cols-3 gap-4">
+                    {[
+                      { l: "Pool LP", v: agent.pool.lpBalance.toFixed(4), s: "LP tokens" },
+                      { l: "Vault USDC", v: agent.vault.userDeposited.toFixed(4), s: "in luneUSDC" },
+                      { l: "Wallet USDC", v: agent.walletUsdc.toFixed(4), s: "undeployed" },
+                    ].map(({ l, v, s }) => (
+                      <div key={l} className="border border-border bg-muted/10 p-4">
+                        <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">{l}</p>
+                        <p className="font-black font-mono text-lg">{v}</p>
+                        <p className="text-[9px] text-muted-foreground mt-1">{s}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Decision log */}
+                <div className="border border-border bg-card rounded-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">Agent Decision Log</p>
+                    <button onClick={agent.clearLog} className="text-muted-foreground hover:text-foreground transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </div>
+                  <div className="max-h-[420px] overflow-y-auto px-5">
+                    {agent.log.length === 0
+                      ? <p className="py-10 text-xs text-muted-foreground text-center">No decisions yet - switch to Chat and say "evaluate".</p>
+                      : agent.log.map((e) => <LogEntry key={e.id} entry={e} />)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Controls + Status */}
+              <div className="space-y-5">
+                <div className="border border-border bg-card rounded-sm p-5 space-y-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">Agent Controls</p>
+                  <div className="flex items-center justify-between">
+                    <div><p className="text-sm font-bold">Autonomous Mode</p><p className="text-[10px] text-muted-foreground mt-0.5">Polls every 30s</p></div>
+                    <Switch checked={agent.config.active} onCheckedChange={(v) => { if (!isConnected) { openConnect(); return; } agent.updateConfig({ active: v }); }} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div><p className="text-sm font-bold">Auto-Execute</p><p className="text-[10px] text-muted-foreground mt-0.5">Sends txs automatically</p></div>
+                    <Switch checked={agent.config.autoExecute} onCheckedChange={(v) => agent.updateConfig({ autoExecute: v })} disabled={!agent.config.active} />
+                  </div>
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <p className="text-sm font-bold">Rebalance Threshold</p>
+                      <p className="text-sm font-mono text-primary">{agent.config.thresholdPct.toFixed(1)}%</p>
+                    </div>
+                    <Slider min={0.5} max={5} step={0.5} value={[agent.config.thresholdPct]} onValueChange={([v]) => agent.updateConfig({ thresholdPct: v })} disabled={agent.config.active} className="py-1" />
+                    <p className="text-[9px] text-muted-foreground mt-1.5">Minimum APR spread to trigger a move</p>
+                  </div>
+                  <div className="border-t border-border pt-4 space-y-2">
+                    <Button onClick={() => { if (!isConnected) { openConnect(); return; } agent.runOnce(); }} variant="outline"
+                      className="w-full gap-2 font-black uppercase tracking-widest text-[10px] h-10" disabled={agent.isExecuting}>
+                      <RefreshCw className={cn("h-3.5 w-3.5", agent.isExecuting && "animate-spin")} />Evaluate Now
+                    </Button>
+                    <Button onClick={() => setActiveTab("chat")} variant="outline"
+                      className="w-full gap-2 font-black uppercase tracking-widest text-[10px] h-10">
+                      <MessageSquare className="h-3.5 w-3.5" />Open Chat
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="border border-border bg-card rounded-sm p-5 space-y-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">Status</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { l: "State", v: agent.config.active ? "RUNNING" : "STOPPED", c: agent.config.active ? "text-emerald-400" : "text-muted-foreground" },
+                      { l: "Uptime", v: formatUptime(agent.startedAt), c: "text-foreground" },
+                      { l: "Decisions", v: String(agent.log.length), c: "text-foreground" },
+                      { l: "Executions", v: String(agent.log.filter((l) => l.executed).length), c: "text-foreground" },
+                    ].map(({ l, v, c }) => (
+                      <div key={l} className="border border-border bg-muted/10 p-3">
+                        <p className="text-[9px] uppercase tracking-widest text-muted-foreground">{l}</p>
+                        <p className={cn("font-black font-mono mt-1 text-sm", c)}>{v}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border border-border bg-muted/10 p-3">
+                    <p className="text-[9px] uppercase tracking-widest text-muted-foreground">Last Action</p>
+                    <p className={cn("font-black uppercase text-sm mt-1", decisionColor(agent.lastDecision))}>{decisionLabel(agent.lastDecision)}</p>
+                  </div>
+                </div>
+
+                {agent.lastDecision !== "hold" && (
+                  <div className={cn("border rounded-sm p-4", agent.lastDecision === "rebalance_to_vault" ? "border-emerald-500/30 bg-emerald-500/10" : "border-blue-500/30 bg-blue-500/10")}>
+                    <div className="flex items-center gap-2 mb-2"><Zap className="h-4 w-4 text-primary" /><p className="text-[10px] font-black uppercase tracking-widest">Action Recommended</p></div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      {agent.lastDecision === "rebalance_to_vault" ? "Vault outperforms pool. Remove LP → deposit vault." : "Pool outperforms vault. Redeem vault → add pool liquidity."}
+                    </p>
+                    {!agent.config.autoExecute && (
+                      <Button onClick={() => agent.executeStep()} disabled={agent.isExecuting || !isConnected} className="w-full h-9 mt-3 gap-2 font-black uppercase tracking-widest text-[10px]">
+                        {agent.isExecuting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}Execute Step
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

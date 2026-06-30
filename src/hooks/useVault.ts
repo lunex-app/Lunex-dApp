@@ -9,10 +9,10 @@ import { useTx } from "./useTx";
 import type { Write } from "@/lib/circleTx";
 import { toast } from "sonner";
 
-export function useVaultDeposit(tokenSymbol: "USDC" | "EURC", amount: string) {
+export function useVaultDeposit(tokenSymbol: "USDC" | "EURC" | "USDT", amount: string) {
   const { address, isConnected } = useWallet();
   const token = TOKENS[tokenSymbol];
-  const vaultAddress = tokenSymbol === "USDC" ? CONTRACTS.LUNE_VAULT_USDC : CONTRACTS.LUNE_VAULT_EURC;
+  const vaultAddress = tokenSymbol === "USDC" ? CONTRACTS.LUNE_VAULT_USDC : tokenSymbol === "USDT" ? CONTRACTS.LUNE_VAULT_USDT : CONTRACTS.LUNE_VAULT_EURC;
   const approval = useApproveToken(token.address, vaultAddress, token.decimals);
   const { recordVolume } = useVolumeTracker();
   const tx = useTx();
@@ -61,9 +61,9 @@ export function useVaultDeposit(tokenSymbol: "USDC" | "EURC", amount: string) {
   };
 }
 
-export function useVaultWithdraw(tokenSymbol: "USDC" | "EURC", sharesRaw: bigint) {
+export function useVaultWithdraw(tokenSymbol: "USDC" | "EURC" | "USDT", sharesRaw: bigint) {
   const { address, isConnected } = useWallet();
-  const vaultAddress = tokenSymbol === "USDC" ? CONTRACTS.LUNE_VAULT_USDC : CONTRACTS.LUNE_VAULT_EURC;
+  const vaultAddress = tokenSymbol === "USDC" ? CONTRACTS.LUNE_VAULT_USDC : tokenSymbol === "USDT" ? CONTRACTS.LUNE_VAULT_USDT : CONTRACTS.LUNE_VAULT_EURC;
   const { recordVolume } = useVolumeTracker();
   const tx = useTx();
 

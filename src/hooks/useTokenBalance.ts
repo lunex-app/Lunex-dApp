@@ -4,7 +4,7 @@ import { TOKENS, arcTestnet } from "@/config/wagmi";
 import { erc20Abi } from "@/config/abis";
 import { useWallet } from "@/context/WalletProvider";
 
-export function useTokenBalance(tokenSymbol: "USDC" | "EURC") {
+export function useTokenBalance(tokenSymbol: "USDC" | "EURC" | "USDT") {
   const { address, isConnected } = useWallet();
   const token = TOKENS[tokenSymbol];
 
@@ -37,5 +37,6 @@ export function useTokenBalance(tokenSymbol: "USDC" | "EURC") {
 export function useTokenBalances() {
   const usdc = useTokenBalance("USDC");
   const eurc = useTokenBalance("EURC");
-  return { USDC: usdc, EURC: eurc };
+  const usdt = useTokenBalance("USDT");
+  return { USDC: usdc, EURC: eurc, USDT: usdt };
 }

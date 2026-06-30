@@ -22,16 +22,19 @@ const YieldOverview = () => {
   const { isConnected } = useWallet();
   const usdcVault = useVaultData("USDC");
   const eurcVault = useVaultData("EURC");
+  const usdtVault = useVaultData("USDT");
   const history = useSectionHistory("yield");
   const { formattedTotal: globalBalance, isLoading: globalBalanceLoading } = useUnifiedBalance();
   const usdcApy = useDynamicApy("vault-usdc-share-price", usdcVault.sharePrice, 0);
   const eurcApy = useDynamicApy("vault-eurc-share-price", eurcVault.sharePrice, 0);
+  const usdtApy = useDynamicApy("vault-usdt-share-price", usdtVault.sharePrice, 0);
   const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const hasPositions = usdcVault.userShares > 0 || eurcVault.userShares > 0;
+  const hasPositions = usdcVault.userShares > 0 || eurcVault.userShares > 0 || usdtVault.userShares > 0;
 
   const vaults = [
     { token: "USDC" as const, share: "luneUSDC", tvl: usdcVault.totalAssets, sharePrice: usdcVault.sharePrice, userShares: usdcVault.userShares, userDeposited: usdcVault.userDeposited, route: "/yield/usdc", accent: "teal", apy: usdcApy },
     { token: "EURC" as const, share: "luneEURC", tvl: eurcVault.totalAssets, sharePrice: eurcVault.sharePrice, userShares: eurcVault.userShares, userDeposited: eurcVault.userDeposited, route: "/yield/eurc", accent: "purple", apy: eurcApy },
+    { token: "USDT" as const, share: "luneUSDT", tvl: usdtVault.totalAssets, sharePrice: usdtVault.sharePrice, userShares: usdtVault.userShares, userDeposited: usdtVault.userDeposited, route: "/yield/usdt", accent: "green", apy: usdtApy },
   ];
 
   const [claimedRewards, setClaimedRewards] = useState(false);
@@ -72,7 +75,7 @@ const YieldOverview = () => {
                      {vaults.filter(v => v.userShares > 0).map(v => (
                         <div key={v.token} className="p-8 space-y-4">
                            <div className="flex items-center gap-3">
-                              <div className={`h-8 w-8 rounded-full border border-border flex items-center justify-center font-bold text-xs ${v.accent === "teal" ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>{v.token[0]}</div>
+                              <div className={`h-8 w-8 rounded-full border border-border flex items-center justify-center font-bold text-xs ${v.accent === "teal" ? "bg-[#2775CA] text-white" : v.accent === "purple" ? "bg-[#3D8FFD] text-white" : "bg-[#26A17B] text-white"}`}>{v.token[0]}</div>
                               <div>
                                  <h4 className="text-lg font-bold">{v.share}</h4>
                                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Active Position</p>
@@ -99,10 +102,10 @@ const YieldOverview = () => {
       )}
 
       <h3 className="text-[10px] font-bold tracking-[0.3em] uppercase mb-6 text-muted-foreground border-b border-border pb-4">Standardized Strategy Index</h3>
-      <div className="grid md:grid-cols-2 gap-8 mb-12">
+      <div className="grid md:grid-cols-3 gap-6 mb-12">
         {vaults.map((v) => (
           <div key={v.token} className="border border-border bg-card rounded-sm p-8 shadow-sm relative overflow-hidden group hover:border-primary/50 transition-colors">
-            <div className={`absolute top-0 right-0 w-32 h-32 opacity-[0.03] rotate-45 transform translate-x-12 -translate-y-12 transition-all group-hover:opacity-[0.05] ${v.accent === "teal" ? "bg-primary" : "bg-secondary"}`} />
+            <div className={`absolute top-0 right-0 w-32 h-32 opacity-[0.03] rotate-45 transform translate-x-12 -translate-y-12 transition-all group-hover:opacity-[0.05] ${v.accent === "teal" ? "bg-[#2775CA]" : v.accent === "purple" ? "bg-[#3D8FFD]" : "bg-[#26A17B]"}`} />
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h2 className="text-2xl font-bold">{v.share}</h2>

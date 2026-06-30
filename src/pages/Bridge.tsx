@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { ArrowRight, Loader2, Zap, Info, ArrowLeftRight, ExternalLink, Fuel, X, RotateCw, History, Menu, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   DropdownMenu,
@@ -242,15 +241,15 @@ const Bridge = () => {
 
               <div className="space-y-3">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Amount to Bridge</label>
-                <div className="relative group">
-                  <Input
+                <div className="rounded-xl bg-muted/40 px-3 py-2 hover:bg-muted/50 transition-colors flex items-center gap-2">
+                  <input
                     type="number"
-                    placeholder="0.00"
+                    placeholder="0"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="bg-muted/10 border-border text-xl font-bold font-mono h-12 rounded-sm focus-visible:ring-primary pl-4"
+                    className="flex-1 min-w-0 bg-transparent text-xl font-bold text-foreground outline-none placeholder:text-muted-foreground/20 leading-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold font-mono text-muted-foreground uppercase">{tokenSymbol}</div>
+                  <span className="text-xs font-bold font-mono text-muted-foreground uppercase shrink-0">{tokenSymbol}</span>
                 </div>
                 <div className="grid grid-cols-4 gap-2 mt-2">
                    {[25, 55, 75, 100].map((pct) => (
@@ -294,7 +293,7 @@ const Bridge = () => {
                 <Switch checked={isFastPath} onCheckedChange={setIsFastPath} className="data-[state=checked]:bg-primary" />
               </div>
 
-              {/* Destination Gas Top-Up — Coming Soon (disabled, non-interactive). */}
+              {/* Destination Gas Top-Up - Coming Soon (disabled, non-interactive). */}
               <div className="space-y-4 p-4 bg-muted/20 border border-border rounded-sm opacity-60 cursor-not-allowed select-none" aria-disabled="true">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -316,7 +315,7 @@ const Bridge = () => {
 
               {isCircleWallet && (
                 <div className="mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-500">
-                  Bridging moves USDC between chains, so it needs a browser wallet like MetaMask. Your Lunex passkey/email wallet only works on Arc — connect a browser wallet to bridge.
+                  Bridging moves USDC between chains, so it needs a browser wallet like MetaMask. Your Lunex passkey/email wallet only works on Arc - connect a browser wallet to bridge.
                 </div>
               )}
               {!isConnected ? (

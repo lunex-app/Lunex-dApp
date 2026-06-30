@@ -5,7 +5,7 @@ import { defineChain } from "viem";
 import { baseSepolia as viemBaseSepolia, sepolia, arbitrumSepolia, avalancheFuji, polygonAmoy } from "viem/chains";
 
 // RPC endpoint comes from env (set VITE_ARC_RPC_URL to your dedicated QuickNode
-// endpoint). Falls back to Arc's public RPC — a public, non-secret URL.
+// endpoint). Falls back to Arc's public RPC - a public, non-secret URL.
 const ARC_RPC_URL =
   (import.meta as { env?: Record<string, string> }).env?.VITE_ARC_RPC_URL ||
   "https://rpc.testnet.arc.network";
@@ -42,6 +42,12 @@ export const TOKENS = {
     symbol: "EURC",
     name: "Euro",
   },
+  USDT: {
+    address: "0x59125072f5692DdF22c99514805D1232C3999646" as `0x${string}`,
+    decimals: 6,
+    symbol: "USDT",
+    name: "Tether USD",
+  },
 } as const;
 
 export const CONTRACTS = {
@@ -52,9 +58,14 @@ export const CONTRACTS = {
   LUNEX_LIMIT_ORDER_KEEPER: "0x206D5E8f126ba083b8274fd46834801aF8CB9451" as `0x${string}`,
   LUNEX_STREAM: "0x131212B79e47C94Bce428509B4372EA85Be7B304" as `0x${string}`,
   LUNEX_NATIVE_TOP_UP_RELAYER: "0xE718D60dAE94b1Cd3D680C9a731d9cAB60DD0A64" as `0x${string}`,
+  POOL_USDC_USDT:  "0x8e60d788955CaBb247D2c003C77AdAF44C566cD3" as `0x${string}`,
+  LP_USDC_USDT:    "0x360427f34b3FC6Bbbf79E32879533136BF7d84Cf" as `0x${string}`,
+  POOL_EURC_USDT:  "0xF04E8D25BF97cda82147596ba887bdF793F574DD" as `0x${string}`,
+  LP_EURC_USDT:    "0x1693084fA4CEC8abD2159F0a97eC167DF1a0fe0e" as `0x${string}`,
+  LUNE_VAULT_USDT: "0x60810D1a8b40B78EA82Ea16CA356DE7eD9eb19dD" as `0x${string}`,
 } as const;
 
-export const TOKEN_INDEX: Record<string, number> = { USDC: 0, EURC: 1 };
+export const TOKEN_INDEX: Record<string, number> = { USDC: 0, EURC: 1, USDT: 1 };
 
 export const EXPLORER_URL = "https://testnet.arcscan.app";
 export const getExplorerTxUrl = (hash: string) => `${EXPLORER_URL}/tx/${hash}`;
@@ -62,7 +73,7 @@ export const getExplorerAddressUrl = (addr: string) => `${EXPLORER_URL}/address/
 
 // Circle wallets (passkey + email/PIN) are the primary app login. For the Gateway
 // (and cross-chain bridge) we need a real multi-chain EOA, so wagmi uses
-// RainbowKit's connector set — injected + WalletConnect (mobile QR) — via
+// RainbowKit's connector set - injected + WalletConnect (mobile QR) - via
 // getDefaultConfig. The WalletConnect projectId is a public, non-secret value
 // (it ships in the bundle); read from env, with the registered id as a fallback.
 const WC_PROJECT_ID =
