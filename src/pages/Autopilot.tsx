@@ -4,7 +4,7 @@ import {
   RefreshCw, Trash2, CheckCircle, Clock,
   Send, User, LayoutDashboard, MessageSquare,
   Sparkles, ArrowLeftRight, Droplets, Sprout,
-  ArrowDownToLine, Link2, AlertCircle,
+  ArrowDownToLine, Link2, AlertCircle, Loader2, ExternalLink, Wallet,
 } from "lucide-react";
 import { formatUnits } from "viem";
 import { useWallet } from "@/context/WalletProvider";
@@ -23,6 +23,12 @@ import { cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+interface TxCardData {
+  action: string;
+  detail: string;
+  txHash: string;
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "agent";
@@ -30,7 +36,8 @@ interface ChatMessage {
   timestamp: number;
   txHash?: string;
   isStreaming?: boolean;
-  status?: "ok" | "error";
+  status?: "ok" | "error" | "step";
+  txCard?: TxCardData;
 }
 
 // ── Dashboard helpers ─────────────────────────────────────────────────────────
@@ -108,25 +115,64 @@ function renderMd(content: string) {
   });
 }
 
+const TX_CARD_ICONS: Record<string, React.ReactNode> = {
+  swap: <ArrowLeftRight className="h-3.5 w-3.5" />,
+  add_liquidity: <Droplets className="h-3.5 w-3.5" />,
+  remove_liquidity: <ArrowDownToLine className="h-3.5 w-3.5" />,
+  vault_deposit: <Sprout className="h-3.5 w-3.5" />,
+  vault_withdraw: <Sprout className="h-3.5 w-3.5" />,
+  send: <Send className="h-3.5 w-3.5" />,
+  bridge: <Link2 className="h-3.5 w-3.5" />,
+};
+const TX_CARD_LABELS: Record<string, string> = {
+  swap: "Swap", add_liquidity: "Add Liquidity", remove_liquidity: "Remove Liquidity",
+  vault_deposit: "Vault Deposit", vault_withdraw: "Vault Withdraw", send: "Send", bridge: "Bridge",
+};
+
+function TxCard({ data }: { data: TxCardData }) {
+  return (
+    <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-2">
+      <div className="flex items-center gap-2 text-emerald-400">
+        <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+        <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider">
+          {TX_CARD_ICONS[data.action] ?? null}
+          {TX_CARD_LABELS[data.action] ?? data.action} Confirmed
+        </span>
+      </div>
+      <p className="text-xs text-foreground leading-relaxed">{data.detail}</p>
+      {data.txHash && data.txHash !== "0x" && (
+        <a
+          href={`https://testnet.arcscan.app/tx/${data.txHash}`}
+          target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-1.5 text-[11px] text-primary hover:text-primary/80 underline-offset-2 hover:underline w-fit"
+        >
+          <ExternalLink className="h-3 w-3" />
+          View on ArcScan
+        </a>
+      )}
+    </div>
+  );
+}
+
 function AgentMessage({ msg }: { msg: ChatMessage }) {
+  const isStep = msg.status === "step";
   return (
     <div className="flex items-start gap-3 px-4 py-3">
       <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full border mt-0.5",
         msg.status === "error" ? "bg-destructive/10 border-destructive/30" : "bg-primary/10 border-primary/20")}>
-        {msg.status === "error" ? <AlertCircle className="h-4 w-4 text-destructive" /> : <Bot className="h-4 w-4 text-primary" />}
+        {msg.status === "error"
+          ? <AlertCircle className="h-4 w-4 text-destructive" />
+          : isStep
+            ? <Loader2 className="h-4 w-4 text-primary animate-spin" />
+            : <Bot className="h-4 w-4 text-primary" />}
       </div>
       <div className="max-w-[82%]">
         <div className={cn("rounded-2xl rounded-tl-sm border px-4 py-3 text-sm leading-relaxed",
           msg.status === "error" ? "bg-destructive/5 border-destructive/20 text-destructive" : "bg-muted/30 border-border/50 text-foreground")}>
           {renderMd(msg.content)}
           {msg.isStreaming && <span className="inline-block w-0.5 h-4 bg-primary ml-0.5 animate-pulse align-text-bottom" />}
+          {msg.txCard && <TxCard data={msg.txCard} />}
         </div>
-        {msg.txHash && msg.txHash !== "0x" && (
-          <a href={`https://testnet.arcscan.app/tx/${msg.txHash}`} target="_blank" rel="noopener noreferrer"
-            className="mt-1 ml-1 inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:underline underline-offset-2">
-            <CheckCircle className="h-3 w-3" /> Transaction confirmed ↗
-          </a>
-        )}
         <p className="mt-1 ml-1 text-[10px] text-muted-foreground">{new Date(msg.timestamp).toLocaleTimeString()}</p>
       </div>
     </div>
@@ -243,6 +289,18 @@ export default function Autopilot() {
     const ctx = full.getContext();
     let result: ActionResult | null = null;
 
+    // Show a step-in-progress message before executing
+    const stepLabels: Record<string, string> = {
+      swap: `Approving **${String(params.fromToken ?? "token")}** and confirming swap...`,
+      add_liquidity: "Approving tokens and adding liquidity...",
+      remove_liquidity: "Approving LP tokens and removing liquidity...",
+      vault_deposit: `Approving **${String(params.token ?? "token")}** and depositing to vault...`,
+      vault_withdraw: `Redeeming shares from vault...`,
+      send: `Sending **${String(params.token ?? "token")}** to recipient...`,
+      bridge: `Approving **${String(params.token ?? "USDC")}** and initiating bridge ${String(params.fromChain ?? "arc").toUpperCase()} → ${String(params.toChain ?? "base").toUpperCase()}...`,
+    };
+    if (stepLabels[action]) addMessage(stepLabels[action], { status: "step" });
+
     try {
       switch (action) {
         case "swap": {
@@ -321,10 +379,18 @@ export default function Autopilot() {
     }
 
     if (result) {
-      addMessage(
-        result.ok ? `✓ ${result.detail}` : `✗ ${result.error}`,
-        { status: result.ok ? "ok" : "error", txHash: result.txHash },
-      );
+      if (result.ok) {
+        addMessage(result.detail ?? "Action completed.", {
+          status: "ok",
+          txCard: {
+            action,
+            detail: result.detail ?? "Transaction confirmed.",
+            txHash: result.txHash ?? "",
+          },
+        });
+      } else {
+        addMessage(`Transaction failed: ${result.error}`, { status: "error" });
+      }
     }
   }, [isConnected, openConnect, full, agent, addMessage]);
 
@@ -448,8 +514,8 @@ export default function Autopilot() {
               </div>
             </div>
 
-            {/* Suggestion chips - only shown at start */}
-            {messages.length <= 2 && !isTyping && !streamId && (
+            {/* Suggestion chips - only shown at start when connected */}
+            {messages.length <= 2 && !isTyping && !streamId && isConnected && (
               <div className="max-w-3xl mx-auto px-4 pb-2">
                 <div className="flex flex-wrap gap-2">
                   {CHIPS.map((c) => (
@@ -464,22 +530,34 @@ export default function Autopilot() {
 
             {/* Input bar */}
             <div className="shrink-0 border-t border-border bg-background/80 backdrop-blur-sm p-4">
-              <div className="max-w-3xl mx-auto flex gap-3 items-end">
-                <Textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder=""
-                  rows={1}
-                  className="flex-1 resize-none min-h-[44px] max-h-[140px] text-sm leading-relaxed rounded-xl border-border bg-muted/20 focus:border-primary/50 focus:bg-background transition-colors overflow-y-auto"
-                  style={{ height: "auto" }}
-                  onInput={(e) => { const t = e.currentTarget; t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 140) + "px"; }}
-                  disabled={isTyping || !!streamId || isBusyRef.current}
-                />
-                <Button onClick={() => sendMessage(input)} disabled={!input.trim() || isTyping || !!streamId || isBusyRef.current}
-                  size="icon" className="h-11 w-11 rounded-xl shrink-0">
-                  <Send className="h-4 w-4" />
-                </Button>
+              <div className="max-w-3xl mx-auto">
+                {!isConnected ? (
+                  <div className="flex items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-3">
+                    <Wallet className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm text-muted-foreground">Connect your wallet to use Lunex AI</span>
+                    <Button size="sm" variant="outline" onClick={openConnect} className="h-8 text-xs shrink-0">
+                      Connect Wallet
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-3 items-end">
+                    <Textarea
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder=""
+                      rows={1}
+                      className="flex-1 resize-none min-h-[44px] max-h-[140px] text-sm leading-relaxed rounded-xl border-border bg-muted/20 focus:border-primary/50 focus:bg-background transition-colors overflow-y-auto"
+                      style={{ height: "auto" }}
+                      onInput={(e) => { const t = e.currentTarget; t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 140) + "px"; }}
+                      disabled={isTyping || !!streamId || isBusyRef.current}
+                    />
+                    <Button onClick={() => sendMessage(input)} disabled={!input.trim() || isTyping || !!streamId || isBusyRef.current}
+                      size="icon" className="h-11 w-11 rounded-xl shrink-0">
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

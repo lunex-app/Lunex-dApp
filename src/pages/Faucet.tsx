@@ -143,7 +143,7 @@ export default function Faucet() {
             </div>
           )}
 
-          {USDT_DEPLOYED && isConnected && countdown === 0 && !isBusy && !isSuccess && (
+          {USDT_DEPLOYED && isConnected && countdown === 0 && !isBusy && !tx.isConfirmed && (
             <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2.5 text-xs text-emerald-400">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>Ready to claim your daily USDT</span>
