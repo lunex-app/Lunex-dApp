@@ -106,11 +106,14 @@ const Swap = () => {
   };
 
   // CTA
+  const noLiquidity = isConnected && parsedFromAmount > 0n && !swap.isQuoteLoading && swap.outputAmount <= 0;
+
   const getButtonText = () => {
     if (!isConnected)                          return "Connect Wallet";
     if (!fromAmount || parsedFromAmount <= 0n) return "Enter an Amount";
     if (!swap.isSlippageValid)                 return "Invalid Slippage";
     if (hasInsufficientBalance)                return "Insufficient Balance";
+    if (noLiquidity)                           return "No Liquidity";
     if (swap.isApproving)                      return "Approving…";
     if (swap.isBusy)                           return "Swapping…";
     if (swap.needsApproval)                    return `Approve ${fromToken.symbol}`;
@@ -123,7 +126,7 @@ const Swap = () => {
   };
 
   const isCtaDisabled = isConnected && (
-    swap.isBusy || hasInsufficientBalance || parsedFromAmount <= 0n || !swap.isSlippageValid
+    swap.isBusy || hasInsufficientBalance || parsedFromAmount <= 0n || !swap.isSlippageValid || noLiquidity
   );
 
   // ── Limit order logic (preserved) ─────────────────────────────────────────
@@ -269,7 +272,12 @@ const Swap = () => {
         <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/10">
           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Price Chart</span>
           <select
-            value={`${fromToken.symbol}-${toToken.symbol}`}
+            value={(() => {
+              const pair = `${fromToken.symbol}-${toToken.symbol}`;
+              const reversed = `${toToken.symbol}-${fromToken.symbol}`;
+              const canonical = ["USDC-EURC", "USDC-USDT", "EURC-USDT"];
+              return canonical.includes(pair) ? pair : (canonical.includes(reversed) ? reversed : "USDC-EURC");
+            })()}
             onChange={(e) => {
               const [f, t] = e.target.value.split("-");
               const found   = tokenList.find((tk) => tk.symbol === f);

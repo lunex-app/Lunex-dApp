@@ -367,8 +367,8 @@ export default function Autopilot() {
       setIsTyping(false);
       const msg = e instanceof Error ? e.message : String(e);
       addMessage(
-        msg.includes("ANTHROPIC_API_KEY")
-          ? `**API key not configured.**\n\nAdd \`ANTHROPIC_API_KEY=sk-ant-...\` to your \`.env.local\` file, then restart the dev server.`
+        msg.includes("OPENROUTER_API_KEY")
+          ? `**API key not configured.**\n\nAdd \`OPENROUTER_API_KEY=sk-or-...\` to your \`.env.local\` file, then restart the dev server.`
           : `Couldn't reach the AI: ${msg.slice(0, 120)}`,
         { status: "error" },
       );
@@ -469,7 +469,7 @@ export default function Autopilot() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder='Ask anything or say "swap 50 USDC to EURC", "bridge 100 USDC to Base"…'
+                  placeholder=""
                   rows={1}
                   className="flex-1 resize-none min-h-[44px] max-h-[140px] text-sm leading-relaxed rounded-xl border-border bg-muted/20 focus:border-primary/50 focus:bg-background transition-colors overflow-y-auto"
                   style={{ height: "auto" }}

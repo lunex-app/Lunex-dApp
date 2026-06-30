@@ -1,7 +1,7 @@
 // Vercel Serverless Function - runs on Node.js, never exposes the API key to the browser.
-// Set ANTHROPIC_API_KEY in Vercel dashboard → Project Settings → Environment Variables.
+// Set OPENROUTER_API_KEY in Vercel dashboard → Project Settings → Environment Variables.
 
-const SYSTEM_PROMPT = `You are Lunex Autopilot, a fully autonomous DeFi agent for the Lunex Finance protocol on Arc Network (Circle's EVM L1, testnet). You execute any protocol action on behalf of the user.
+const SYSTEM_PROMPT = `You are Lunex AI, a fully autonomous DeFi agent for the Lunex Finance protocol on Arc Network (Circle's EVM L1, testnet). You execute any protocol action on behalf of the user.
 
 ## Protocol
 - StableSwap Pool: USDC/EURC AMM, earns swap fee APR
@@ -35,24 +35,20 @@ plain number → pass as string: "100"
 - Ask for clarification (no tool call) when amount or recipient is missing.
 - Mention the 2-5 min attestation wait for bridge ops.`;
 
-const EXECUTE_TOOL = {
-  name: "execute_action",
-  description: "Execute a DeFi action on the Lunex protocol.",
-  input_schema: {
-    type: "object",
-    properties: {
-      action: {
-        type: "string",
-        enum: ["swap","add_liquidity","remove_liquidity","vault_deposit","vault_withdraw","send","bridge","evaluate","start_agent","stop_agent"],
-      },
-      params: { type: "object" },
-      response_text: {
-        type: "string",
-        description: "What to tell the user (shown while the tx executes)",
-      },
+const EXECUTE_TOOL_PARAMS = {
+  type: "object",
+  properties: {
+    action: {
+      type: "string",
+      enum: ["swap","add_liquidity","remove_liquidity","vault_deposit","vault_withdraw","send","bridge","evaluate","start_agent","stop_agent"],
     },
-    required: ["action", "response_text"],
+    params: { type: "object" },
+    response_text: {
+      type: "string",
+      description: "What to tell the user (shown while the tx executes)",
+    },
   },
+  required: ["action", "response_text"],
 };
 
 function buildContextBlock(ctx: Record<string, number | boolean>) {
@@ -68,7 +64,7 @@ function buildContextBlock(ctx: Record<string, number | boolean>) {
   ].join("\n");
 }
 
-async function callClaude(message: string, context: Record<string, number | boolean>, history: { role: string; content: string }[], apiKey: string) {
+async function callOpenRouter(message: string, context: Record<string, number | boolean>, history: { role: string; content: string }[], apiKey: string) {
   const messages = [
     ...history
       .slice(-10)
@@ -77,36 +73,56 @@ async function callClaude(message: string, context: Record<string, number | bool
     { role: "user", content: message },
   ];
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
+      "Authorization": `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6",
+      model: "openai/gpt-4o-mini",
       max_tokens: 1024,
-      system: `${SYSTEM_PROMPT}\n\n${buildContextBlock(context)}`,
-      tools: [EXECUTE_TOOL],
-      tool_choice: { type: "auto" },
-      messages,
+      messages: [
+        { role: "system", content: `${SYSTEM_PROMPT}\n\n${buildContextBlock(context)}` },
+        ...messages,
+      ],
+      tools: [{
+        type: "function",
+        function: {
+          name: "execute_action",
+          description: "Execute a DeFi action on the Lunex protocol.",
+          parameters: EXECUTE_TOOL_PARAMS,
+        },
+      }],
+      tool_choice: "auto",
     }),
   });
 
-  if (!res.ok) throw new Error(`Anthropic ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
 
-  const data = await res.json() as { content: { type: string; text?: string; name?: string; input?: Record<string, unknown> }[] };
-  let text = "";
+  const data = await res.json() as {
+    choices: [{
+      message: {
+        content: string | null;
+        tool_calls?: [{
+          function: { name: string; arguments: string };
+        }];
+      };
+    }];
+  };
+
+  const msg = data.choices[0]?.message;
+  let text = msg?.content ?? "";
   let action: string | null = null;
   let params: Record<string, unknown> = {};
 
-  for (const block of data.content ?? []) {
-    if (block.type === "text") text = block.text ?? "";
-    if (block.type === "tool_use" && block.name === "execute_action") {
-      action = String(block.input?.action ?? "");
-      params = (block.input?.params as Record<string, unknown>) ?? {};
-      text = String(block.input?.response_text ?? "");
+  if (msg?.tool_calls?.length) {
+    const tc = msg.tool_calls[0];
+    if (tc.function.name === "execute_action") {
+      const input = JSON.parse(tc.function.arguments) as Record<string, unknown>;
+      action = String(input.action ?? "");
+      params = (input.params as Record<string, unknown>) ?? {};
+      text = String(input.response_text ?? text ?? "");
     }
   }
 
@@ -124,12 +140,12 @@ export default async function handler(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   if (req.method !== "POST") return new Response(JSON.stringify({ error: "POST only" }), { status: 405, headers: cors });
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY not set" }), { status: 500, headers: cors });
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return new Response(JSON.stringify({ error: "OPENROUTER_API_KEY not set" }), { status: 500, headers: cors });
 
   try {
     const body = await req.json() as { message: string; context: Record<string, number | boolean>; history: { role: string; content: string }[] };
-    const result = await callClaude(body.message, body.context ?? {}, body.history ?? [], apiKey);
+    const result = await callOpenRouter(body.message, body.context ?? {}, body.history ?? [], apiKey);
     return new Response(JSON.stringify(result), { headers: cors });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
