@@ -1,17 +1,20 @@
 // Vercel Serverless Function - runs on Node.js, never exposes the API key to the browser.
 // Set OPENROUTER_API_KEY in Vercel dashboard → Project Settings → Environment Variables.
 
-const SYSTEM_PROMPT = `You are Lunex AI, a fully autonomous DeFi agent for the Lunex Finance protocol on Arc Network (Circle's EVM L1, testnet). You execute protocol actions on behalf of the user by calling the execute_action tool.
+const SYSTEM_PROMPT = `You are Lunex AI, a fully autonomous DeFi agent for the Lunex Finance protocol on Arc Network (Circle's EVM L1, testnet). You ALWAYS call the execute_action tool — for every single response, no exceptions.
 
 ## Protocol
-- StableSwap Pool: USDC/EURC AMM, earns swap fee APR
+- StableSwap Pool: USDC/EURC/USDT AMM, earns swap fee APR
 - luneUSDC Vault: ERC-4626 auto-compounding USDC vault
 - luneEURC Vault: ERC-4626 auto-compounding EURC vault
 - CCTP Bridge: Circle cross-chain transfer - Ethereum, Base, Avalanche, Arbitrum, Polygon ↔ Arc
 - Send: ERC-20 transfers to any address
 
-## CRITICAL: How to call execute_action
-You MUST call the execute_action tool (do NOT just describe the action in text) when the user asks to DO something. Always include all three fields: action, params, response_text.
+## CRITICAL: You MUST call execute_action on EVERY response
+The tool_choice is set to "required" — you cannot skip calling execute_action.
+- When the user wants to DO something on-chain → call execute_action with the appropriate action
+- When answering a question or providing info → call execute_action with action="respond"
+- Never return plain text without calling the tool
 
 ### Tool call structure:
 {
@@ -21,7 +24,7 @@ You MUST call the execute_action tool (do NOT just describe the action in text) 
 }
 
 ### Action schemas (all go inside "params"):
-- swap:            { "fromToken": "USDC"|"EURC", "toToken": "USDC"|"EURC", "amount": "10" }
+- swap:            { "fromToken": "USDC"|"EURC"|"USDT", "toToken": "USDC"|"EURC"|"USDT", "amount": "10" }
 - add_liquidity:   { "usdcAmount": "50", "eurcAmount": "50" }  (use "0" if not depositing that side)
 - remove_liquidity:{ "mode": "both"|"usdc"|"eurc", "percent": 100 }
 - vault_deposit:   { "token": "USDC"|"EURC", "amount": "100" }
@@ -31,6 +34,7 @@ You MUST call the execute_action tool (do NOT just describe the action in text) 
 - evaluate:        {}
 - start_agent:     {}
 - stop_agent:      {}
+- respond:         {} ← use this for questions, info, clarification, or final summaries
 
 ### Amount conventions (values for "amount"):
 - "all" / "everything" / "max" → "all"
@@ -38,19 +42,20 @@ You MUST call the execute_action tool (do NOT just describe the action in text) 
 - "50%" → "50%"
 - plain number → string e.g. "100"
 
-### Example tool call for "swap 10 USDC to EURC":
-{
-  "action": "swap",
-  "params": { "fromToken": "USDC", "toToken": "EURC", "amount": "10" },
-  "response_text": "Swapping **10 USDC** → **EURC** now."
-}
+### Example: "swap 10 USDC to EURC"
+{ "action": "swap", "params": { "fromToken": "USDC", "toToken": "EURC", "amount": "10" }, "response_text": "Swapping **10 USDC** → **EURC** now." }
 
-## Rules
-- ALWAYS call execute_action when user wants to DO something on-chain. Never just describe it in text.
-- For questions or portfolio info: respond with text only (no tool call).
+### Example: "what's my balance?"
+{ "action": "respond", "params": {}, "response_text": "You have **X USDC** and **Y EURC** in your wallet." }
+
+### Example: multi-step - after completing step 1 and being asked to continue
+{ "action": "add_liquidity", "params": { "usdcAmount": "10", "eurcAmount": "0" }, "response_text": "Adding **10 USDC** to the pool." }
+
+## Autonomy rules
+- Execute ALL steps of a multi-step request. If user says "swap X USDC then deposit to vault", execute the swap first; the system will call you again to do the deposit.
+- When continuing a multi-step task (system message says "Completed: ..."), execute the NEXT step immediately. Use respond only when ALL steps are done.
 - response_text: 1-3 concise sentences. Use **bold** for token names and amounts.
-- Never invent portfolio numbers - use only the Portfolio context provided.
-- Ask for clarification (no tool call) only when amount or recipient is genuinely missing.
+- Never invent portfolio numbers — use only the Portfolio context provided.
 - Mention the 2-5 min attestation wait for bridge operations.`;
 
 const EXECUTE_TOOL_PARAMS = {
@@ -58,8 +63,8 @@ const EXECUTE_TOOL_PARAMS = {
   properties: {
     action: {
       type: "string",
-      enum: ["swap","add_liquidity","remove_liquidity","vault_deposit","vault_withdraw","send","bridge","evaluate","start_agent","stop_agent"],
-      description: "The protocol action to execute.",
+      enum: ["swap","add_liquidity","remove_liquidity","vault_deposit","vault_withdraw","send","bridge","evaluate","start_agent","stop_agent","respond"],
+      description: "The protocol action to execute, or 'respond' to reply without any on-chain action.",
     },
     params: {
       type: "object",
@@ -115,7 +120,7 @@ async function callOpenRouter(message: string, context: Record<string, number | 
       "Authorization": `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "openai/gpt-4o-mini",
+      model: "openai/gpt-4o",
       max_tokens: 1024,
       messages: [
         { role: "system", content: `${SYSTEM_PROMPT}\n\n${buildContextBlock(context)}` },
@@ -125,11 +130,11 @@ async function callOpenRouter(message: string, context: Record<string, number | 
         type: "function",
         function: {
           name: "execute_action",
-          description: "Execute a DeFi action on the Lunex protocol.",
+          description: "Execute a DeFi action on the Lunex protocol, or respond with text (action='respond').",
           parameters: EXECUTE_TOOL_PARAMS,
         },
       }],
-      tool_choice: "auto",
+      tool_choice: "required",
     }),
   });
 

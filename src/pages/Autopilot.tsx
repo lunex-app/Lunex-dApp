@@ -140,16 +140,24 @@ function TxCard({ data }: { data: TxCardData }) {
         </span>
       </div>
       <p className="text-xs text-foreground leading-relaxed">{data.detail}</p>
-      {data.txHash && data.txHash !== "0x" && (
-        <a
-          href={`https://testnet.arcscan.app/tx/${data.txHash}`}
-          target="_blank" rel="noopener noreferrer"
-          className="flex items-center gap-1.5 text-[11px] text-primary hover:text-primary/80 underline-offset-2 hover:underline w-fit"
-        >
-          <ExternalLink className="h-3 w-3" />
-          View on ArcScan
-        </a>
-      )}
+      {data.txHash && data.txHash !== "0x" ? (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-mono">
+            <span className="shrink-0 text-muted-foreground/60">Tx:</span>
+            <span>{data.txHash.slice(0, 14)}…{data.txHash.slice(-8)}</span>
+          </div>
+          <a
+            href={`https://testnet.arcscan.app/tx/${data.txHash}`}
+            target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-[11px] text-primary hover:text-primary/80 underline-offset-2 hover:underline w-fit"
+          >
+            <ExternalLink className="h-3 w-3" />
+            View on ArcScan ↗
+          </a>
+        </div>
+      ) : data.txHash === "0x" ? (
+        <p className="text-[11px] text-muted-foreground">Submitted via email wallet — check Circle for confirmation.</p>
+      ) : null}
     </div>
   );
 }
@@ -235,6 +243,8 @@ export default function Autopilot() {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const isBusyRef = useRef(false);
+  const messagesRef = useRef<ChatMessage[]>([WELCOME]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   // Uptime ticker
   useEffect(() => {
@@ -283,8 +293,9 @@ export default function Autopilot() {
 
   // ── Action executor - routes Claude's structured response to protocol calls ──
 
-  const executeAction = useCallback(async (action: string, params: Record<string, unknown>) => {
-    if (!isConnected) { openConnect(); return; }
+  const executeAction = useCallback(async (action: string, params: Record<string, unknown>): Promise<ActionResult | null> => {
+    if (!isConnected) { openConnect(); return null; }
+    if (action === "respond") return null;
 
     const ctx = full.getContext();
     let result: ActionResult | null = null;
@@ -392,69 +403,101 @@ export default function Autopilot() {
         addMessage(`Transaction failed: ${result.error}`, { status: "error" });
       }
     }
+    return result;
   }, [isConnected, openConnect, full, agent, addMessage]);
 
-  // ── Main send handler ────────────────────────────────────────────────────────
+  // ── Main send handler — agentic loop ─────────────────────────────────────────
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isTyping || isBusyRef.current) return;
     isBusyRef.current = true;
 
-    setMessages((p) => [...p, { id: `user_${Date.now()}`, role: "user", content: text.trim(), timestamp: Date.now() }]);
+    const originalText = text.trim();
+    setMessages((p) => [...p, { id: `user_${Date.now()}`, role: "user", content: originalText, timestamp: Date.now() }]);
     setInput("");
-    setIsTyping(true);
 
-    // Build conversation history for Claude (last 8 completed messages)
-    const history = messages
-      .filter((m) => !m.isStreaming && m.content.trim())
-      .slice(-8)
-      .map((m) => ({ role: m.role, content: m.content }));
+    // Session-local history accumulator so each loop iteration sees prior steps
+    const sessionHistory: { role: string; content: string }[] = [];
 
-    // Strip bigint fields - JSON.stringify throws on bigints; Claude only needs human-readable numbers
-    const rawCtx = full.getContext();
-    const llmCtx: Record<string, unknown> = {
-      usdcBalance: rawCtx.usdcBalance,
-      eurcBalance: rawCtx.eurcBalance,
-      lpBalance: rawCtx.lpBalance,
-      vaultUsdcDeposited: rawCtx.vaultUsdcDeposited,
-      vaultEurcDeposited: rawCtx.vaultEurcDeposited,
-      poolApr: rawCtx.poolApr,
-      vaultUsdcApy: rawCtx.vaultUsdcApy,
-      vaultEurcApy: rawCtx.vaultEurcApy,
-      totalLiquidity: rawCtx.totalLiquidity,
-      bridgeStatus: rawCtx.bridgeStatus,
-      agentActive: agent.config.active,
+    const getCtx = () => {
+      const rawCtx = full.getContext();
+      return {
+        usdcBalance: rawCtx.usdcBalance,
+        eurcBalance: rawCtx.eurcBalance,
+        lpBalance: rawCtx.lpBalance,
+        vaultUsdcDeposited: rawCtx.vaultUsdcDeposited,
+        vaultEurcDeposited: rawCtx.vaultEurcDeposited,
+        poolApr: rawCtx.poolApr,
+        vaultUsdcApy: rawCtx.vaultUsdcApy,
+        vaultEurcApy: rawCtx.vaultEurcApy,
+        totalLiquidity: rawCtx.totalLiquidity,
+        bridgeStatus: rawCtx.bridgeStatus,
+        agentActive: agent.config.active,
+      };
     };
 
-    let llmResponse: { text: string; action?: string | null; params?: Record<string, unknown> };
-    try {
-      llmResponse = await callAutopilotLLM(text, llmCtx, history);
-    } catch (e: unknown) {
+    // Agentic loop — up to 5 steps before forcing a stop
+    for (let step = 0; step < 5; step++) {
+      setIsTyping(true);
+
+      // Build history: last 6 chat messages + anything done this session
+      const baseHistory = messagesRef.current
+        .filter((m) => !m.isStreaming && m.content.trim())
+        .slice(-6)
+        .map((m) => ({ role: m.role === "agent" ? "assistant" : "user", content: m.content }));
+
+      const history = [...baseHistory, ...sessionHistory].slice(-12);
+
+      const currentMsg = step === 0
+        ? originalText
+        : `Completed step ${step}. User's original request: "${originalText}". Execute the next required step now, or call respond if all steps are done.`;
+
+      let llmResponse: { text: string; action?: string | null; params?: Record<string, unknown> };
+      try {
+        llmResponse = await callAutopilotLLM(currentMsg, getCtx(), history);
+      } catch (e: unknown) {
+        setIsTyping(false);
+        const msg = e instanceof Error ? e.message : String(e);
+        addMessage(
+          msg.includes("OPENROUTER_API_KEY")
+            ? `**API key not configured.**\n\nAdd \`OPENROUTER_API_KEY=sk-or-...\` to your \`.env.local\` file, then restart the dev server.`
+            : `Couldn't reach the AI: ${msg.slice(0, 120)}`,
+          { status: "error" },
+        );
+        break;
+      }
+
       setIsTyping(false);
-      const msg = e instanceof Error ? e.message : String(e);
-      addMessage(
-        msg.includes("OPENROUTER_API_KEY")
-          ? `**API key not configured.**\n\nAdd \`OPENROUTER_API_KEY=sk-or-...\` to your \`.env.local\` file, then restart the dev server.`
-          : `Couldn't reach the AI: ${msg.slice(0, 120)}`,
-        { status: "error" },
-      );
-      isBusyRef.current = false;
-      return;
-    }
 
-    setIsTyping(false);
+      // Stream the text response
+      if (llmResponse.text) {
+        startStream(llmResponse.text);
+        sessionHistory.push({ role: "assistant", content: llmResponse.text });
+      }
 
-    // Stream Claude's text response
-    startStream(llmResponse.text);
+      // No action or "respond" → done
+      if (!llmResponse.action || llmResponse.action === "respond") break;
 
-    // Execute action after streaming completes
-    if (llmResponse.action) {
-      await waitForStream(llmResponse.text);
-      await executeAction(llmResponse.action, llmResponse.params ?? {});
+      // Wait for text to finish streaming before executing
+      if (llmResponse.text) await waitForStream(llmResponse.text);
+
+      // Execute the on-chain action
+      const result = await executeAction(llmResponse.action, llmResponse.params ?? {});
+
+      if (!result || !result.ok) break; // stop on failure
+
+      // Record result in session history so the LLM knows what happened
+      sessionHistory.push({
+        role: "user",
+        content: `[Step ${step + 1} completed: ${result.detail ?? llmResponse.action}]`,
+      });
+
+      // Brief pause to let chain settle before next step
+      await new Promise<void>((r) => setTimeout(r, 800));
     }
 
     isBusyRef.current = false;
-  }, [isTyping, messages, full, startStream, waitForStream, executeAction, addMessage]);
+  }, [isTyping, full, agent, startStream, waitForStream, executeAction, addMessage]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
