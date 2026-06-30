@@ -27,7 +27,7 @@ import {
 import BackButton from "@/components/BackButton";
 import { WalletSearch } from "@/components/WalletSearch";
 import { fetchProtocolAnalytics, type ProtocolAnalytics } from "@/lib/onchainAnalytics";
-import { EXPLORER_URL } from "@/config/wagmi";
+import { EXPLORER_URL, CONTRACTS } from "@/config/wagmi";
 
 const usd = (n: number) =>
   `$${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -131,7 +131,7 @@ const Analytics = () => {
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Data Source</p>
             <p className="text-xs font-bold text-green-500 uppercase tracking-widest flex items-center justify-end gap-2">
               <span className="flex h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-              On-chain
+              Onchain
             </p>
           </div>
           <button
@@ -152,16 +152,16 @@ const Analytics = () => {
 
       {!data ? (
         <div className="flex items-center justify-center py-32 text-muted-foreground">
-          <RefreshCw className="h-5 w-5 animate-spin mr-3" /> Reading on-chain activity…
+          <RefreshCw className="h-5 w-5 animate-spin mr-3" /> Reading onchain activity…
         </div>
       ) : (
         <>
           {/* Headline KPIs */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-10">
-            <Kpi label="Total Protocol Volume" value={usd(data.totalVolumeUsd)} icon={BarChart3} accent sub="swaps + pool + vaults + bridge" />
+            <Kpi label="45-Day Volume" value={usd(data.totalVolumeUsd)} icon={BarChart3} accent sub="swaps + pool + vaults + bridge" />
             <Kpi label="Total Value Locked" value={usd(data.totalTvlUsd)} icon={DollarSign} />
-            <Kpi label="All-Time Wallets" value={num(data.allTimeWallets)} icon={Users} />
-            <Kpi label="Total Transactions" value={num(data.totalTxCount)} icon={Activity} />
+            <Kpi label="Active Wallets (45d)" value={num(data.allTimeWallets)} icon={Users} />
+            <Kpi label="Transactions (45d)" value={num(data.totalTxCount)} icon={Activity} />
           </div>
 
           {/* ===================== USERS / WALLETS (featured) ===================== */}
@@ -171,7 +171,7 @@ const Analytics = () => {
               <Kpi label="Daily Active (24h)" value={num(data.dau)} icon={Users} />
               <Kpi label="Weekly Active (7d)" value={num(data.wau)} icon={Users} />
               <Kpi label="Monthly Active (30d)" value={num(data.mau)} icon={CalendarDays} />
-              <Kpi label="All-Time Wallets" value={num(data.allTimeWallets)} icon={Users} accent />
+              <Kpi label="Active Wallets (45d)" value={num(data.allTimeWallets)} icon={Users} accent />
             </div>
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-3">
               Daily Active Wallets · Last 30 Days
@@ -244,6 +244,10 @@ const Analytics = () => {
               <Row label="Swaps" value={usd2(data.swapVolumeUsd)} sub={`${num(data.swapCount)} trades`} />
               <Row label="· USDC → EURC" value={usd2(data.usdcToEurcUsd)} />
               <Row label="· EURC → USDC" value={usd2(data.eurcToUsdcUsd)} />
+              <Row label="· USDC → USDT" value={usd2(data.usdcToUsdtUsd)} />
+              <Row label="· USDT → USDC" value={usd2(data.usdtToUsdcUsd)} />
+              <Row label="· EURC → USDT" value={usd2(data.eurcToUsdtUsd)} />
+              <Row label="· USDT → EURC" value={usd2(data.usdtToEurcUsd)} />
               <Row label="Pool Liquidity" value={usd2(data.liquidityVolumeUsd)} sub={`${num(data.liquidityCount)} events`} />
               <Row label="Vaults" value={usd2(data.vaultVolumeUsd)} sub={`${num(data.vaultTxCount)} txns`} />
               <Row label="Bridge (CCTP)" value={usd2(data.bridgeVolumeUsd)} sub={`${num(data.bridgeCount)} bridges · 0.1% fee`} />
@@ -252,9 +256,10 @@ const Analytics = () => {
 
             <div className="border border-border bg-card rounded-sm p-6">
               <SectionTitle icon={Layers}>Total Value Locked</SectionTitle>
-              <Row label="StableSwap Pool" value={usd2(data.poolTvlUsd)} />
-              <Row label="· USDC reserve" value={num(Math.round(data.poolUsdc))} />
-              <Row label="· EURC reserve" value={num(Math.round(data.poolEurc))} />
+              <Row label="All Pools" value={usd2(data.poolTvlUsd)} />
+              <Row label="· USDC/EURC Pool" value={usd2(data.poolUsdc + data.poolEurc)} sub={`${num(Math.round(data.poolUsdc))} USDC · ${num(Math.round(data.poolEurc))} EURC`} />
+              <Row label="· USDC/USDT Pool" value={usd2(data.pool2Usdc + data.pool2Usdt)} sub={`${num(Math.round(data.pool2Usdc))} USDC · ${num(Math.round(data.pool2Usdt))} USDT`} />
+              <Row label="· EURC/USDT Pool" value={usd2(data.pool3Eurc + data.pool3Usdt)} sub={`${num(Math.round(data.pool3Eurc))} EURC · ${num(Math.round(data.pool3Usdt))} USDT`} />
               <Row label="Yield Vaults" value={usd2(data.vaultTvlUsd)} />
               <Row label="Pool APR" value={`${data.poolAprPct.toFixed(2)}%`} sub={`${data.poolFeePct}% swap fee`} />
               <Row label="Total TVL" value={usd2(data.totalTvlUsd)} strong />
@@ -264,7 +269,7 @@ const Analytics = () => {
           {/* Vault performance */}
           <div className="border border-border bg-card rounded-sm p-6 mb-10">
             <SectionTitle icon={Sprout}>Vault Performance · Auto-Compounding</SectionTitle>
-            <div className="grid sm:grid-cols-2 gap-6">
+            <div className="grid sm:grid-cols-3 gap-6">
               {(data.vaults ?? []).map((v) => (
                 <div key={v.symbol} className="border border-border rounded-sm p-4 bg-muted/10">
                   <div className="flex items-center justify-between mb-3">
@@ -299,17 +304,20 @@ const Analytics = () => {
               </div>
               <p className="text-[10px] text-muted-foreground leading-relaxed mt-3">
                 Lunex charges a 0.1% protocol fee on every bridge, collected in USDC by the treasury. Bridge volume is
-                isolated to Lunex-routed CCTP flow (fee ÷ 0.1%). All figures are read directly from on-chain treasury
+                isolated to Lunex-routed CCTP flow (fee ÷ 0.1%). All figures are read directly from onchain treasury
                 inflows.
               </p>
             </div>
             <div className="border border-border bg-card rounded-sm p-6">
               <SectionTitle icon={Droplets}>Protocol Contracts</SectionTitle>
-              {[
-                ["StableSwap Pool", "0xC24BFc8e4b10500a72A63Bec98CCC989CbDA41d8"],
-                ["luneUSDC Vault", "0x66CF9CA9D75FD62438C6E254bA35E61775EF9496"],
-                ["luneEURC Vault", "0xcF2C839B12ECf6D9eEcd4607521B73fcFb7E8713"],
-              ].map(([label, addr]) => (
+              {([
+                ["USDC/EURC Pool",  CONTRACTS.LUNEX_SWAP_POOL],
+                ["USDC/USDT Pool",  CONTRACTS.POOL_USDC_USDT],
+                ["EURC/USDT Pool",  CONTRACTS.POOL_EURC_USDT],
+                ["luneUSDC Vault",  CONTRACTS.LUNE_VAULT_USDC],
+                ["luneEURC Vault",  CONTRACTS.LUNE_VAULT_EURC],
+                ["luneUSDT Vault",  CONTRACTS.LUNE_VAULT_USDT],
+              ] as [string, string][]).map(([label, addr]) => (
                 <a
                   key={addr}
                   href={`${EXPLORER_URL}/address/${addr}`}
@@ -317,16 +325,15 @@ const Analytics = () => {
                   rel="noreferrer"
                   className="flex items-center justify-between text-xs font-mono text-primary hover:underline py-2 border-b border-border last:border-0"
                 >
-                  <span>{label}</span>
-                  <span className="text-muted-foreground">↗</span>
+                  <span className="text-foreground font-semibold not-italic mr-2">{label}</span>
+                  <span className="text-muted-foreground truncate">{addr.slice(0, 10)}…{addr.slice(-6)} ↗</span>
                 </a>
               ))}
             </div>
           </div>
 
           <p className="text-[10px] text-muted-foreground text-center font-mono">
-            All metrics decoded live from Lunex contract events + state on Arc Testnet. No off-chain database. Last
-            updated {updated}.
+            Event-based metrics cover the rolling 45-day window. TVL is always live. Data read directly from Arc Testnet - no off-chain database. Last updated {updated}.
           </p>
         </>
       )}
