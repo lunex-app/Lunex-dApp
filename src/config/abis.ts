@@ -287,6 +287,52 @@ export const lunexStreamAbi = [
     ],
   },
   {
+    name: "Claimed",
+    type: "event",
+    inputs: [
+      { name: "streamId", type: "uint256", indexed: true },
+      { name: "recipient", type: "address", indexed: true },
+      { name: "amount", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    name: "Cancelled",
+    type: "event",
+    inputs: [
+      { name: "streamId", type: "uint256", indexed: true },
+      { name: "refunded", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    name: "nextStreamId",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "streams",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "streamId", type: "uint256" }],
+    outputs: [
+      { name: "sender", type: "address" },
+      { name: "recipient", type: "address" },
+      { name: "token", type: "address" },
+      { name: "totalAmount", type: "uint256" },
+      { name: "claimedAmount", type: "uint256" },
+      { name: "startTime", type: "uint64" },
+      { name: "endTime", type: "uint64" },
+      { name: "cliffTime", type: "uint64" },
+      { name: "releaseFrequency", type: "uint64" },
+      { name: "streamType", type: "uint8" },
+      { name: "cancelable", type: "bool" },
+      { name: "transferable", type: "bool" },
+      { name: "recipientCanClaimAnytime", type: "bool" },
+      { name: "cancelled", type: "bool" },
+    ],
+  },
+  {
     name: "createStream",
     type: "function",
     stateMutability: "nonpayable",
@@ -346,6 +392,16 @@ export const lunexStreamAbi = [
     outputs: [],
   },
   {
+    name: "vestedAmount",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "streamId", type: "uint256" },
+      { name: "timestamp", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
     name: "transferRecipient",
     type: "function",
     stateMutability: "nonpayable",
@@ -389,6 +445,60 @@ export const lunexNativeTopUpRelayerAbi = [
       { name: "recipientTokenAmount", type: "uint256", indexed: false },
       { name: "treasuryTokenAmount", type: "uint256", indexed: false },
       { name: "nativeAmount", type: "uint256", indexed: false },
+    ],
+  },
+] as const;
+
+export const lunexUsdtAbi = [
+  {
+    name: "claim",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    name: "cooldownRemaining",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "balanceOf",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "lastClaim",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "FAUCET_AMOUNT",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "FAUCET_COOLDOWN",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "Claimed",
+    type: "event",
+    inputs: [
+      { name: "to", type: "address", indexed: true },
+      { name: "amount", type: "uint256", indexed: false },
+      { name: "nextClaimAt", type: "uint256", indexed: false },
     ],
   },
 ] as const;

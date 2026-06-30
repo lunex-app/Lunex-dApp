@@ -7,6 +7,7 @@ import { BridgeWalletBar } from "./BridgeWalletBar";
 import { useGateway } from "../hooks/useGateway";
 import { useUnifiedBalance } from "../hooks/useUnifiedBalance";
 import { useWallet } from "@/context/WalletProvider";
+import { useAccount } from "wagmi";
 import { BRIDGE_CHAINS, type BridgeChainKey } from "../config/bridgeConfig";
 import { formatUnits } from "viem";
 
@@ -20,6 +21,9 @@ const fmtFee = (fee: any) => {
 export function GatewayPanel() {
   const gateway = useGateway();
   const { circle, uc, hasInjected } = useWallet();
+  // The unified Gateway balance is read from the connected multi-chain EOA
+  // (WalletConnect or injected) — Circle smart accounts are Arc-only.
+  const { address: eoaAddress } = useAccount();
   const isCircleWallet = Boolean(circle || uc);
   // Gateway needs a real multi-chain EOA. A Circle user can connect one via
   // RainbowKit (injected or WalletConnect/mobile) without losing their session.
@@ -35,6 +39,13 @@ export function GatewayPanel() {
   const srcUsdcRaw = balancesByChain[fromChain]?.usdc ?? 0n;
   const srcUsdc = Number(formatUnits(srcUsdcRaw, BRIDGE_CHAINS[fromChain].usdcDecimals));
 
+  // The amount field draws from a DIFFERENT source per mode:
+  //  • deposit → moves USDC FROM the connected wallet INTO Gateway → use wallet balance.
+  //  • spend   → mints FROM the unified Gateway balance → use the confirmed Gateway balance.
+  const gatewayAvail = gateway.gatewayBalance ?? 0;
+  const availForMode = mode === "deposit" ? srcUsdc : gatewayAvail;
+  const availLabel = mode === "deposit" ? `${BRIDGE_CHAINS[fromChain].label} wallet` : "Gateway";
+
   const isBusy = gateway.status === "depositing" || gateway.status === "spending" || gateway.status === "estimating";
   const validAmount = Number(amount) > 0;
 
@@ -42,11 +53,11 @@ export function GatewayPanel() {
   // (whether it's the only wallet or attached alongside a Circle session).
   const { refreshGatewayBalance } = gateway;
   useEffect(() => {
-    if (!hasInjected) return;
+    if (!eoaAddress) return;
     refreshGatewayBalance();
     const id = setInterval(refreshGatewayBalance, 6000); // keep it fresh (pending → confirmed)
     return () => clearInterval(id);
-  }, [hasInjected, refreshGatewayBalance]);
+  }, [eoaAddress, refreshGatewayBalance]);
 
   const feeRows = useMemo(() => {
     const fees = (gateway.lastEstimate as any)?.fees;
@@ -72,7 +83,7 @@ export function GatewayPanel() {
               onClick={() => setMode(nextMode)}
               className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest ${mode === nextMode ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground"}`}
             >
-              {nextMode === "deposit" ? "Deposit to Gateway" : "Instant Transfer"}
+              {nextMode === "deposit" ? "Deposit to Gateway" : "Transfer"}
             </button>
           ))}
         </div>
@@ -82,8 +93,8 @@ export function GatewayPanel() {
           <h2 className="text-2xl font-bold uppercase tracking-tight">{mode === "deposit" ? "Create Unified USDC Balance" : "Spend Unified Balance"}</h2>
           <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
             {mode === "deposit"
-              ? "Deposit USDC into the Gateway Wallet on a source chain. Deposits are required before Gateway can mint instantly on other chains."
-              : "Spend your unified Gateway balance: Circle's Forwarding Service mints USDC on the destination chain in under a second — no source-chain finality wait."}
+              ? "Deposit USDC into the Gateway Wallet on a source chain. Deposits are required before Gateway can mint on other chains."
+              : "Spend your unified Gateway balance to mint USDC on the destination chain — no source-chain finality wait."}
           </p>
         </div>
 
@@ -110,6 +121,11 @@ export function GatewayPanel() {
               </button>
             </div>
           </div>
+        )}
+        {eoaAddress && (
+          <p className="-mt-3 text-[10px] font-mono text-muted-foreground">
+            Gateway balance for {eoaAddress.slice(0, 6)}…{eoaAddress.slice(-4)}
+          </p>
         )}
         {gateway.gatewayPending > 0 && (
           <p className="text-[10px] text-muted-foreground leading-relaxed -mt-3">
@@ -145,12 +161,14 @@ export function GatewayPanel() {
                   onClick={() => setTransferMode(nextMode)}
                   className={`flex-1 text-[10px] font-black uppercase tracking-widest ${transferMode === nextMode ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"}`}
                 >
-                  {nextMode === "instant" ? "Instant Relayer" : "Manual Mint"}
+                  {nextMode === "instant" ? "Instant Transfer" : "Manual Mint"}
                 </button>
               ))}
             </div>
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Instant mode uses Circle's Forwarding Service and needs fee headroom in the Gateway balance. Manual mode avoids the forwarder fee but requires the wallet to sign the destination mint.
+              {transferMode === "instant"
+                ? "Instant uses Circle's Forwarding Service to mint on the destination — no network switch, a small forwarding fee applies."
+                : `Manual mints from your own wallet — you'll switch to ${BRIDGE_CHAINS[toChain].label} and sign, with no forwarding fee.`}
             </p>
           </div>
         )}
@@ -160,10 +178,10 @@ export function GatewayPanel() {
             <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">USDC Amount</label>
             <button
               type="button"
-              onClick={() => setAmount(srcUsdc > 0 ? String(srcUsdc) : "")}
+              onClick={() => setAmount(availForMode > 0 ? String(availForMode) : "")}
               className="text-[10px] font-bold uppercase tracking-widest text-primary hover:underline"
             >
-              Balance: {srcUsdc.toFixed(2)} USDC · Max
+              {availLabel}: {availForMode.toFixed(2)} USDC · Max
             </button>
           </div>
           <div className="relative">
@@ -176,8 +194,12 @@ export function GatewayPanel() {
             />
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-muted-foreground">USDC</span>
           </div>
-          {validAmount && Number(amount) > srcUsdc && (
-            <p className="text-[10px] text-destructive font-bold uppercase tracking-widest">Amount exceeds your {BRIDGE_CHAINS[fromChain].label} USDC balance</p>
+          {validAmount && Number(amount) > availForMode && (
+            <p className="text-[10px] text-destructive font-bold uppercase tracking-widest">
+              {mode === "deposit"
+                ? `Amount exceeds your ${BRIDGE_CHAINS[fromChain].label} USDC balance`
+                : "Amount exceeds your confirmed Gateway balance"}
+            </p>
           )}
         </div>
 

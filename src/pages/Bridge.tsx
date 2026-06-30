@@ -1,8 +1,15 @@
 import { useState, useMemo, useEffect } from "react";
-import { ArrowRight, Loader2, Zap, Info, ArrowLeftRight, ExternalLink, Fuel, X, RotateCw, History } from "lucide-react";
+import { ArrowRight, Loader2, Zap, Info, ArrowLeftRight, ExternalLink, Fuel, X, RotateCw, History, Menu, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useWallet } from "@/context/WalletProvider";
 import { useBridge } from "@/features/bridge/hooks/useBridge";
 import { useUnifiedBalance } from "@/features/bridge/hooks/useUnifiedBalance";
@@ -18,6 +25,14 @@ import { type BridgeChainKey, BRIDGE_CHAINS, getExplorerTxUrl } from "@/features
 import { getPendingBridgeTransactions, type BridgeTransaction } from "@/features/bridge/state/bridgeState";
 import BackButton from "@/components/BackButton";
 import { formatUnits, parseUnits } from "viem";
+
+// Bridge sub-tools, surfaced via the right-side hamburger menu.
+const BRIDGE_TABS = [
+  { value: "bridge", label: "CCTP Transfer", icon: ArrowLeftRight },
+  { value: "gateway", label: "Gateway", icon: Zap },
+  { value: "recovery", label: "Recovery", icon: RotateCw },
+  { value: "history", label: "History", icon: History },
+] as const;
 
 const Bridge = () => {
   const { address, isConnected, openConnect, circle, uc } = useWallet();
@@ -128,20 +143,45 @@ const Bridge = () => {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="flex flex-wrap justify-start gap-2 mb-8 h-auto bg-transparent p-0">
-          <TabsTrigger value="bridge" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-            <ArrowLeftRight className="h-3.5 w-3.5" /> Transfer
-          </TabsTrigger>
-          <TabsTrigger value="gateway" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-            <Zap className="h-3.5 w-3.5" /> Gateway
-          </TabsTrigger>
-          <TabsTrigger value="recovery" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-            <RotateCw className="h-3.5 w-3.5" /> Recovery
-          </TabsTrigger>
-          <TabsTrigger value="history" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-            <History className="h-3.5 w-3.5" /> History
-          </TabsTrigger>
-        </TabsList>
+        {/* Tools live behind a hamburger on the right; the active panel is labelled. */}
+        <div className="mb-8 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            {(() => {
+              const Active = BRIDGE_TABS.find((t) => t.value === activeTab) ?? BRIDGE_TABS[0];
+              return (
+                <>
+                  <Active.icon className="h-4 w-4 text-primary" />
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-foreground">{Active.label}</span>
+                </>
+              );
+            })()}
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:text-primary"
+                aria-label="Bridge tools menu"
+                title="Bridge tools"
+              >
+                <Menu className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-muted-foreground">Bridge tools</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {BRIDGE_TABS.map((t) => (
+                <DropdownMenuItem
+                  key={t.value}
+                  onClick={() => setActiveTab(t.value)}
+                  className="gap-2 text-xs font-semibold"
+                >
+                  <t.icon className="h-3.5 w-3.5 text-primary" /> {t.label}
+                  {activeTab === t.value && <Check className="ml-auto h-3.5 w-3.5 text-primary" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         <TabsContent value="bridge" className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <BridgeWalletBar
@@ -201,15 +241,15 @@ const Bridge = () => {
 
               <div className="space-y-3">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Amount to Bridge</label>
-                <div className="relative group">
-                  <Input
+                <div className="rounded-xl bg-muted/40 px-3 py-2 hover:bg-muted/50 transition-colors flex items-center gap-2">
+                  <input
                     type="number"
-                    placeholder="0.00"
+                    placeholder="0"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="bg-muted/10 border-border text-xl font-bold font-mono h-12 rounded-sm focus-visible:ring-primary pl-4"
+                    className="flex-1 min-w-0 bg-transparent text-xl font-bold text-foreground outline-none placeholder:text-muted-foreground/20 leading-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold font-mono text-muted-foreground uppercase">{tokenSymbol}</div>
+                  <span className="text-xs font-bold font-mono text-muted-foreground uppercase shrink-0">{tokenSymbol}</span>
                 </div>
                 <div className="grid grid-cols-4 gap-2 mt-2">
                    {[25, 55, 75, 100].map((pct) => (
@@ -253,52 +293,29 @@ const Bridge = () => {
                 <Switch checked={isFastPath} onCheckedChange={setIsFastPath} className="data-[state=checked]:bg-primary" />
               </div>
 
-              <div className="space-y-4 p-4 bg-muted/20 border border-border rounded-sm">
+              {/* Destination Gas Top-Up - Coming Soon (disabled, non-interactive). */}
+              <div className="space-y-4 p-4 bg-muted/20 border border-border rounded-sm opacity-60 cursor-not-allowed select-none" aria-disabled="true">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${gasTopUpEnabled ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+                    <div className="p-2 rounded-full bg-muted text-muted-foreground">
                       <Fuel className="h-4 w-4" />
                     </div>
                     <div>
                       <span className="text-[10px] font-bold uppercase tracking-widest">Destination Gas Top-Up</span>
                       <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-tighter mt-0.5">
-                        Uses Circle forwarding on fast CCTP routes
+                        Receive native gas on the destination chain
                       </p>
                     </div>
                   </div>
-                  <Switch checked={gasTopUpEnabled} onCheckedChange={setGasTopUpEnabled} className="data-[state=checked]:bg-primary" />
+                  <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-primary">
+                    Coming Soon
+                  </span>
                 </div>
-                {gasTopUpEnabled && (
-                  <div className="space-y-2 animate-in fade-in duration-200">
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        value={gasTopUpAmount}
-                        onChange={(event) => setGasTopUpAmount(event.target.value)}
-                        placeholder="0.00"
-                        className="h-11 font-mono"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-muted-foreground">{tokenSymbol}</span>
-                    </div>
-                    <p className="text-[10px] text-yellow-500 leading-relaxed">
-                      Gas top-up sends the destination mint to the Lunex relayer so a funded operator can split settlement and deliver native gas. Fast path must stay enabled; destination relayer liquidity is required.
-                    </p>
-                    {BRIDGE_CHAINS[toChain].topUpRelayer ? (
-                      <p className="text-[9px] text-muted-foreground font-mono break-all">
-                        Relayer: {BRIDGE_CHAINS[toChain].topUpRelayer}
-                      </p>
-                    ) : (
-                      <p className="text-[9px] text-destructive font-bold uppercase tracking-widest">
-                        No top-up relayer configured for {BRIDGE_CHAINS[toChain].label}
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
 
               {isCircleWallet && (
                 <div className="mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-500">
-                  Bridging moves USDC between chains, so it needs a browser wallet like MetaMask. Your Lunex passkey/email wallet only works on Arc — connect a browser wallet to bridge.
+                  Bridging moves USDC between chains, so it needs a browser wallet like MetaMask. Your Lunex passkey/email wallet only works on Arc - connect a browser wallet to bridge.
                 </div>
               )}
               {!isConnected ? (

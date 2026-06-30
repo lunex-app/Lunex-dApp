@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { useAccount, useConnect } from "wagmi";
+import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { injected as injectedConnector } from "wagmi/connectors";
 import { arcTestnet } from "@/config/wagmi";
 import {
@@ -84,6 +84,7 @@ const WalletCtx = createContext<Ctx | null>(null);
 export function WalletProvider({ children }: { children: ReactNode }) {
   const { address: injected, chain: injectedChain } = useAccount();
   const { connectAsync, connectors } = useConnect();
+  const { disconnectAsync } = useDisconnect();
   const [connectingInjected, setConnectingInjected] = useState(false);
   const [circle, setCircle] = useState<CircleSession | null>(null);
   const [uc, setUc] = useState<UcSession | null>(() => loadUcSession());
@@ -227,6 +228,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       } catch {
         /* ignore */
       }
+      // Also tear down any connected EOA (WalletConnect / injected) wagmi session.
+      disconnectAsync().catch(() => {});
     },
     refreshBalance,
     connectModalOpen,

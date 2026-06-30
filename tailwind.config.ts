@@ -99,11 +99,16 @@ export default {
           "50%": { transform: "translateX(0%)" },
           "100%": { transform: "translateX(100%)" },
         },
+        ticker: {
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(-50%)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "loading-bar": "loading-bar 2s infinite linear",
+        ticker: "ticker 22s linear infinite",
       },
     },
   },

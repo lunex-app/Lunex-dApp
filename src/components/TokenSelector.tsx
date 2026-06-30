@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Search } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, Search, X } from "lucide-react";
 import { TokenIcon } from "@/components/TokenIcon";
 import { TOKENS } from "@/config/wagmi";
 
@@ -9,20 +9,12 @@ interface TokenSelectorProps {
   selected: (typeof tokenList)[number];
   onSelect: (token: (typeof tokenList)[number]) => void;
   disabledSymbol?: string;
+  balances?: Record<string, { formatted: string; isLoading?: boolean }>;
 }
 
-export function TokenSelector({ selected, onSelect, disabledSymbol }: TokenSelectorProps) {
+export function TokenSelector({ selected, onSelect, disabledSymbol, balances }: TokenSelectorProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
 
   const filtered = tokenList.filter((t) => {
     const q = search.toLowerCase();
@@ -33,71 +25,106 @@ export function TokenSelector({ selected, onSelect, disabledSymbol }: TokenSelec
     );
   });
 
+  const handleSelect = (token: (typeof tokenList)[number]) => {
+    onSelect(token);
+    setOpen(false);
+    setSearch("");
+  };
+
   return (
-    <div ref={ref} className="relative flex-shrink-0">
+    <>
+      {/* Pill trigger */}
       <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-4 py-3 bg-muted hover:bg-muted/80 transition-colors min-w-[160px]"
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 bg-background rounded-full border border-border px-2.5 py-1.5 hover:border-primary/50 transition-colors shrink-0 shadow-sm"
       >
         <TokenIcon symbol={selected.symbol} size="sm" />
-        <div className="text-left">
-          <span className="text-sm font-semibold text-foreground block leading-tight">{selected.symbol}</span>
-          <span className="text-xs text-muted-foreground leading-tight">{selected.name}</span>
-        </div>
-        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground ml-auto" />
+        <span className="font-bold text-xs text-foreground">{selected.symbol}</span>
+        <ChevronDown className="h-3 w-3 text-muted-foreground" />
       </button>
+
+      {/* Modal overlay */}
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-72 border border-border bg-card shadow-xl z-50 overflow-hidden">
-          <div className="p-3 border-b border-border">
-            <div className="flex items-center gap-2 px-3 py-2 bg-muted">
-              <Search className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              <input
-                type="text"
-                placeholder="Search name, symbol, or address..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground min-w-0"
-                autoFocus
-              />
-            </div>
-          </div>
-          <div className="max-h-60 overflow-y-auto">
-            {filtered.map((token) => (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) { setOpen(false); setSearch(""); } }}
+        >
+          <div className="w-full sm:max-w-sm bg-card border border-border rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <h3 className="font-bold text-sm tracking-wide">Select Token</h3>
               <button
-                key={token.symbol}
-                onClick={() => {
-                  onSelect(token);
-                  setOpen(false);
-                  setSearch("");
-                }}
-                disabled={token.symbol === disabledSymbol}
-                className={`w-full text-left px-4 py-3 text-sm flex items-center gap-3 transition-colors min-h-[48px] ${
-                  token.symbol === selected.symbol
-                    ? "bg-primary/10 text-primary"
-                    : token.symbol === disabledSymbol
-                    ? "opacity-40 cursor-not-allowed"
-                    : "text-foreground hover:bg-muted"
-                }`}
+                onClick={() => { setOpen(false); setSearch(""); }}
+                className="h-7 w-7 flex items-center justify-center rounded-full bg-muted text-muted-foreground hover:text-foreground transition-colors"
               >
-                <TokenIcon symbol={token.symbol} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <span className="font-semibold block">{token.symbol}</span>
-                  <span className="text-xs text-muted-foreground">{token.name}</span>
-                </div>
-                <span className="text-xs text-muted-foreground font-mono flex-shrink-0">
-                  {token.address.slice(0, 6)}...{token.address.slice(-4)}
-                </span>
+                <X className="h-3.5 w-3.5" />
               </button>
-            ))}
-            {filtered.length === 0 && (
-              <p className="text-center text-sm text-muted-foreground py-4">No tokens found on Arc Network</p>
-            )}
-          </div>
-          <div className="p-2 border-t border-border">
-            <p className="text-xs text-muted-foreground text-center">Arc Network Testnet</p>
+            </div>
+
+            {/* Search */}
+            <div className="px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2.5 bg-muted rounded-xl px-3.5 py-2.5">
+                <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Search name or address…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="flex-1 bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground min-w-0"
+                  autoFocus
+                />
+                {search && (
+                  <button onClick={() => setSearch("")} className="text-muted-foreground hover:text-foreground">
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Token list */}
+            <div className="overflow-y-auto max-h-64">
+              {filtered.map((token) => {
+                const bal = balances?.[token.symbol];
+                const isSelected = token.symbol === selected.symbol;
+                const isDisabled = token.symbol === disabledSymbol;
+                return (
+                  <button
+                    key={token.symbol}
+                    onClick={() => !isDisabled && handleSelect(token)}
+                    disabled={isDisabled}
+                    className={`w-full px-5 py-3.5 flex items-center gap-3.5 transition-colors
+                      ${isSelected ? "bg-primary/10" : isDisabled ? "opacity-40 cursor-not-allowed" : "hover:bg-muted/60"}`}
+                  >
+                    <TokenIcon symbol={token.symbol} size="md" />
+                    <div className="flex-1 text-left min-w-0">
+                      <p className={`font-bold text-sm ${isSelected ? "text-primary" : "text-foreground"}`}>
+                        {token.symbol}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">{token.name}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      {bal?.isLoading ? (
+                        <p className="text-xs text-muted-foreground font-mono">…</p>
+                      ) : bal ? (
+                        <p className="text-sm font-mono font-semibold">{bal.formatted}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground font-mono">—</p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+              {filtered.length === 0 && (
+                <p className="text-center text-sm text-muted-foreground py-8">No tokens found</p>
+              )}
+            </div>
+
+            <div className="px-5 py-3 border-t border-border">
+              <p className="text-[10px] text-muted-foreground text-center">Arc Network Testnet · {tokenList.length} tokens</p>
+            </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

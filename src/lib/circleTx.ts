@@ -7,7 +7,7 @@
  *
  * Mirrors Polaris's src/lib/tx.ts run(writes, signer).
  */
-import { writeContract, waitForTransactionReceipt } from "wagmi/actions";
+import { writeContract, waitForTransactionReceipt, switchChain, getAccount } from "wagmi/actions";
 import type { Abi, Hash } from "viem";
 import { wagmiConfig, arcTestnet } from "@/config/wagmi";
 import { circleWrite, type CircleSession } from "./circleWallet";
@@ -41,7 +41,18 @@ export async function run(writes: Write[], signer?: Signer): Promise<Hash> {
   if (signer && "kind" in signer && signer.kind === "passkey") {
     return circleWrite(signer, writes);
   }
-  // Injected EOA via wagmi.
+  // Injected / WalletConnect EOA via wagmi. These writes target the Lunex
+  // contracts on Arc, so make sure the wallet is on Arc first - it may be sitting
+  // on Base/Polygon/etc. after a send or bridge.
+  // Some connectors (older MetaMask, WalletConnect) don't implement getChainId;
+  // catch that and let wagmi's per-write chainId param handle it instead.
+  try {
+    if (getAccount(wagmiConfig).chainId !== arcTestnet.id) {
+      await switchChain(wagmiConfig, { chainId: arcTestnet.id });
+    }
+  } catch {
+    // Connector doesn't support getChainId — proceed; writeContract's chainId will prompt the switch.
+  }
   let last: Hash = "0x" as Hash;
   for (const w of writes) {
     last = await writeContract(wagmiConfig, {
@@ -49,9 +60,9 @@ export async function run(writes: Write[], signer?: Signer): Promise<Hash> {
       abi: w.abi,
       functionName: w.functionName,
       args: w.args as never,
-      chain: arcTestnet,
+      chainId: arcTestnet.id,
     } as any);
-    await waitForTransactionReceipt(wagmiConfig, { hash: last });
+    await waitForTransactionReceipt(wagmiConfig, { hash: last, chainId: arcTestnet.id });
   }
   return last;
 }

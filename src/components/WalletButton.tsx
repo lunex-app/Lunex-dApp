@@ -94,18 +94,16 @@ export default function WalletButton() {
                   </span>
                 </div>
               )}
-              {(circle || uc) && (
-                <button
-                  onClick={() => {
-                    disconnect();
-                    setMenuOpen(false);
-                    toast.success("Disconnected");
-                  }}
-                  className="font-mono flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs text-destructive hover:bg-background"
-                >
-                  <LogOut className="h-3.5 w-3.5" /> Disconnect
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  disconnect();
+                  setMenuOpen(false);
+                  toast.success("Disconnected");
+                }}
+                className="font-mono flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs text-destructive hover:bg-background"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Disconnect
+              </button>
             </div>
           </>
         )}

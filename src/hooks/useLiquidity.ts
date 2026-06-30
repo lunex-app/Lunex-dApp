@@ -3,6 +3,8 @@ import { useReadContract } from "wagmi";
 import { parseUnits, formatUnits } from "viem";
 import { stableSwapAbi, erc20Abi } from "@/config/abis";
 import { CONTRACTS, TOKENS, arcTestnet, getExplorerTxUrl } from "@/config/wagmi";
+
+interface CoinInfo { symbol: string; address: `0x${string}`; decimals: number; }
 import { useApproveToken } from "./useApproveToken";
 import { useVolumeTracker } from "./useVolumeTracker";
 import { useWallet } from "@/context/WalletProvider";
@@ -202,5 +204,78 @@ export function useRemoveLiquidity(
     isBusy: tx.isPending,
     isApproved: !lpApproval.needsApproval(lpAmountDisplay),
     isAllowanceLoading: lpApproval.isAllowanceLoading,
+  };
+}
+
+export function useAddLiquidityPool(
+  poolAddress: `0x${string}`,
+  coin0: CoinInfo,
+  coin1: CoinInfo,
+  amount0: string,
+  amount1: string,
+  slippage = "0.5"
+) {
+  const { address, isConnected } = useWallet();
+  const parsed0 = (() => { try { return amount0 ? parseUnits(amount0, coin0.decimals) : 0n; } catch { return 0n; } })();
+  const parsed1 = (() => { try { return amount1 ? parseUnits(amount1, coin1.decimals) : 0n; } catch { return 0n; } })();
+
+  const { data: lpPreviewRaw } = useReadContract({
+    address: poolAddress, abi: stableSwapAbi, functionName: "calc_token_amount",
+    args: [[parsed0, parsed1] as [bigint, bigint], true],
+    chainId: arcTestnet.id, query: { enabled: parsed0 > 0n || parsed1 > 0n },
+  });
+  const lpPreview = lpPreviewRaw ? parseFloat(formatUnits(lpPreviewRaw as bigint, 18)) : 0;
+  const slippageBps = parseSlippageBps(slippage);
+  const isSlippageValid = slippageBps !== null;
+
+  const approval0 = useApproveToken(coin0.address, poolAddress, coin0.decimals);
+  const approval1 = useApproveToken(coin1.address, poolAddress, coin1.decimals);
+  const { recordVolume } = useVolumeTracker();
+  const tx = useTx();
+
+  useEffect(() => {
+    if (tx.isConfirmed) {
+      toast.success("Liquidity added!", {
+        description: `Added ${amount0} ${coin0.symbol} + ${amount1} ${coin1.symbol}`,
+        ...(tx.txHash && tx.txHash !== "0x"
+          ? { action: { label: "View on ArcScan →", onClick: () => window.open(getExplorerTxUrl(tx.txHash!), "_blank") } }
+          : {}),
+      });
+      const amountUsd = parseFloat(amount0 || "0") + parseFloat(amount1 || "0");
+      if (amountUsd > 0) {
+        recordVolume({ txHash: tx.txHash || "0x", eventType: "add_liquidity", amountUsd, contract: poolAddress });
+        recordPointEvent({ wallet: address, action: "liquidity", volumeUsd: amountUsd, txHash: tx.txHash, description: `Added ${coin0.symbol}/${coin1.symbol} liquidity` });
+      }
+      approval0.refetchAllowance();
+      approval1.refetchAllowance();
+    }
+  }, [tx.isConfirmed, tx.txHash]);
+
+  useEffect(() => { if (tx.error) toast.error("Add liquidity failed", { description: tx.error.message.slice(0, 120) }); }, [tx.error]);
+
+  const execute = useCallback(() => {
+    if (!isConnected || !address) return;
+    if (!isSlippageValid) { toast.error("Invalid slippage", { description: "Use a value from 0% to 5%." }); return; }
+    if (!lpPreviewRaw || (lpPreviewRaw as bigint) <= 0n) { toast.error("Quote unavailable", { description: "Wait for an LP quote." }); return; }
+    const minMintAmount = applySlippage(lpPreviewRaw as bigint, slippageBps);
+    const writes: Write[] = [];
+    if (amount0 && approval0.needsApproval(amount0)) {
+      writes.push({ address: coin0.address, abi: erc20Abi, functionName: "approve", args: [poolAddress, parsed0] });
+    }
+    if (amount1 && approval1.needsApproval(amount1)) {
+      writes.push({ address: coin1.address, abi: erc20Abi, functionName: "approve", args: [poolAddress, parsed1] });
+    }
+    writes.push({ address: poolAddress, abi: stableSwapAbi, functionName: "add_liquidity", args: [[parsed0, parsed1] as [bigint, bigint], minMintAmount] });
+    tx.execute(writes);
+  }, [isConnected, address, amount0, amount1, parsed0, parsed1, coin0, coin1, poolAddress, approval0, approval1, tx, isSlippageValid, slippageBps, lpPreviewRaw]);
+
+  const resetAll = useCallback(() => { tx.reset(); approval0.resetApprove(); approval1.resetApprove(); }, [tx, approval0.resetApprove, approval1.resetApprove]);
+
+  return {
+    execute, lpPreview, isConfirmed: tx.isConfirmed, error: tx.error, resetAll, isSlippageValid,
+    isActionPending: tx.isPending, actionTxHash: tx.txHash, isActionConfirming: false,
+    isApproving: false, isBusy: tx.isPending,
+    isApproved: !approval0.needsApproval(amount0) && !approval1.needsApproval(amount1),
+    isAllowanceLoading: approval0.isAllowanceLoading || approval1.isAllowanceLoading,
   };
 }
