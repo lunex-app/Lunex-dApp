@@ -42,10 +42,16 @@ export async function run(writes: Write[], signer?: Signer): Promise<Hash> {
     return circleWrite(signer, writes);
   }
   // Injected / WalletConnect EOA via wagmi. These writes target the Lunex
-  // contracts on Arc, so make sure the wallet is on Arc first — it may be sitting
+  // contracts on Arc, so make sure the wallet is on Arc first - it may be sitting
   // on Base/Polygon/etc. after a send or bridge.
-  if (getAccount(wagmiConfig).chainId !== arcTestnet.id) {
-    await switchChain(wagmiConfig, { chainId: arcTestnet.id });
+  // Some connectors (older MetaMask, WalletConnect) don't implement getChainId;
+  // catch that and let wagmi's per-write chainId param handle it instead.
+  try {
+    if (getAccount(wagmiConfig).chainId !== arcTestnet.id) {
+      await switchChain(wagmiConfig, { chainId: arcTestnet.id });
+    }
+  } catch {
+    // Connector doesn't support getChainId — proceed; writeContract's chainId will prompt the switch.
   }
   let last: Hash = "0x" as Hash;
   for (const w of writes) {

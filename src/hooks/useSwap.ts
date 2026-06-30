@@ -56,7 +56,7 @@ export function useSwap({ fromSymbol, toSymbol, amount, slippage }: UseSwapParam
   // Resolve the correct pool and indices for this pair
   const { pool: poolAddress, i, j } = resolvePool(fromSymbol, toSymbol);
 
-  const { data: dyRaw, isLoading: isDyLoading } = useReadContract({
+  const { data: dyRaw } = useReadContract({
     address: poolAddress, abi: stableSwapAbi, functionName: "get_dy",
     args: [i, j, parsedInput], chainId: arcTestnet.id,
     query: { enabled: parsedInput > 0n, refetchInterval: 5000 },
@@ -144,7 +144,6 @@ export function useSwap({ fromSymbol, toSymbol, amount, slippage }: UseSwapParam
     needsApproval: approval.needsApproval(amount),
     outputAmount, spotRate, priceImpact, resetAll,
     isSlippageValid,
-    isQuoteLoading: isDyLoading,
     isApproved: !approval.needsApproval(amount),
     isAllowanceLoading: approval.isAllowanceLoading,
   };

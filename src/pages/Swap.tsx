@@ -106,14 +106,11 @@ const Swap = () => {
   };
 
   // CTA
-  const noLiquidity = isConnected && parsedFromAmount > 0n && !swap.isQuoteLoading && swap.outputAmount <= 0;
-
   const getButtonText = () => {
     if (!isConnected)                          return "Connect Wallet";
     if (!fromAmount || parsedFromAmount <= 0n) return "Enter an Amount";
     if (!swap.isSlippageValid)                 return "Invalid Slippage";
     if (hasInsufficientBalance)                return "Insufficient Balance";
-    if (noLiquidity)                           return "No Liquidity";
     if (swap.isApproving)                      return "Approving…";
     if (swap.isBusy)                           return "Swapping…";
     if (swap.needsApproval)                    return `Approve ${fromToken.symbol}`;
@@ -126,7 +123,7 @@ const Swap = () => {
   };
 
   const isCtaDisabled = isConnected && (
-    swap.isBusy || hasInsufficientBalance || parsedFromAmount <= 0n || !swap.isSlippageValid || noLiquidity
+    swap.isBusy || hasInsufficientBalance || parsedFromAmount <= 0n || !swap.isSlippageValid
   );
 
   // ── Limit order logic (preserved) ─────────────────────────────────────────

@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { Droplets, Clock, CheckCircle2, ExternalLink, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/context/WalletProvider";
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { TOKENS, CONTRACTS, arcTestnet, getExplorerTxUrl } from "@/config/wagmi";
+import { useReadContract } from "wagmi";
+import { TOKENS, arcTestnet, getExplorerTxUrl } from "@/config/wagmi";
 import { lunexUsdtAbi } from "@/config/abis";
 import { formatUnits } from "viem";
 import { toast } from "sonner";
+import { useTx } from "@/hooks/useTx";
 
 const USDT_DEPLOYED = TOKENS.USDT.address !== "0x0000000000000000000000000000000000000000";
 const USDT_ADDRESS = TOKENS.USDT.address;
@@ -23,6 +24,7 @@ function formatCountdown(seconds: number): string {
 
 export default function Faucet() {
   const { address, isConnected, openConnect } = useWallet();
+  const tx = useTx();
   const [countdown, setCountdown] = useState<number>(0);
 
   // Read cooldown remaining
@@ -65,29 +67,21 @@ export default function Faucet() {
     return () => clearInterval(t);
   }, [countdown, refetchCooldown]);
 
-  // Write claim()
-  const { writeContract, data: txHash, isPending: isWritePending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   useEffect(() => {
-    if (isSuccess) {
+    if (tx.isConfirmed) {
       toast.success(`Claimed ${FAUCET_AMOUNT_DISPLAY} USDT!`);
       refetchCooldown();
       refetchBalance();
     }
-  }, [isSuccess, refetchCooldown, refetchBalance]);
+  }, [tx.isConfirmed, refetchCooldown, refetchBalance]);
 
   const handleClaim = () => {
     if (!isConnected) { openConnect(); return; }
-    writeContract({
-      address: USDT_ADDRESS,
-      abi: lunexUsdtAbi,
-      functionName: "claim",
-      chainId: arcTestnet.id,
-    });
+    tx.execute([{ address: USDT_ADDRESS, abi: lunexUsdtAbi, functionName: "claim", args: [] }]);
   };
 
-  const isBusy = isWritePending || isConfirming;
+  const isBusy = tx.isPending;
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
@@ -165,7 +159,7 @@ export default function Faucet() {
             {isBusy ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {isWritePending ? "Confirm in wallet..." : "Confirming..."}
+                Claiming...
               </>
             ) : !isConnected ? (
               "Connect Wallet"
@@ -185,9 +179,9 @@ export default function Faucet() {
           </Button>
 
           {/* Tx link */}
-          {txHash && (
+          {tx.txHash && tx.txHash !== "0x" && (
             <a
-              href={getExplorerTxUrl(txHash)}
+              href={getExplorerTxUrl(tx.txHash)}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
