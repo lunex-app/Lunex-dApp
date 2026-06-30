@@ -27,10 +27,12 @@ import Send from "@/pages/Send";
 import Docs from "@/pages/Docs";
 import ComingSoon from "@/pages/ComingSoon";
 import LunexSDK from "@/pages/LunexSDK";
-// Temporarily disabled for the main release — re-enable when ready.
+// Temporarily disabled for the main release - re-enable when ready.
 // import Points from "@/pages/Points";
 // import LunexPay from "@/pages/LunexPay";
-// import Autopilot from "@/pages/Autopilot";
+import Autopilot from "@/pages/Autopilot";
+// import RecurringTasks from "@/pages/RecurringTasks";
+import Faucet from "@/pages/Faucet";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { MaintenanceGuard } from "@/components/MaintenanceGuard";
 import NotFound from "@/pages/NotFound";
@@ -57,8 +59,10 @@ const AppRoutes = () => {
           <Route path="/analytics" element={<PageTransition><AnalyticsPage /></PageTransition>} />
           <Route path="/points" element={<PageTransition><ComingSoon /></PageTransition>} />
           {/* Temporarily disabled for the main release:
-          <Route path="/pay" element={<PageTransition><MaintenanceGuard><LunexPay /></MaintenanceGuard></PageTransition>} />
-          <Route path="/autopilot" element={<PageTransition><MaintenanceGuard><Autopilot /></MaintenanceGuard></PageTransition>} /> */}
+          <Route path="/pay" element={<PageTransition><MaintenanceGuard><LunexPay /></MaintenanceGuard></PageTransition>} /> */}
+          <Route path="/autopilot" element={<PageTransition><MaintenanceGuard><Autopilot /></MaintenanceGuard></PageTransition>} />
+          {/* <Route path="/agent-network" element={<PageTransition><RecurringTasks /></PageTransition>} /> */}
+          <Route path="/faucet" element={<PageTransition><Faucet /></PageTransition>} />
           <Route path="/docs" element={<PageTransition><Docs /></PageTransition>} />
           <Route path="/lunexsdk" element={<PageTransition><LunexSDK /></PageTransition>} />
           <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />
@@ -69,7 +73,7 @@ const AppRoutes = () => {
   );
 };
 
-// Landing stands alone — no sidebar. Everything else gets the app shell.
+// Landing stands alone - no sidebar. Everything else gets the app shell.
 const AppContent = () => (
   <Routes>
     <Route path="/" element={<Landing />} />

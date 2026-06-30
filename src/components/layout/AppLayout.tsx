@@ -31,7 +31,7 @@ const NAV = [
   { to: "/faucet", icon: Droplets, label: "Faucet" },
   { to: "/points", icon: Crown, label: "Points" },
   { to: "/autopilot", icon: Bot, label: "Lunex AI" },
-  { to: "/agent-network", icon: CalendarClock, label: "Recurring" },
+  // { to: "/agent-network", icon: CalendarClock, label: "Recurring" },
   // Public analytics dashboard is route-only (/analytics), intentionally not in the nav.
   { to: "/docs", icon: BookOpen, label: "Docs" },
 ];
