@@ -1,8 +1,13 @@
 import hardhatEthers from "@nomicfoundation/hardhat-ethers";
 import "dotenv/config";
+import dotenv from "dotenv";
+import { existsSync } from "fs";
 import type { HardhatUserConfig } from "hardhat/config";
 
-const deployerKey = process.env.DEPLOYER_PRIVATE_KEY;
+// Also load .env.local (Vite convention) — vars already in env take precedence
+if (existsSync(".env.local")) dotenv.config({ path: ".env.local", override: false });
+
+const deployerKey = process.env.AGENT_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY;
 
 const config: HardhatUserConfig = {
   plugins: [hardhatEthers],

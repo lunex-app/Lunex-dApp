@@ -8,7 +8,9 @@ const USDC       = "0x3600000000000000000000000000000000000000";
 
 async function main() {
   const { ethers } = await network.create();
-  const [deployer] = await ethers.getSigners();
+  const signers = await ethers.getSigners();
+  const deployer = signers[0];
+  if (!deployer) throw new Error("No signer — ensure AGENT_PRIVATE_KEY or DEPLOYER_PRIVATE_KEY is set in .env.local");
   console.log("Deploying AgentExecutor from:", deployer.address);
 
   const Factory = await ethers.getContractFactory("AgentExecutor");
