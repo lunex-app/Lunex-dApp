@@ -38,6 +38,7 @@ import { MaintenanceGuard } from "@/components/MaintenanceGuard";
 import NotFound from "@/pages/NotFound";
 import { useState, useEffect } from "react";
 import { fetchProtocolAnalytics } from "@/lib/onchainAnalytics";
+import { PWAUpdatePrompt } from "@/components/PWAUpdatePrompt";
 
 const queryClient = new QueryClient();
 
@@ -94,6 +95,7 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <Sonner position="top-right" theme="dark" offset="72px" />
+            <PWAUpdatePrompt />
             <BrowserRouter>
               <AppContent />
             </BrowserRouter>
