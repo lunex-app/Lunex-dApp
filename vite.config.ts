@@ -201,7 +201,7 @@ function autopilotDevPlugin(): Plugin {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
             body: JSON.stringify({
-              model: "claude-sonnet-4-6",
+              model: "claude-sonnet-4-8",
               max_tokens: 1024,
               system: `${SYSTEM_PROMPT}\n\n${contextBlock}`,
               tools: [EXECUTE_TOOL],
