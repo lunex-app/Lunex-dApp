@@ -311,12 +311,16 @@ const Analytics = () => {
             <div className="border border-border bg-card rounded-sm p-6">
               <SectionTitle icon={Droplets}>Protocol Contracts</SectionTitle>
               {([
-                ["USDC/EURC Pool",  CONTRACTS.LUNEX_SWAP_POOL],
-                ["USDC/USDT Pool",  CONTRACTS.POOL_USDC_USDT],
-                ["EURC/USDT Pool",  CONTRACTS.POOL_EURC_USDT],
-                ["luneUSDC Vault",  CONTRACTS.LUNE_VAULT_USDC],
-                ["luneEURC Vault",  CONTRACTS.LUNE_VAULT_EURC],
-                ["luneUSDT Vault",  CONTRACTS.LUNE_VAULT_USDT],
+                ["StableSwap Pool (USDC/EURC)", CONTRACTS.LUNEX_SWAP_POOL],
+                ["StableSwap Pool (USDC/USDT)", CONTRACTS.POOL_USDC_USDT],
+                ["StableSwap Pool (EURC/USDT)", CONTRACTS.POOL_EURC_USDT],
+                ["LP Token (USDC/EURC)",        CONTRACTS.LUNEX_LP],
+                ["LP Token (USDC/USDT)",        CONTRACTS.LP_USDC_USDT],
+                ["LP Token (EURC/USDT)",        CONTRACTS.LP_EURC_USDT],
+                ["luneUSDC Vault",              CONTRACTS.LUNE_VAULT_USDC],
+                ["luneEURC Vault",              CONTRACTS.LUNE_VAULT_EURC],
+                ["luneUSDT Vault",              CONTRACTS.LUNE_VAULT_USDT],
+                ["Limit Order Keeper",          CONTRACTS.LUNEX_LIMIT_ORDER_KEEPER],
               ] as [string, string][]).map(([label, addr]) => (
                 <a
                   key={addr}
