@@ -1,3 +1,7 @@
+import usdcLogo from "@/assets/tokens/usdc.png";
+import eurcLogo from "@/assets/tokens/eurc.png";
+import usdtLogo from "@/assets/tokens/usdt.png";
+
 interface TokenIconProps {
   symbol: string;
   size?: "sm" | "md" | "lg";
@@ -7,9 +11,9 @@ interface TokenIconProps {
 const sizeMap = { sm: "h-6 w-6 text-[10px]", md: "h-8 w-8 text-xs", lg: "h-10 w-10 text-sm" };
 
 const tokenConfig: Record<string, { icon: string; bg: string }> = {
-  USDC: { icon: "/tokens/usdc.png", bg: "bg-[#2775CA]/10" },
-  EURC: { icon: "/tokens/eurc.png", bg: "bg-[#2775CA]/10" },
-  USDT: { icon: "/tokens/usdt.png", bg: "bg-[#26A17B]/10" },
+  USDC: { icon: usdcLogo, bg: "bg-[#2775CA]/10" },
+  EURC: { icon: eurcLogo, bg: "bg-[#2775CA]/10" },
+  USDT: { icon: usdtLogo, bg: "bg-[#26A17B]/10" },
 };
 
 export const TokenIcon = ({ symbol, size = "md", className = "" }: TokenIconProps) => {

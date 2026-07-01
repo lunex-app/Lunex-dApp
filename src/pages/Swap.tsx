@@ -21,11 +21,14 @@ import { parseEventLogs } from "viem";
 import { useLivePrices } from "@/hooks/useLivePrices";
 import TradingViewChart from "@/components/TradingViewChart";
 import { cn } from "@/lib/utils";
+import usdcLogo from "@/assets/tokens/usdc.png";
+import eurcLogo from "@/assets/tokens/eurc.png";
+import usdtLogo from "@/assets/tokens/usdt.png";
 
 const TOKEN_LOGOS: Record<string, string> = {
-  USDC: "/tokens/usdc.png",
-  EURC: "/tokens/eurc.png",
-  USDT: "/tokens/usdt.png",
+  USDC: usdcLogo,
+  EURC: eurcLogo,
+  USDT: usdtLogo,
 };
 
 const tokenList = Object.values(TOKENS);
