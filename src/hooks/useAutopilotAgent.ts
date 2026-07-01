@@ -6,9 +6,9 @@ import { useVaultData } from "./useVaultData";
 import { useWallet } from "@/context/WalletProvider";
 import { useTx } from "./useTx";
 import { estimatePoolApy, useDynamicApy } from "./useApy";
-import { stableSwapAbi, vaultAbi, erc20Abi } from "@/config/abis";
+import { erc20Abi } from "@/config/abis";
 import { CONTRACTS, TOKENS, arcTestnet } from "@/config/wagmi";
-import type { Write } from "@/lib/circleTx";
+import { callAgentExecute } from "@/lib/agentExecute";
 
 export type AgentDecision = "rebalance_to_vault" | "rebalance_to_pool" | "hold";
 
@@ -45,6 +45,7 @@ export function useAutopilotAgent() {
   const [log, setLog] = useState<AgentLogEntry[]>([]);
   const [lastDecision, setLastDecision] = useState<AgentDecision>("hold");
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
   const isRunningRef = useRef(false);
 
   // Wallet USDC balance - needed for step-2 actions after LP removal or vault redemption
@@ -91,74 +92,24 @@ export function useAutopilotAgent() {
     };
   }, [vaultApy, poolApr, config.thresholdPct]);
 
-  // Execute ONE atomic step toward the rebalance goal. The agent is stateless:
-  // it looks at current positions and does the next logical action.
+  // Execute rebalance via the AgentExecutor contract (no wallet popup — signed by agent hot wallet).
   const executeStep = useCallback(async (): Promise<{ executed: boolean; txHash?: string }> => {
     if (!address || !isConnected) return { executed: false };
     const { decision } = evaluate();
-    const writes: Write[] = [];
+    if (decision === "hold") return { executed: false };
 
-    if (decision === "rebalance_to_vault") {
-      if (pool.lpBalanceRaw > 0n) {
-        // Step 1: pull LP out as USDC (single-sided removal)
-        writes.push({
-          address: CONTRACTS.LUNEX_LP,
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [CONTRACTS.LUNEX_SWAP_POOL, pool.lpBalanceRaw],
-        });
-        writes.push({
-          address: CONTRACTS.LUNEX_SWAP_POOL,
-          abi: stableSwapAbi,
-          functionName: "remove_liquidity_one_coin",
-          args: [pool.lpBalanceRaw, 0n, 0n], // index 0 = USDC, min=0 (testnet)
-        });
-      } else if (walletUsdcRawBigInt > 0n) {
-        // Step 2: deposit freed USDC into luneUSDC vault
-        writes.push({
-          address: TOKENS.USDC.address,
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [CONTRACTS.LUNE_VAULT_USDC, walletUsdcRawBigInt],
-        });
-        writes.push({
-          address: CONTRACTS.LUNE_VAULT_USDC,
-          abi: vaultAbi,
-          functionName: "deposit",
-          args: [walletUsdcRawBigInt, address],
-        });
-      }
-    } else if (decision === "rebalance_to_pool") {
-      if (vault.userSharesRaw > 0n) {
-        // Step 1: redeem vault shares → USDC
-        writes.push({
-          address: CONTRACTS.LUNE_VAULT_USDC,
-          abi: vaultAbi,
-          functionName: "redeem",
-          args: [vault.userSharesRaw, address, address],
-        });
-      } else if (walletUsdcRawBigInt > 0n) {
-        // Step 2: add freed USDC as single-sided liquidity
-        writes.push({
-          address: TOKENS.USDC.address,
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [CONTRACTS.LUNEX_SWAP_POOL, walletUsdcRawBigInt],
-        });
-        writes.push({
-          address: CONTRACTS.LUNEX_SWAP_POOL,
-          abi: stableSwapAbi,
-          functionName: "add_liquidity",
-          args: [[walletUsdcRawBigInt, 0n] as [bigint, bigint], 0n],
-        });
-      }
+    const action = decision === "rebalance_to_vault" ? "rebalanceToVault" : "rebalanceToPool";
+    setIsExecuting(true);
+    try {
+      const { txHash } = await callAgentExecute(action, address);
+      refetchWalletUsdc();
+      return { executed: true, txHash };
+    } catch {
+      return { executed: false };
+    } finally {
+      setIsExecuting(false);
     }
-
-    if (writes.length === 0) return { executed: false };
-    const hash = await tx.execute(writes);
-    refetchWalletUsdc();
-    return { executed: true, txHash: hash ?? undefined };
-  }, [address, isConnected, evaluate, pool.lpBalanceRaw, vault.userSharesRaw, walletUsdcRawBigInt, tx, refetchWalletUsdc]);
+  }, [address, isConnected, evaluate, refetchWalletUsdc]);
 
   // Tick: evaluate → log → optionally execute
   const executeStepRef = useRef(executeStep);
@@ -233,10 +184,9 @@ export function useAutopilotAgent() {
     pool,
     vault,
     walletUsdc,
-    tx,
     executeStep,
     runOnce,
     startedAt,
-    isExecuting: tx.isPending,
+    isExecuting,
   };
 }

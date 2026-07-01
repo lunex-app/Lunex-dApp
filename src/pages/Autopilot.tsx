@@ -5,6 +5,7 @@ import {
   Send, User, LayoutDashboard, MessageSquare,
   Sparkles, ArrowLeftRight, Droplets, Sprout,
   ArrowDownToLine, Link2, AlertCircle, Loader2, ExternalLink, Wallet,
+  ShieldCheck, ShieldOff,
 } from "lucide-react";
 import { formatUnits } from "viem";
 import { useWallet } from "@/context/WalletProvider";
@@ -15,10 +16,12 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { useAutopilotAgent, type AgentLogEntry, type AgentDecision } from "@/hooks/useAutopilotAgent";
+import { useAgentAuthorization } from "@/hooks/useAgentAuthorization";
 import { useFullAgent, type ActionResult } from "@/hooks/useFullAgent";
 import { resolveAmount } from "@/lib/agentParser";
 import { callAutopilotLLM } from "@/lib/autopilotLLM";
 import { BRIDGE_CHAINS } from "@/features/bridge/config/bridgeConfig";
+import { AGENT_WALLET_ADDRESS } from "@/config/agentExecutor";
 import { cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -232,7 +235,8 @@ type Tab = "chat" | "dashboard";
 export default function Autopilot() {
   const { isConnected, openConnect } = useWallet();
   const agent = useAutopilotAgent();
-  const full = useFullAgent();
+  const auth  = useAgentAuthorization();
+  const full  = useFullAgent();
 
   const [activeTab, setActiveTab] = useState<Tab>("chat");
   const [, setTick] = useState(0);
@@ -627,9 +631,34 @@ export default function Autopilot() {
           <div className="hidden lg:flex w-[280px] shrink-0 flex-col border-l border-border bg-card/50 p-5 gap-5 overflow-y-auto">
             <div className="space-y-4">
               <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">Quick Controls</p>
-              <div className="flex items-center justify-between">
-                <div><p className="text-sm font-bold">Autonomous Mode</p><p className="text-[10px] text-muted-foreground mt-0.5">Evaluates every 30s</p></div>
-                <Switch checked={agent.config.active} onCheckedChange={(v) => { if (!isConnected) { openConnect(); return; } agent.updateConfig({ active: v }); sendMessage(v ? "start autonomous mode" : "stop autonomous mode"); }} />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div><p className="text-sm font-bold">Autonomous Mode</p><p className="text-[10px] text-muted-foreground mt-0.5">Executes without popups</p></div>
+                  <Switch checked={agent.config.active} onCheckedChange={(v) => {
+                    if (!isConnected) { openConnect(); return; }
+                    if (v && auth.isConfigured && !auth.isAuthorized) {
+                      sendMessage("I need to authorize the agent first. Please approve the setup.");
+                      return;
+                    }
+                    agent.updateConfig({ active: v });
+                    sendMessage(v ? "start autonomous mode" : "stop autonomous mode");
+                  }} />
+                </div>
+                {auth.isConfigured && !auth.isAuthorized && (
+                  <button onClick={auth.authorize} disabled={auth.authTx.isPending}
+                    className="w-full flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">
+                    {auth.authTx.isPending
+                      ? <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                      : <ShieldCheck className="h-3 w-3 shrink-0" />}
+                    {auth.authTx.isPending ? "Authorizing..." : "Authorize agent (one-time)"}
+                  </button>
+                )}
+                {auth.isConfigured && auth.isAuthorized && (
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold"><ShieldCheck className="h-3 w-3" />Agent authorized</span>
+                    <button onClick={auth.revoke} className="text-[10px] text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1"><ShieldOff className="h-3 w-3" />Revoke</button>
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-between">
                 <div><p className="text-sm font-bold">Auto-Execute</p><p className="text-[10px] text-muted-foreground mt-0.5">Sends txs automatically</p></div>
@@ -775,9 +804,45 @@ export default function Autopilot() {
               <div className="space-y-5">
                 <div className="border border-border bg-card rounded-sm p-5 space-y-5">
                   <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">Agent Controls</p>
-                  <div className="flex items-center justify-between">
-                    <div><p className="text-sm font-bold">Autonomous Mode</p><p className="text-[10px] text-muted-foreground mt-0.5">Polls every 30s</p></div>
-                    <Switch checked={agent.config.active} onCheckedChange={(v) => { if (!isConnected) { openConnect(); return; } agent.updateConfig({ active: v }); }} />
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div><p className="text-sm font-bold">Autonomous Mode</p><p className="text-[10px] text-muted-foreground mt-0.5">Executes without popups</p></div>
+                      <Switch checked={agent.config.active} onCheckedChange={(v) => {
+                        if (!isConnected) { openConnect(); return; }
+                        if (v && auth.isConfigured && !auth.isAuthorized) return;
+                        agent.updateConfig({ active: v });
+                      }} disabled={auth.isConfigured && !auth.isAuthorized && !agent.config.active} />
+                    </div>
+                    {auth.isConfigured && !auth.isAuthorized && (
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                        <p className="text-[10px] text-amber-400 font-semibold flex items-center gap-1.5"><ShieldCheck className="h-3 w-3" />One-time agent authorization required</p>
+                        <p className="text-[10px] text-muted-foreground leading-relaxed">
+                          Grant the AI agent permission to rebalance on your behalf. This approves your LP tokens and vault shares to the AgentExecutor contract and sets the agent wallet as operator.
+                          {AGENT_WALLET_ADDRESS && <span className="block mt-1 font-mono text-muted-foreground/60">{AGENT_WALLET_ADDRESS.slice(0,10)}…{AGENT_WALLET_ADDRESS.slice(-6)}</span>}
+                        </p>
+                        <div className="grid grid-cols-3 gap-1.5 text-[9px]">
+                          {[
+                            { label: "LP approved", done: auth.lpApproved },
+                            { label: "Vault approved", done: auth.vaultApproved },
+                            { label: "Operator set", done: auth.isOperator },
+                          ].map(({ label, done }) => (
+                            <div key={label} className={cn("flex items-center gap-1 px-2 py-1 rounded border", done ? "border-emerald-500/30 text-emerald-400" : "border-border text-muted-foreground")}>
+                              <CheckCircle className="h-2.5 w-2.5 shrink-0" />{label}
+                            </div>
+                          ))}
+                        </div>
+                        <Button onClick={auth.authorize} disabled={auth.authTx.isPending} size="sm"
+                          className="w-full h-8 gap-2 text-[10px] font-black uppercase tracking-widest">
+                          {auth.authTx.isPending ? <><Loader2 className="h-3 w-3 animate-spin" />Authorizing...</> : <><ShieldCheck className="h-3 w-3" />Authorize Agent</>}
+                        </Button>
+                      </div>
+                    )}
+                    {auth.isConfigured && auth.isAuthorized && (
+                      <div className="flex items-center justify-between py-1">
+                        <span className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold"><ShieldCheck className="h-3 w-3" />Agent authorized — fully autonomous</span>
+                        <button onClick={auth.revoke} className="text-[10px] text-muted-foreground hover:text-destructive flex items-center gap-1 transition-colors"><ShieldOff className="h-3 w-3" />Revoke</button>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center justify-between">
                     <div><p className="text-sm font-bold">Auto-Execute</p><p className="text-[10px] text-muted-foreground mt-0.5">Sends txs automatically</p></div>

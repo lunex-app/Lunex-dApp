@@ -6,6 +6,96 @@ import { VitePWA } from "vite-plugin-pwa";
 import type { Plugin } from "vite";
 import type { IncomingMessage, ServerResponse } from "http";
 
+// ── Dev-only proxy for /api/agent-execute ─────────────────────────────────────
+// The agent hot wallet's private key never reaches the browser.
+// Set AGENT_PRIVATE_KEY and AGENT_EXECUTOR_ADDRESS in .env.local (no VITE_ prefix).
+function agentExecutePlugin(): Plugin {
+  const ARC_RPC = "https://rpc.testnet.arc.network";
+
+  // Inline ABI — no imports from frontend config (which uses import.meta.env)
+  const EXECUTOR_ABI = [
+    { name: "rebalanceToVault", type: "function", stateMutability: "nonpayable",
+      inputs: [{ name: "user", type: "address" }], outputs: [] },
+    { name: "rebalanceToPool",  type: "function", stateMutability: "nonpayable",
+      inputs: [{ name: "user", type: "address" }], outputs: [] },
+  ] as const;
+
+  async function submitRebalance(
+    privateKey: string,
+    executorAddr: string,
+    fn: "rebalanceToVault" | "rebalanceToPool",
+    userAddress: string,
+  ): Promise<string> {
+    const { createWalletClient, createPublicClient, http, defineChain, encodeFunctionData } = await import("viem");
+    const { privateKeyToAccount } = await import("viem/accounts");
+
+    const arc = defineChain({
+      id: 5042002,
+      name: "Arc Testnet",
+      nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+      rpcUrls: { default: { http: [ARC_RPC] } },
+      testnet: true,
+    });
+
+    const account = privateKeyToAccount(privateKey as `0x${string}`);
+    const wallet  = createWalletClient({ account, chain: arc, transport: http(ARC_RPC) });
+    const pub     = createPublicClient({ chain: arc, transport: http(ARC_RPC) });
+
+    const data = encodeFunctionData({ abi: EXECUTOR_ABI, functionName: fn, args: [userAddress as `0x${string}`] });
+    const hash = await wallet.sendTransaction({ to: executorAddr as `0x${string}`, data });
+    await pub.waitForTransactionReceipt({ hash });
+    return hash;
+  }
+
+  return {
+    name: "agent-execute-dev",
+    configureServer(server) {
+      server.middlewares.use("/api/agent-execute", async (req: IncomingMessage, res: ServerResponse) => {
+        const cors = {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Content-Type": "application/json",
+        };
+        Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
+
+        if (req.method === "OPTIONS") { res.statusCode = 204; res.end(); return; }
+        if (req.method !== "POST") { res.statusCode = 405; res.end(JSON.stringify({ error: "POST only" })); return; }
+
+        const agentKey     = process.env.AGENT_PRIVATE_KEY;
+        const executorAddr = process.env.AGENT_EXECUTOR_ADDRESS;
+
+        if (!agentKey || !executorAddr) {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: "Set AGENT_PRIVATE_KEY and AGENT_EXECUTOR_ADDRESS in .env.local" }));
+          return;
+        }
+
+        let raw = "";
+        req.on("data", (c: Buffer) => { raw += c.toString(); });
+        await new Promise<void>((r) => req.on("end", r));
+
+        try {
+          const { action, userAddress } = JSON.parse(raw) as { action: string; userAddress: string };
+
+          if (action !== "rebalanceToVault" && action !== "rebalanceToPool") {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: `Unknown action: ${action}` }));
+            return;
+          }
+
+          const txHash = await submitRebalance(agentKey, executorAddr, action, userAddress);
+          res.statusCode = 200;
+          res.end(JSON.stringify({ txHash }));
+        } catch (e) {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
+        }
+      });
+    },
+  };
+}
+
 // ── Dev-only proxy for /api/autopilot-agent ───────────────────────────────────
 // Keeps ANTHROPIC_API_KEY on the Node.js side - it never reaches the browser.
 // Set it in .env.local (no VITE_ prefix needed; Vite loads it server-side only).
@@ -156,6 +246,7 @@ export default defineConfig(() => ({
   },
   plugins: [
     autopilotDevPlugin(),
+    agentExecutePlugin(),
     react(),
     // Circle's w3s-pw-web-sdk (email/PIN) pulls Node deps (jsonwebtoken, util,
     // stream, Buffer). Polyfill them for the browser so the email flow doesn't
