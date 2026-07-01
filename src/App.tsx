@@ -37,6 +37,7 @@ import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { MaintenanceGuard } from "@/components/MaintenanceGuard";
 import NotFound from "@/pages/NotFound";
 import { useState, useEffect } from "react";
+import { fetchProtocolAnalytics } from "@/lib/onchainAnalytics";
 
 const queryClient = new QueryClient();
 
@@ -73,13 +74,17 @@ const AppRoutes = () => {
   );
 };
 
-// Landing stands alone - no sidebar. Everything else gets the app shell.
-const AppContent = () => (
-  <Routes>
-    <Route path="/" element={<Landing />} />
-    <Route path="*" element={<AppRoutes />} />
-  </Routes>
-);
+// Prefetch analytics as soon as the app loads so data is cached by the time
+// the user navigates to the Analytics page.
+const AppContent = () => {
+  useEffect(() => { fetchProtocolAnalytics(); }, []);
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="*" element={<AppRoutes />} />
+    </Routes>
+  );
+};
 
 const App = () => (
   <WagmiProvider config={wagmiConfig}>

@@ -190,6 +190,25 @@ export function getCachedAnalytics(): ProtocolAnalytics | null {
   return loadCache(true);
 }
 
+/**
+ * Try the /api/analytics server endpoint first. The server result is cached by
+ * Vercel CDN for 5 minutes (stale-while-revalidate), so this is typically a
+ * single ~100 ms HTTP call instead of 13 parallel chain-scan loops.
+ * Returns null on any error so callers can fall back to the local scan.
+ */
+async function tryApiEndpoint(): Promise<ProtocolAnalytics | null> {
+  try {
+    const res = await fetch("/api/analytics", { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) return null;
+    const data = await res.json() as ProtocolAnalytics;
+    // Basic shape validation
+    if (!Array.isArray(data.daily) || !Array.isArray(data.vaults)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const client = createPublicClient({ chain: arcTestnet, transport: http() });
@@ -251,6 +270,14 @@ export async function fetchProtocolAnalytics(force = false): Promise<ProtocolAna
   if (!force) {
     const cached = loadCache();
     if (cached) return cached;
+  }
+
+  // Try the server endpoint first — Vercel CDN serves it in ~100 ms after the
+  // first warm hit. Fall back to the local incremental scan if unavailable.
+  const fromApi = await tryApiEndpoint();
+  if (fromApi) {
+    saveCache(fromApi);
+    return fromApi;
   }
 
   try {
