@@ -45,11 +45,9 @@ export const POOL_DEPLOY_BLOCK = 31_829_533;
 export const STABLE_DECIMALS = 1e6; // USDC + EURC both have 6 decimals on Arc
 
 // Arc testnet produces ~1 block every 0.53s → ~163,454 blocks/day.
-// Used by analytics to limit log scans to a rolling N-day window so the
-// browser doesn't have to paginate 100+ pages of all-time history.
 export const BLOCKS_PER_DAY = 163_454;
 
-const MAX_PAGES = 10; // 10 * 1000 events is plenty; keeps browser API calls under 100/query.
+const MAX_PAGES = 500; // Default cap; callers override via maxPages arg (e.g. high-volume analytics).
 const PAGE_SIZE = 1000; // Blockscout caps getLogs at 1000 rows/response
 
 export interface ExplorerLog {

@@ -26,7 +26,7 @@ const SERIES_DAYS = 30;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 // Versioned: bump when the ProtocolAnalytics shape changes so stale cached
 // objects (missing new fields) are never returned and can't crash the page.
-const CACHE_KEY = "lunex:onchain-analytics:v6";
+const CACHE_KEY = "lunex:onchain-analytics:v7";
 
 export interface DailyPoint {
   day: number; // unix seconds, midnight UTC
@@ -248,7 +248,10 @@ export async function fetchProtocolAnalytics(force = false): Promise<ProtocolAna
   try {
     // Rolling 45-day window — avoids paginating 100+ days of all-time history.
     const latestBlock = await client.getBlockNumber().catch(() => BigInt(POOL_DEPLOY_BLOCK + 45 * BLOCKS_PER_DAY));
-    const fromBlock = Math.max(POOL_DEPLOY_BLOCK, Number(latestBlock) - 45 * BLOCKS_PER_DAY);
+    // Scan all-time from deploy block — rolling window was excluding historical
+    // volume and the page cap of 10 was truncating high-volume stress tests.
+    const fromBlock = POOL_DEPLOY_BLOCK;
+    const ALL_PAGES = 500; // 500k events max per contract — handles high-volume bots
 
     // ── Fetch all event logs and live state in parallel ───────────────────────
     const [
@@ -271,21 +274,21 @@ export async function fetchProtocolAnalytics(force = false): Promise<ProtocolAna
       // Bridge fees via treasury
       bridge,
     ] = await Promise.all([
-      fetchAllLogs(CONTRACTS.LUNEX_SWAP_POOL,  ARC_TOPICS.tokenExchange, fromBlock, 10),
-      fetchAllLogs(CONTRACTS.LUNEX_SWAP_POOL,  ARC_TOPICS.addLiquidity,  fromBlock, 10),
-      fetchAllLogs(CONTRACTS.POOL_USDC_USDT,   ARC_TOPICS.tokenExchange, fromBlock, 10),
-      fetchAllLogs(CONTRACTS.POOL_USDC_USDT,   ARC_TOPICS.addLiquidity,  fromBlock, 10),
-      fetchAllLogs(CONTRACTS.POOL_EURC_USDT,   ARC_TOPICS.tokenExchange, fromBlock, 10),
-      fetchAllLogs(CONTRACTS.POOL_EURC_USDT,   ARC_TOPICS.addLiquidity,  fromBlock, 10),
-      fetchAllLogs(CONTRACTS.LUNE_VAULT_USDC,  ARC_TOPICS.deposit,       fromBlock, 10),
-      fetchAllLogs(CONTRACTS.LUNE_VAULT_USDC,  ARC_TOPICS.withdraw,      fromBlock, 10),
-      fetchAllLogs(CONTRACTS.LUNE_VAULT_EURC,  ARC_TOPICS.deposit,       fromBlock, 10),
-      fetchAllLogs(CONTRACTS.LUNE_VAULT_EURC,  ARC_TOPICS.withdraw,      fromBlock, 10),
-      fetchAllLogs(CONTRACTS.LUNE_VAULT_USDT,  ARC_TOPICS.deposit,       fromBlock, 10),
-      fetchAllLogs(CONTRACTS.LUNE_VAULT_USDT,  ARC_TOPICS.withdraw,      fromBlock, 10),
-      readPoolBalances(CONTRACTS.LUNEX_SWAP_POOL),  // bal0=USDC, bal1=EURC
-      readPoolBalances(CONTRACTS.POOL_USDC_USDT),   // bal0=USDC, bal1=USDT
-      readPoolBalances(CONTRACTS.POOL_EURC_USDT),   // bal0=EURC, bal1=USDT
+      fetchAllLogs(CONTRACTS.LUNEX_SWAP_POOL,  ARC_TOPICS.tokenExchange, fromBlock, ALL_PAGES),
+      fetchAllLogs(CONTRACTS.LUNEX_SWAP_POOL,  ARC_TOPICS.addLiquidity,  fromBlock, ALL_PAGES),
+      fetchAllLogs(CONTRACTS.POOL_USDC_USDT,   ARC_TOPICS.tokenExchange, fromBlock, ALL_PAGES),
+      fetchAllLogs(CONTRACTS.POOL_USDC_USDT,   ARC_TOPICS.addLiquidity,  fromBlock, ALL_PAGES),
+      fetchAllLogs(CONTRACTS.POOL_EURC_USDT,   ARC_TOPICS.tokenExchange, fromBlock, ALL_PAGES),
+      fetchAllLogs(CONTRACTS.POOL_EURC_USDT,   ARC_TOPICS.addLiquidity,  fromBlock, ALL_PAGES),
+      fetchAllLogs(CONTRACTS.LUNE_VAULT_USDC,  ARC_TOPICS.deposit,       fromBlock, ALL_PAGES),
+      fetchAllLogs(CONTRACTS.LUNE_VAULT_USDC,  ARC_TOPICS.withdraw,      fromBlock, ALL_PAGES),
+      fetchAllLogs(CONTRACTS.LUNE_VAULT_EURC,  ARC_TOPICS.deposit,       fromBlock, ALL_PAGES),
+      fetchAllLogs(CONTRACTS.LUNE_VAULT_EURC,  ARC_TOPICS.withdraw,      fromBlock, ALL_PAGES),
+      fetchAllLogs(CONTRACTS.LUNE_VAULT_USDT,  ARC_TOPICS.deposit,       fromBlock, ALL_PAGES),
+      fetchAllLogs(CONTRACTS.LUNE_VAULT_USDT,  ARC_TOPICS.withdraw,      fromBlock, ALL_PAGES),
+      readPoolBalances(CONTRACTS.LUNEX_SWAP_POOL),
+      readPoolBalances(CONTRACTS.POOL_USDC_USDT),
+      readPoolBalances(CONTRACTS.POOL_EURC_USDT),
       readVault(CONTRACTS.LUNE_VAULT_USDC, "USDC"),
       readVault(CONTRACTS.LUNE_VAULT_EURC, "EURC"),
       readVault(CONTRACTS.LUNE_VAULT_USDT, "USDT"),
