@@ -1,7 +1,7 @@
 /**
  * Shared reader for Lunex contract event logs on Arc, sourced LIVE from the
  * chain via Arc's indexed explorer (Blockscout-style) `getLogs` API. No
- * Supabase, no off-chain database — the on-chain events are the source of truth.
+ * Supabase, no off-chain database - the onchain events are the source of truth.
  *
  * Used by the protocol volume reader and the public Analytics dashboard.
  */
@@ -9,19 +9,19 @@ import { EXPLORER_URL } from "@/config/wagmi";
 
 // keccak256 of each event signature (topic0). Verified against deployed logs.
 export const ARC_TOPICS = {
-  // StableSwap pool — TokenExchange(address indexed buyer, uint256 sold_id,
+  // StableSwap pool - TokenExchange(address indexed buyer, uint256 sold_id,
   //   uint256 tokens_sold, uint256 bought_id, uint256 tokens_bought).
   //   index 0 = USDC, index 1 = EURC; one leg of every trade is USDC.
   tokenExchange: "0xb2e76ae99761dc136e598d4a629bb347eccb9532a5f8bbd72e18467c3c34cc98",
-  // StableSwap pool — AddLiquidity(address indexed provider, uint256 amount0
+  // StableSwap pool - AddLiquidity(address indexed provider, uint256 amount0
   //   (USDC), uint256 amount1 (EURC), uint256 invariant, uint256 token_supply).
   addLiquidity: "0xd92dda7384b5f0fa573be9bbf63d63ac81a5bbb08ebc31f00c0f066e50239609",
-  // ERC-4626 vaults — Deposit/Withdraw: data = [assets, shares].
+  // ERC-4626 vaults - Deposit/Withdraw: data = [assets, shares].
   deposit: "0xdcbc1c05240f31ff3ad067ef1ee35ce4997762752e3a095284754544f4c709d7",
   withdraw: "0xfbde797d201c681b91056529119e0b02407c7bb96a4a2c75c01fc9667232c8db",
-  // CCTP MessageTransmitter — MessageSent(bytes message) (outbound burns).
+  // CCTP MessageTransmitter - MessageSent(bytes message) (outbound burns).
   messageSent: "0x8c5261668696ce22758910d05bab8f186d6eb247ceac2af2e82c7dc17669b036",
-  // CCTP v2 TokenMessenger — DepositForBurn(address burnToken, uint256 amount,
+  // CCTP v2 TokenMessenger - DepositForBurn(address burnToken, uint256 amount,
   //   address depositor, bytes32 mintRecipient, ...). amount = data word 0.
   depositForBurn: "0x0c8c1cbdc5190613ebd485511d4e2812cfa45eecb79d845893331fedad5130a5",
   // ERC-20 Transfer(address indexed from, address indexed to, uint256 value).
@@ -40,11 +40,16 @@ export function addressTopic(address: string): string {
   return "0x" + "0".repeat(24) + address.toLowerCase().replace(/^0x/, "");
 }
 
-// Block the swap pool was deployed at — bounds all-time scans.
+// Block the swap pool was deployed at - bounds all-time scans.
 export const POOL_DEPLOY_BLOCK = 31_829_533;
 export const STABLE_DECIMALS = 1e6; // USDC + EURC both have 6 decimals on Arc
 
-const MAX_PAGES = 30; // 30 * 1000 events guard against a runaway loop
+// Arc testnet produces ~1 block every 0.53s → ~163,454 blocks/day.
+// Used by analytics to limit log scans to a rolling N-day window so the
+// browser doesn't have to paginate 100+ pages of all-time history.
+export const BLOCKS_PER_DAY = 163_454;
+
+const MAX_PAGES = 10; // 10 * 1000 events is plenty; keeps browser API calls under 100/query.
 const PAGE_SIZE = 1000; // Blockscout caps getLogs at 1000 rows/response
 
 export interface ExplorerLog {
@@ -83,7 +88,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /**
  * Fetch one page of logs. Returns the rows (possibly empty = genuine end of
  * results). Retries transient failures (network error, rate-limit, error
- * string) with backoff, and THROWS if the page can't be fetched after retries —
+ * string) with backoff, and THROWS if the page can't be fetched after retries -
  * so callers never silently treat a transient failure as "no more data" (which
  * would make totals fluctuate between refreshes).
  */
@@ -95,7 +100,7 @@ async function fetchLogPage(url: string): Promise<ExplorerLog[]> {
       const json = (await res.json()) as { result?: ExplorerLog[] | string; message?: string };
       if (Array.isArray(json.result)) return json.result; // success (may be empty)
       const msg = String(json.message ?? "").toLowerCase();
-      // Blockscout returns this for an empty range — a legitimate end, not an error.
+      // Blockscout returns this for an empty range - a legitimate end, not an error.
       if (msg.includes("no records") || msg.includes("not found")) return [];
       lastErr = new Error(json.message || "explorer returned a non-array result");
     } catch (e) {
@@ -113,7 +118,7 @@ async function fetchLogPage(url: string): Promise<ExplorerLog[]> {
  *
  * Deterministic: a complete scan always returns the same set. Page failures are
  * retried; if a page ultimately fails the whole call throws (callers keep their
- * last-good value) rather than returning a partial — so totals don't fluctuate.
+ * last-good value) rather than returning a partial - so totals don't fluctuate.
  */
 export async function fetchAllLogs(
   address: string,
@@ -145,7 +150,7 @@ export async function fetchAllLogs(
     }
 
     if (rows.length < PAGE_SIZE) break; // last page
-    if (maxBlock <= cursor) break; // no progress — avoid an infinite loop
+    if (maxBlock <= cursor) break; // no progress - avoid an infinite loop
     cursor = maxBlock; // overlap on maxBlock handled by the dedupe set
   }
 

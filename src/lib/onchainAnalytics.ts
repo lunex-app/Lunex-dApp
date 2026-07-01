@@ -113,16 +113,6 @@ function actorsWithTime(logs: ExplorerLog[], topicIndex: number): { actor: strin
   return out;
 }
 
-function swapUsd(log: ExplorerLog): { usd: number; usdcToEurc: boolean } {
-  const soldId = logWord(log.data, 0);
-  const tokensSold = logWord(log.data, 1);
-  const tokensBought = logWord(log.data, 3);
-  // index 0 = USDC, index 1 = EURC; value the USDC leg exactly.
-  const usdcToEurc = soldId === 0n;
-  const usdcLeg = usdcToEurc ? tokensSold : tokensBought;
-  return { usd: Number(usdcLeg) / STABLE_DECIMALS, usdcToEurc };
-}
-
 function dayLabel(daySec: number): string {
   const d = new Date(daySec * 1000);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
