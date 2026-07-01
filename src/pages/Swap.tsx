@@ -22,11 +22,10 @@ import { useLivePrices } from "@/hooks/useLivePrices";
 import TradingViewChart from "@/components/TradingViewChart";
 import { cn } from "@/lib/utils";
 
-// ── Token logos (same source as TokenIcon) ─────────────────────────────────
 const TOKEN_LOGOS: Record<string, string> = {
-  USDC: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48/logo.png",
-  EURC: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c/logo.png",
-  USDT: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png",
+  USDC: "/tokens/usdc.png",
+  EURC: "/tokens/eurc.png",
+  USDT: "/tokens/usdt.png",
 };
 
 const tokenList = Object.values(TOKENS);
