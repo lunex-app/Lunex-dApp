@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth, AuthProvider } from "@/hooks/useAuth";
 
 const XIcon = () => (
@@ -15,28 +15,38 @@ const TelegramIcon = () => (
 
 const FooterInner = () => {
   const { isAdmin, isDeveloper } = useAuth();
+  const { pathname } = useLocation();
+  const isAutopilot = pathname === "/autopilot";
 
   return (
     <footer className="border-t border-border bg-background py-6">
       <div className="container flex flex-col md:flex-row items-center justify-center gap-4 text-xs text-muted-foreground tracking-wider">
         <div className="flex items-center justify-center gap-4 flex-wrap">
-          <Link to="/docs" className="hover:text-foreground transition-colors uppercase">
-            Docs
-          </Link>
-          <Link to="/analytics" className="hover:text-foreground transition-colors uppercase">
-            Analytics
-          </Link>
+          {!isAutopilot && (
+            <Link to="/docs" className="hover:text-foreground transition-colors uppercase">
+              Docs
+            </Link>
+          )}
+          {!isAutopilot && (
+            <Link to="/analytics" className="hover:text-foreground transition-colors uppercase">
+              Analytics
+            </Link>
+          )}
           {(isAdmin || isDeveloper) && (
             <Link to="/lunexsdk" className="hover:text-foreground transition-colors uppercase">
               SDK Portal
             </Link>
           )}
-          <a href="https://x.com/lunexfinance" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" aria-label="X (Twitter)">
-            <XIcon />
-          </a>
-          <a href="https://t.me/+LVXfiefshRtkYTQ8" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" aria-label="Telegram">
-            <TelegramIcon />
-          </a>
+          {!isAutopilot && (
+            <a href="https://x.com/lunexfinance" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" aria-label="X (Twitter)">
+              <XIcon />
+            </a>
+          )}
+          {!isAutopilot && (
+            <a href="https://t.me/+LVXfiefshRtkYTQ8" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" aria-label="Telegram">
+              <TelegramIcon />
+            </a>
+          )}
         </div>
       </div>
     </footer>
