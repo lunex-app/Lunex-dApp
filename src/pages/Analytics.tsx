@@ -320,7 +320,6 @@ const Analytics = () => {
                 ["luneUSDC Vault",              CONTRACTS.LUNE_VAULT_USDC],
                 ["luneEURC Vault",              CONTRACTS.LUNE_VAULT_EURC],
                 ["luneUSDT Vault",              CONTRACTS.LUNE_VAULT_USDT],
-                ["Limit Order Keeper",          CONTRACTS.LUNEX_LIMIT_ORDER_KEEPER],
               ] as [string, string][]).map(([label, addr]) => (
                 <a
                   key={addr}
