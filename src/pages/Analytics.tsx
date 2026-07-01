@@ -26,7 +26,7 @@ import {
 } from "recharts";
 import BackButton from "@/components/BackButton";
 import { WalletSearch } from "@/components/WalletSearch";
-import { fetchProtocolAnalytics, type ProtocolAnalytics } from "@/lib/onchainAnalytics";
+import { fetchProtocolAnalytics, getCachedAnalytics, type ProtocolAnalytics } from "@/lib/onchainAnalytics";
 import { EXPLORER_URL, CONTRACTS } from "@/config/wagmi";
 
 const usd = (n: number) =>
@@ -100,13 +100,16 @@ function SectionTitle({ icon: Icon, children }: { icon: typeof Users; children: 
 }
 
 const Analytics = () => {
-  const [data, setData] = useState<ProtocolAnalytics | null>(null);
+  // Initialise from stale cache so the page renders immediately on mount.
+  const [data, setData] = useState<ProtocolAnalytics | null>(() => getCachedAnalytics());
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async (force = false) => {
     setLoading(true);
     try {
       setData(await fetchProtocolAnalytics(force));
+    } catch {
+      // preserve existing data on error
     } finally {
       setLoading(false);
     }
@@ -158,10 +161,10 @@ const Analytics = () => {
         <>
           {/* Headline KPIs */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-10">
-            <Kpi label="45-Day Volume" value={usd(data.totalVolumeUsd)} icon={BarChart3} accent sub="swaps + pool + vaults + bridge" />
+            <Kpi label="All-Time Volume" value={usd(data.totalVolumeUsd)} icon={BarChart3} accent sub="swaps + pool + vaults + bridge" />
             <Kpi label="Total Value Locked" value={usd(data.totalTvlUsd)} icon={DollarSign} />
-            <Kpi label="Active Wallets (45d)" value={num(data.allTimeWallets)} icon={Users} />
-            <Kpi label="Transactions (45d)" value={num(data.totalTxCount)} icon={Activity} />
+            <Kpi label="All-Time Wallets" value={num(data.allTimeWallets)} icon={Users} />
+            <Kpi label="All-Time Transactions" value={num(data.totalTxCount)} icon={Activity} />
           </div>
 
           {/* ===================== USERS / WALLETS (featured) ===================== */}
@@ -171,7 +174,7 @@ const Analytics = () => {
               <Kpi label="Daily Active (24h)" value={num(data.dau)} icon={Users} />
               <Kpi label="Weekly Active (7d)" value={num(data.wau)} icon={Users} />
               <Kpi label="Monthly Active (30d)" value={num(data.mau)} icon={CalendarDays} />
-              <Kpi label="Active Wallets (45d)" value={num(data.allTimeWallets)} icon={Users} accent />
+              <Kpi label="All-Time Wallets" value={num(data.allTimeWallets)} icon={Users} accent />
             </div>
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-3">
               Daily Active Wallets · Last 30 Days
@@ -336,7 +339,7 @@ const Analytics = () => {
           </div>
 
           <p className="text-[10px] text-muted-foreground text-center font-mono">
-            Event-based metrics cover the rolling 45-day window. TVL is always live. Data read directly from Arc Testnet - no off-chain database. Last updated {updated}.
+            All-time metrics are accumulated from block {31_829_533} (pool deploy). Rolling charts cover the last 30 days. TVL is always live. Data read directly from Arc Testnet — no off-chain database. Last updated {updated}.
           </p>
         </>
       )}
