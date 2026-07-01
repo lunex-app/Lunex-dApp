@@ -10,7 +10,7 @@
 [![Powered by](https://img.shields.io/badge/Powered%20by-Circle%20USDC%20%26%20EURC-2775CA?style=flat-square)](https://www.circle.com)
 [![Frontend](https://img.shields.io/badge/Frontend-React%20%2B%20Vite%20%2B%20TS-61DAFB?style=flat-square)](https://vitejs.dev)
 [![Onchain](https://img.shields.io/badge/Onchain-wagmi%20%2B%20viem-1C1C1C?style=flat-square)](https://wagmi.sh)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](#-license)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](#license)
 
 [**Live App**](https://lunex.finance) · [**Analytics**](https://lunex.finance/analytics) · [**Dune Dashboard**](https://dune.com/lunexfinance1264/lunex-protocol-arc-analytics) · [**Docs**](https://lunex.finance/docs) · [**X / Twitter**](https://x.com/lunexfinance)
 
@@ -20,29 +20,29 @@
 
 ## Table of Contents
 
-- [Overview](#-overview)
-- [Preview](#-preview)
-- [Why Arc](#-why-arc)
-- [Features](#-features)
-- [Circle Integrations](#-circle-integrations)
-- [Architecture](#-architecture)
-- [Tech Stack](#-tech-stack)
-- [Project Structure](#-project-structure)
-- [Smart Contracts](#-smart-contracts)
-- [Supported Networks](#-supported-networks)
-- [Getting Started](#-getting-started)
-- [Environment Variables](#-environment-variables)
-- [Backend Service](#-backend-service)
-- [Analytics & Indexing](#-analytics--indexing)
-- [MCP Server (Agent Interface)](#-mcp-server-agent-interface)
-- [Deployment](#-deployment)
-- [Security](#-security)
-- [Roadmap](#-roadmap)
-- [License](#-license)
+- [Overview](#overview)
+- [Preview](#preview)
+- [Why Arc](#why-arc)
+- [Features](#features)
+- [Circle Integrations](#circle-integrations)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Smart Contracts](#smart-contracts)
+- [Supported Networks](#supported-networks)
+- [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [Backend Service](#backend-service)
+- [Analytics & Indexing](#analytics--indexing)
+- [MCP Server (Agent Interface)](#mcp-server-agent-interface)
+- [Deployment](#deployment)
+- [Security](#security)
+- [Roadmap](#roadmap)
+- [License](#license)
 
 ---
 
-## 🌐 Overview
+## Overview
 
 **Lunex Finance** is a stablecoin liquidity and AI-powered DeFi protocol deployed natively on the **Arc Network** — Circle's purpose-built Layer-1 for payments and capital markets, where gas is paid in USDC and blocks finalize in under a second.
 
@@ -59,7 +59,7 @@ Every metric the protocol reports is **decoded directly from on-chain events** a
 
 ---
 
-## 🖼️ Preview
+## Preview
 
 > Drop product screenshots into `docs/screenshots/` (filenames below) and they render here automatically.
 
@@ -83,7 +83,7 @@ Every metric the protocol reports is **decoded directly from on-chain events** a
 
 ---
 
-## ⚡ Why Arc
+## Why Arc
 
 Lunex chose Arc as its native home because it removes the structural barriers that previously made high-frequency stablecoin DeFi unprofitable:
 
@@ -96,21 +96,21 @@ Lunex chose Arc as its native home because it removes the structural barriers th
 
 ---
 
-## ✨ Features
+## Features
 
-### 💱 StableSwap AMM (`/swap`)
+### StableSwap AMM (`/swap`)
 Three Curve-style invariant pools combining constant-product and constant-sum curves with a high amplification coefficient (A = 200), keeping the curve flat near the 1:1 peg. Trades between USDC, EURC, and USDT settle with **near-zero price impact**. Live on-chain quoting (`get_dy`), configurable slippage tolerance, and atomic execution that reverts below the user's minimum-received threshold.
 
 **Pools:** USDC/EURC · USDC/USDT · EURC/USDT  
 **Swap fee:** 0.04% (50% to LPs, 50% to protocol)
 
-### 📈 Live TradingView Price Charts
+### Live TradingView Price Charts
 The Swap page embeds a live **TradingView** price chart that updates automatically when the token pair changes. Charts are sourced from Binance (`BINANCE:EURCUSDT`, `BINANCE:USDCUSDT`) — crypto-native rates, not forex. Multiple time intervals, volume overlay, and auto light/dark theme matching.
 
-### 💧 Liquidity Provision (`/pool`)
+### Liquidity Provision (`/pool`)
 Provide stablecoins to the USDC/EURC, USDC/USDT, or EURC/USDT pools and earn a share of every swap fee. Add or remove liquidity (balanced or single-sided), track your LP position and pool share in real time, and view live reserves and TVL. LP positions are represented by standard ERC-20 LP tokens.
 
-### 🌱 Yield Vaults (`/yield`)
+### Yield Vaults (`/yield`)
 Three ERC-4626 tokenized vaults give one-click access to auto-compounding yield:
 - **luneUSDC** — deposit USDC, earn yield
 - **luneEURC** — deposit EURC, earn yield
@@ -118,7 +118,7 @@ Three ERC-4626 tokenized vaults give one-click access to auto-compounding yield:
 
 Vaults reinvest accrued swap fees back into the underlying position. Because they follow the ERC-4626 standard, vault shares are composable across DeFi. Per-vault detail pages (`/yield/:token`) expose TVL, price-per-share, and your personal holdings.
 
-### 🤖 Lunex AI — Autopilot (`/autopilot`)
+### Lunex AI — Autopilot (`/autopilot`)
 An autonomous AI agent powered by **Claude (Anthropic)** that executes real on-chain transactions via natural-language instructions.
 
 - **Dashboard view:** live portfolio snapshot, action card feed, spend-rate gauge
@@ -128,31 +128,31 @@ An autonomous AI agent powered by **Claude (Anthropic)** that executes real on-c
 
 Supported actions: swap · bridge · add/remove liquidity · vault deposit/withdraw · native top-up
 
-### 🌉 Cross-Chain Bridge — CCTP v2 (`/bridge` → Transfer)
+### Cross-Chain Bridge — CCTP v2 (`/bridge` → Transfer)
 Native USDC bridging across six chains using Circle's **Cross-Chain Transfer Protocol**: USDC is **burned** on the source chain and **natively minted** on the destination after Circle's attestation — zero slippage, no wrapped/synthetic risk. Includes Fast and Standard transfer paths, a live progress tracker, full **on-chain bridge history** (decoded from `MessageSent` / `DepositForBurn` events), and a **Recovery** flow that resumes any interrupted transfer from its tx hash across all supported chains.
 
-### 🛰️ Circle Gateway (`/bridge` → Gateway)
+### Circle Gateway (`/bridge` → Gateway)
 A **unified USDC balance** across chains via Circle's `unified-balance-kit`. Deposit USDC into the Gateway Wallet, then spend it on any supported chain — **instant** mints via Circle's Forwarding Service (sub-second) or manual mint. Confirmed and pending balances are surfaced separately so deposits are visible while finalizing.
 
-### 🚰 Testnet Faucet (`/faucet`)
+### Testnet Faucet (`/faucet`)
 Claim **1,000 USDT** on Arc Testnet with a single click. A 24-hour on-chain cooldown is enforced per wallet address via the `cooldownRemaining(address)` function in the USDT contract. The faucet is ideal for testing all three pools and the USDT vault without real assets.
 
-### 🔐 Passwordless Wallets
+### Passwordless Wallets
 - **Modular Wallets (passkey):** ERC-4337 smart-account login secured by a device passkey, with **gasless** transactions sponsored by Circle Gas Station.
 - **User-Controlled Wallets (email + PIN):** Web2-style onboarding — email OTP plus a 6-digit PIN that signs transactions.
 - **External wallets (RainbowKit):** Injected or WalletConnect EOAs for the multi-chain bridge and Gateway flows.
 
-### 📊 Dashboards & Analytics
+### Dashboards & Analytics
 - **Portfolio Dashboard (`/dashboard`):** Consolidated view of wallet balances, LP positions, vault holdings, net worth, and per-section transaction history — all read **live on-chain**.
 - **Public Analytics (`/analytics`):** TVL, total/swap/pool/vault/bridge volume, USDC↔EURC split, 30-day volume chart, DAU/WAU/MAU + all-time wallets, vault performance, treasury fees, and a **wallet-lookup** search — all decoded from on-chain events, no off-chain database.
 - **Protocol Stats (`/stats`):** Headline KPIs and pool APR.
 
-### 📚 Documentation & SDK (`/docs`, `/lunexsdk`)
+### Documentation & SDK (`/docs`, `/lunexsdk`)
 In-app developer documentation plus a RESTful **DEX Adapter SDK** (`/dex-quote`, `/dex-swap`, `/dex-liquidity`, `/dex-price`) and an **MCP server** that lets AI agents discover pools, read balances, and encode swap intents.
 
 ---
 
-## 🔵 Circle Integrations
+## Circle Integrations
 
 Lunex is built end-to-end on the Circle developer stack.
 
@@ -177,7 +177,7 @@ Lunex is built end-to-end on the Circle developer stack.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
                           ┌──────────────────────────────────────────────┐
@@ -215,7 +215,7 @@ On-chain analytics are derived by a deterministic indexer (`/scripts`) that read
 
 ---
 
-## 🧰 Tech Stack
+## Tech Stack
 
 | Layer | Technologies |
 | --- | --- |
@@ -232,7 +232,7 @@ On-chain analytics are derived by a deterministic indexer (`/scripts`) that read
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Lunex-dApp/
@@ -265,7 +265,7 @@ Lunex-dApp/
 
 ---
 
-## 📜 Smart Contracts
+## Smart Contracts
 
 Core protocol contracts on **Arc Testnet** (explorer: [`testnet.arcscan.app`](https://testnet.arcscan.app)):
 
@@ -290,7 +290,7 @@ Core protocol contracts on **Arc Testnet** (explorer: [`testnet.arcscan.app`](ht
 
 ---
 
-## 🔗 Supported Networks
+## Supported Networks
 
 Lunex is deployed on **Arc Testnet** and bridges USDC to/from five additional CCTP testnets:
 
@@ -305,7 +305,7 @@ Lunex is deployed on **Arc Testnet** and bridges USDC to/from five additional CC
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -347,7 +347,7 @@ npm run preview
 
 ---
 
-## 🔑 Environment Variables
+## Environment Variables
 
 All frontend config is read from the environment (`VITE_*`, baked at build time). Only non-secret public values (e.g. the Arc public RPC) have committed fallbacks.
 
@@ -380,7 +380,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=
 
 ---
 
-## 🖥️ Backend Service
+## Backend Service
 
 The `/server` Express app powers the email/PIN (User-Controlled) and Developer-Controlled wallet flows, keeping Circle's entity secret server-side.
 
@@ -403,7 +403,7 @@ The dev-controlled wallet is provisioned once with `npm run create-wallet`.
 
 ---
 
-## 📈 Analytics & Indexing
+## Analytics & Indexing
 
 Arc is not natively indexed by third-party analytics platforms, so Lunex ships its **own deterministic indexer**. The scripts in `/scripts` read Lunex contract event logs from Arc's explorer (with retry/backoff so partial pages never produce wrong totals), decode them, and emit aggregates.
 
@@ -418,7 +418,7 @@ node scripts/dune-wallets.mjs      # per-wallet leaderboard + lookup SQL
 
 ---
 
-## 🤖 MCP Server (Agent Interface)
+## MCP Server (Agent Interface)
 
 `/mcp-server` exposes Lunex to AI agents over the **Model Context Protocol**, enabling autonomous research and execution (read pools / TVL / APY, fetch unified balances, encode swap intents). This underpins the live **Lunex AI Autopilot** product and the planned **Auto-Treasury** agent.
 
@@ -428,7 +428,7 @@ npm run mcp
 
 ---
 
-## ☁️ Deployment
+## Deployment
 
 | Component | Recommended host |
 | --- | --- |
@@ -441,7 +441,7 @@ A `netlify.toml`, `.nvmrc`, and `.npmrc` (legacy-peer-deps) are included so CI i
 
 ---
 
-## 🔒 Security
+## Security
 
 - **Non-custodial.** Users hold their own keys (passkey device credential, PIN-secured Circle wallet, or self-custodial EOA).
 - **AI agent spending limit.** The `AgentExecutor` contract enforces a hard USDC ceiling set by the user — the Lunex AI Autopilot cannot exceed the authorized amount under any circumstance.
@@ -452,7 +452,7 @@ A `netlify.toml`, `.nvmrc`, and `.npmrc` (legacy-peer-deps) are included so CI i
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
 - **Now (Testnet):** Three StableSwap pools (USDC/EURC, USDC/USDT, EURC/USDT) · Three ERC-4626 vaults (luneUSDC, luneEURC, luneUSDT) · CCTP bridge · Gateway · Circle Wallets + Gas Station · **Lunex AI Autopilot** · TradingView price charts · USDT faucet · On-chain analytics — all live.
 - **Milestone 1 — Mainnet & Lunex FX:** Third-party audit → Arc mainnet deploy; production CCTP; **Lunex FX** powered by Circle **StableFX**.
@@ -460,7 +460,7 @@ A `netlify.toml`, `.nvmrc`, and `.npmrc` (legacy-peer-deps) are included so CI i
 
 ---
 
-## 📄 License
+## License
 
 Released under the **MIT License** — see [`LICENSE`](LICENSE) for the full text.
 

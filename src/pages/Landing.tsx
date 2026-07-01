@@ -605,7 +605,7 @@ const Landing = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link to="/dashboard" className="hidden md:inline-flex items-center gap-1.5 bg-primary text-primary-foreground text-[13px] font-bold px-5 py-2 rounded-sm hover:bg-primary/90 transition-colors">
+            <Link to="/swap" className="hidden md:inline-flex items-center gap-1.5 bg-primary text-primary-foreground text-[13px] font-bold px-5 py-2 rounded-sm hover:bg-primary/90 transition-colors">
               Launch App <ArrowRight className="h-3.5 w-3.5" />
             </Link>
             <button className="md:hidden p-2 text-muted-foreground hover:text-foreground transition-colors" onClick={() => setMobileMenuOpen((v) => !v)} aria-label="Toggle menu">
@@ -621,7 +621,7 @@ const Landing = () => {
                 {label}
               </Link>
             ))}
-            <Link to="/dashboard" className="inline-flex items-center gap-2 bg-primary text-primary-foreground text-sm font-bold px-5 py-2.5 mt-2 w-fit rounded-sm" onClick={() => setMobileMenuOpen(false)}>
+            <Link to="/swap" className="inline-flex items-center gap-2 bg-primary text-primary-foreground text-sm font-bold px-5 py-2.5 mt-2 w-fit rounded-sm" onClick={() => setMobileMenuOpen(false)}>
               Launch App <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -674,7 +674,7 @@ const Landing = () => {
                 transition={{ duration: 0.6, delay: 0.54, ease: EASE }}
                 className="flex flex-wrap items-center gap-3 mb-10"
               >
-                <Link to="/dashboard" className="group inline-flex items-center gap-2 bg-primary text-primary-foreground text-sm font-bold px-7 py-3.5 rounded-sm hover:bg-primary/90 transition-all">
+                <Link to="/swap" className="group inline-flex items-center gap-2 bg-primary text-primary-foreground text-sm font-bold px-7 py-3.5 rounded-sm hover:bg-primary/90 transition-all">
                   Launch App <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
                 </Link>
                 <Link to="/docs" className="inline-flex items-center gap-2 border border-border text-muted-foreground text-sm font-semibold px-7 py-3.5 rounded-sm hover:border-primary/40 hover:text-primary transition-all">
