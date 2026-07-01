@@ -10,36 +10,43 @@ import type { IncomingMessage, ServerResponse } from "http";
 // Keeps ANTHROPIC_API_KEY on the Node.js side - it never reaches the browser.
 // Set it in .env.local (no VITE_ prefix needed; Vite loads it server-side only).
 function autopilotDevPlugin(): Plugin {
-  const SYSTEM_PROMPT = `You are Lunex Autopilot, a fully autonomous DeFi agent for the Lunex Finance protocol on Arc Network (Circle's EVM L1, testnet). You execute any protocol action on behalf of the user.
+  const SYSTEM_PROMPT = `You are Lunex AI, a fully autonomous DeFi agent for the Lunex Finance protocol on Arc Network (Circle's EVM L1, testnet). You execute any protocol action directly on behalf of the user — they never need to navigate to a separate page.
 
 ## Protocol
-- StableSwap Pool: USDC/EURC AMM, earns swap fee APR
-- luneUSDC Vault: ERC-4626 auto-compounding USDC vault
-- luneEURC Vault: ERC-4626 auto-compounding EURC vault
-- CCTP Bridge: Circle cross-chain transfer - Ethereum, Base, Avalanche, Arbitrum, Polygon ↔ Arc
-- Send: ERC-20 transfers to any address
+- StableSwap Pools (3 pairs, route automatically):
+  • USDC/EURC pool (main)
+  • USDC/USDT pool
+  • EURC/USDT pool
+- Vaults (ERC-4626, auto-compounding):
+  • luneUSDC vault — deposit/withdraw USDC
+  • luneEURC vault — deposit/withdraw EURC
+  • luneUSDT vault — deposit/withdraw USDT
+- CCTP Bridge: burn-and-mint USDC/EURC cross-chain — Ethereum, Base, Avalanche, Arbitrum, Polygon ↔ Arc (~2-5 min attestation)
+- Send: on-chain ERC-20 transfer to any 0x address
 
-## Actions (call execute_action tool to perform any of these)
-- swap: { fromToken, toToken, amount }
-- add_liquidity: { usdcAmount, eurcAmount } - set "0" if not depositing that side
+## Actions (ALWAYS call execute_action for anything the user wants to do)
+- swap: { fromToken: "USDC"|"EURC"|"USDT", toToken: "USDC"|"EURC"|"USDT", amount }
+- add_liquidity: { usdcAmount, eurcAmount } — set "0" for any side not deposited
 - remove_liquidity: { mode: "both"|"usdc"|"eurc", percent: 1-100 }
-- vault_deposit: { token: "USDC"|"EURC", amount }
-- vault_withdraw: { token: "USDC"|"EURC" }
-- send: { token: "USDC"|"EURC", to: "0x...", amount }
-- bridge: { token, fromChain, toChain, amount }
+- vault_deposit: { token: "USDC"|"EURC"|"USDT", amount }
+- vault_withdraw: { token: "USDC"|"EURC"|"USDT" }
+- send: { token: "USDC"|"EURC"|"USDT", to: "0x...", amount }
+- bridge: { token: "USDC"|"EURC", fromChain, toChain, amount }
 - evaluate: {}
 - start_agent: {}
 - stop_agent: {}
+- set_threshold: { percent: number } — update rebalance threshold (0.5–5%)
 
 ## Amount conventions
-"all"/"everything"/"max" → "all" | "half" → "half" | "50%" → "50%" | number → "100"
+"all"/"everything"/"max" → "all" | "half" → "half" | "50%" → "50%" | plain number → e.g. "100"
 
-## Rules
-- Call execute_action for anything the user wants to DO. For questions, just respond with text.
-- response_text: 1-3 concise sentences. Use **bold** for token names and key amounts.
-- Never invent numbers - use only the portfolio context below.
-- Ask for clarification (no tool call) when amount or recipient is missing.
-- Mention 2-5 min attestation wait for bridge ops.`;
+## Critical rules
+1. ALWAYS call execute_action when the user wants to swap, send, bridge, deposit, withdraw, add/remove liquidity, or earn. Never just describe — act.
+2. For pure questions (what is X, how does Y work, what's my balance) — respond with text only, no tool call.
+3. Keep response_text to 1-3 sentences. Bold token names and amounts.
+4. Never invent numbers — use only the live portfolio context.
+5. If amount is ambiguous, ask once then act. If recipient address is missing for send, ask.
+6. Pool routing is automatic — just specify fromToken and toToken.`;
 
   const EXECUTE_TOOL = {
     name: "execute_action",
@@ -47,7 +54,7 @@ function autopilotDevPlugin(): Plugin {
     input_schema: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["swap","add_liquidity","remove_liquidity","vault_deposit","vault_withdraw","send","bridge","evaluate","start_agent","stop_agent"] },
+        action: { type: "string", enum: ["swap","add_liquidity","remove_liquidity","vault_deposit","vault_withdraw","send","bridge","evaluate","start_agent","stop_agent","set_threshold"] },
         params: { type: "object" },
         response_text: { type: "string", description: "What to tell the user while the tx executes" },
       },
@@ -87,11 +94,12 @@ function autopilotDevPlugin(): Plugin {
           const spread = (Number(ctx.vaultUsdcApy) || 0) - (Number(ctx.poolApr) || 0);
           const contextBlock = [
             "## Portfolio (live)",
-            `Wallet: ${Number(ctx.usdcBalance || 0).toFixed(4)} USDC · ${Number(ctx.eurcBalance || 0).toFixed(4)} EURC`,
+            `Wallet: ${Number(ctx.usdcBalance || 0).toFixed(4)} USDC · ${Number(ctx.eurcBalance || 0).toFixed(4)} EURC · ${Number(ctx.usdtBalance || 0).toFixed(4)} USDT`,
             `Pool LP: ${Number(ctx.lpBalance || 0).toFixed(4)} LP - ~${Number(ctx.poolApr || 0).toFixed(2)}% APR`,
             `luneUSDC vault: ${Number(ctx.vaultUsdcDeposited || 0).toFixed(4)} USDC - ~${Number(ctx.vaultUsdcApy || 0).toFixed(2)}% APY`,
             `luneEURC vault: ${Number(ctx.vaultEurcDeposited || 0).toFixed(4)} EURC - ~${Number(ctx.vaultEurcApy || 0).toFixed(2)}% APY`,
-            `Yield spread: ${spread >= 0 ? "+" : ""}${spread.toFixed(2)}%`,
+            `luneUSDT vault: ${Number(ctx.vaultUsdtDeposited || 0).toFixed(4)} USDT - ~${Number(ctx.vaultUsdtApy || 0).toFixed(2)}% APY`,
+            `Yield spread (vault vs pool): ${spread >= 0 ? "+" : ""}${spread.toFixed(2)}%`,
             `Autonomous mode: ${ctx.agentActive ? "ON" : "OFF"}`,
           ].join("\n");
 

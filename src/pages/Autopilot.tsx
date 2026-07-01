@@ -67,6 +67,7 @@ function formatUptime(startedAt: number | null) {
 }
 
 function LogEntry({ entry }: { entry: AgentLogEntry }) {
+  const spread = Math.abs(entry.vaultApy - entry.poolApr);
   return (
     <div className="flex gap-3 py-3 border-b border-border/40 last:border-0">
       <div className="mt-0.5 shrink-0">{decisionIcon(entry.decision)}</div>
@@ -74,16 +75,19 @@ function LogEntry({ entry }: { entry: AgentLogEntry }) {
         <div className="flex items-center gap-2 mb-1">
           <span className={cn("text-[10px] font-black tracking-widest uppercase", decisionColor(entry.decision))}>{decisionLabel(entry.decision)}</span>
           {entry.executed
-            ? <span className="flex items-center gap-1 text-[9px] text-emerald-400 font-semibold"><CheckCircle className="h-2.5 w-2.5" />EXECUTED</span>
-            : entry.decision !== "hold" && <span className="flex items-center gap-1 text-[9px] text-muted-foreground"><Clock className="h-2.5 w-2.5" />LOGGED</span>}
+            ? <span className="flex items-center gap-1 text-[9px] text-emerald-400 font-semibold"><CheckCircle className="h-2.5 w-2.5" />TX SENT</span>
+            : entry.decision !== "hold"
+              ? <span className="flex items-center gap-1 text-[9px] text-amber-400 font-semibold"><Clock className="h-2.5 w-2.5" />PENDING</span>
+              : <span className="text-[9px] text-muted-foreground/60 font-semibold">HOLD</span>}
           <span className="ml-auto text-[9px] text-muted-foreground font-mono">{new Date(entry.timestamp).toLocaleTimeString()}</span>
         </div>
-        <p className="text-[11px] text-muted-foreground leading-relaxed">{entry.reasoning}</p>
-        <div className="flex gap-3 mt-1.5 text-[9px] font-mono text-muted-foreground/70">
-          <span>Pool {entry.poolApr.toFixed(2)}%</span>
-          <span>Vault {entry.vaultApy.toFixed(2)}%</span>
+        <p className="text-[11px] text-foreground/80 leading-relaxed">{entry.reasoning}</p>
+        <div className="flex items-center gap-3 mt-1.5 text-[9px] font-mono">
+          <span className="text-blue-400">Pool {entry.poolApr.toFixed(2)}%</span>
+          <span className="text-emerald-400">Vault {entry.vaultApy.toFixed(2)}%</span>
+          <span className="text-muted-foreground/60">Δ {spread.toFixed(2)}%</span>
           {entry.txHash && entry.txHash !== "0x" && (
-            <a href={`https://testnet.arcscan.app/tx/${entry.txHash}`} target="_blank" rel="noopener noreferrer" className="text-primary underline-offset-2 hover:underline">view tx ↗</a>
+            <a href={`https://testnet.arcscan.app/tx/${entry.txHash}`} target="_blank" rel="noopener noreferrer" className="text-primary underline-offset-2 hover:underline ml-auto">view tx ↗</a>
           )}
         </div>
       </div>
@@ -204,18 +208,20 @@ function UserMessage({ msg }: { msg: ChatMessage }) {
 // ── Quick-start chips ─────────────────────────────────────────────────────────
 
 const CHIPS = [
-  { label: "What's my portfolio?", icon: <LayoutDashboard className="h-3 w-3" /> },
-  { label: "Swap 10 USDC to EURC", icon: <ArrowLeftRight className="h-3 w-3" /> },
-  { label: "Add 10 USDC to pool", icon: <Droplets className="h-3 w-3" /> },
-  { label: "Deposit 10 USDC to vault", icon: <Sprout className="h-3 w-3" /> },
-  { label: "Remove all liquidity", icon: <ArrowDownToLine className="h-3 w-3" /> },
-  { label: "Bridge 5 USDC to Base", icon: <Link2 className="h-3 w-3" /> },
+  { label: "What's my portfolio?",       icon: <LayoutDashboard className="h-3 w-3" /> },
+  { label: "Swap 10 USDC to EURC",       icon: <ArrowLeftRight className="h-3 w-3" /> },
+  { label: "Swap 10 USDC to USDT",       icon: <ArrowLeftRight className="h-3 w-3" /> },
+  { label: "Bridge 5 USDC to Base",      icon: <Link2 className="h-3 w-3" /> },
+  { label: "Deposit 10 USDC to vault",   icon: <Sprout className="h-3 w-3" /> },
+  { label: "Deposit 10 USDT to vault",   icon: <Sprout className="h-3 w-3" /> },
+  { label: "Add 10 USDC to pool",        icon: <Droplets className="h-3 w-3" /> },
+  { label: "Remove all liquidity",       icon: <ArrowDownToLine className="h-3 w-3" /> },
 ];
 
 const WELCOME: ChatMessage = {
   id: "welcome",
   role: "agent",
-  content: `Hi! I'm **Lunex AI** - your autonomous DeFi agent. I can execute any action on the protocol directly from this chat. What would you like to do?`,
+  content: `I'm **Lunex AI**. Swap, bridge, send, deposit to vaults, manage liquidity — just tell me what you need.`,
   timestamp: Date.now(),
 };
 
@@ -315,9 +321,9 @@ export default function Autopilot() {
     try {
       switch (action) {
         case "swap": {
-          const from = (params.fromToken as "USDC" | "EURC") ?? "USDC";
-          const to = (params.toToken as "USDC" | "EURC") ?? (from === "USDC" ? "EURC" : "USDC");
-          const balRaw = from === "USDC" ? ctx.usdcBalanceRaw : ctx.eurcBalanceRaw;
+          const from = (params.fromToken as "USDC" | "EURC" | "USDT") ?? "USDC";
+          const to   = (params.toToken   as "USDC" | "EURC" | "USDT") ?? (from === "USDC" ? "EURC" : "USDC");
+          const balRaw = from === "USDC" ? ctx.usdcBalanceRaw : from === "EURC" ? ctx.eurcBalanceRaw : ctx.usdtBalanceRaw;
           const raw = resolveAmount(params.amount as string, balRaw);
           result = await full.performSwap(from, to, formatUnits(raw, 6));
           break;
@@ -337,22 +343,22 @@ export default function Autopilot() {
           break;
         }
         case "vault_deposit": {
-          const token = (params.token as "USDC" | "EURC") ?? "USDC";
-          const balRaw = token === "USDC" ? ctx.usdcBalanceRaw : ctx.eurcBalanceRaw;
-          const raw = resolveAmount(params.amount as string, balRaw);
+          const token  = (params.token as "USDC" | "EURC" | "USDT") ?? "USDC";
+          const balRaw = token === "USDC" ? ctx.usdcBalanceRaw : token === "EURC" ? ctx.eurcBalanceRaw : ctx.usdtBalanceRaw;
+          const raw    = resolveAmount(params.amount as string, balRaw);
           result = await full.vaultDeposit(token, raw);
           break;
         }
         case "vault_withdraw": {
-          const token = (params.token as "USDC" | "EURC") ?? "USDC";
-          const shares = token === "USDC" ? ctx.vaultUsdcSharesRaw : ctx.vaultEurcSharesRaw;
+          const token  = (params.token as "USDC" | "EURC" | "USDT") ?? "USDC";
+          const shares = token === "USDC" ? ctx.vaultUsdcSharesRaw : token === "EURC" ? ctx.vaultEurcSharesRaw : ctx.vaultUsdtSharesRaw;
           result = await full.vaultWithdraw(token, shares);
           break;
         }
         case "send": {
-          const token = (params.token as "USDC" | "EURC") ?? "USDC";
-          const balRaw = token === "USDC" ? ctx.usdcBalanceRaw : ctx.eurcBalanceRaw;
-          const raw = resolveAmount(params.amount as string, balRaw);
+          const token  = (params.token as "USDC" | "EURC" | "USDT") ?? "USDC";
+          const balRaw = token === "USDC" ? ctx.usdcBalanceRaw : token === "EURC" ? ctx.eurcBalanceRaw : ctx.usdtBalanceRaw;
+          const raw    = resolveAmount(params.amount as string, balRaw);
           result = await full.send(token, String(params.to ?? ""), formatUnits(raw, 6));
           break;
         }
@@ -360,7 +366,7 @@ export default function Autopilot() {
           result = await full.startBridge(
             String(params.amount ?? "0"),
             (params.fromChain as string) ?? "arc",
-            (params.toChain as string) ?? "ethereum",
+            (params.toChain   as string) ?? "ethereum",
             (params.token as "USDC" | "EURC") ?? "USDC",
           );
           break;
@@ -377,10 +383,18 @@ export default function Autopilot() {
         }
         case "start_agent":
           agent.updateConfig({ active: true });
+          addMessage("Autonomous mode **enabled**. I'll evaluate the pool/vault spread every 30 seconds.");
           return;
         case "stop_agent":
           agent.updateConfig({ active: false });
+          addMessage("Autonomous mode **stopped**.");
           return;
+        case "set_threshold": {
+          const pct = Math.min(5, Math.max(0.5, Number(params.percent ?? params.pct ?? 1.5)));
+          agent.updateConfig({ thresholdPct: pct });
+          addMessage(`Rebalance threshold set to **${pct.toFixed(1)}%**. I'll only move funds when the spread exceeds this.`);
+          return;
+        }
         default:
           return;
       }
@@ -422,17 +436,20 @@ export default function Autopilot() {
     const getCtx = () => {
       const rawCtx = full.getContext();
       return {
-        usdcBalance: rawCtx.usdcBalance,
-        eurcBalance: rawCtx.eurcBalance,
-        lpBalance: rawCtx.lpBalance,
+        usdcBalance:        rawCtx.usdcBalance,
+        eurcBalance:        rawCtx.eurcBalance,
+        usdtBalance:        rawCtx.usdtBalance,
+        lpBalance:          rawCtx.lpBalance,
         vaultUsdcDeposited: rawCtx.vaultUsdcDeposited,
         vaultEurcDeposited: rawCtx.vaultEurcDeposited,
-        poolApr: rawCtx.poolApr,
-        vaultUsdcApy: rawCtx.vaultUsdcApy,
-        vaultEurcApy: rawCtx.vaultEurcApy,
-        totalLiquidity: rawCtx.totalLiquidity,
-        bridgeStatus: rawCtx.bridgeStatus,
-        agentActive: agent.config.active,
+        vaultUsdtDeposited: rawCtx.vaultUsdtDeposited,
+        poolApr:            rawCtx.poolApr,
+        vaultUsdcApy:       rawCtx.vaultUsdcApy,
+        vaultEurcApy:       rawCtx.vaultEurcApy,
+        vaultUsdtApy:       rawCtx.vaultUsdtApy,
+        totalLiquidity:     rawCtx.totalLiquidity,
+        bridgeStatus:       rawCtx.bridgeStatus,
+        agentActive:        agent.config.active,
       };
     };
 
@@ -524,10 +541,11 @@ export default function Autopilot() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Badge variant="outline" className={cn("text-[10px] font-black uppercase tracking-widest px-3 py-1",
-                agent.config.active ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "text-muted-foreground")}>
-                {agent.config.active ? "● ACTIVE" : "○ PAUSED"}
-              </Badge>
+              {agent.config.active && (
+                <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest px-3 py-1 bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                  ● ACTIVE
+                </Badge>
+              )}
               <div className="flex rounded-lg border border-border overflow-hidden">
                 {(["chat", "dashboard"] as Tab[]).map((tab) => (
                   <button key={tab} onClick={() => setActiveTab(tab)}
@@ -645,9 +663,11 @@ export default function Autopilot() {
               {[
                 ["USDC", ctx.usdcBalance.toFixed(4)],
                 ["EURC", ctx.eurcBalance.toFixed(4)],
+                ["USDT", ctx.usdtBalance.toFixed(4)],
                 ["Pool LP", ctx.lpBalance.toFixed(4)],
                 ["Vault USDC", ctx.vaultUsdcDeposited.toFixed(4)],
                 ["Vault EURC", ctx.vaultEurcDeposited.toFixed(4)],
+                ["Vault USDT", ctx.vaultUsdtDeposited.toFixed(4)],
               ].map(([l, v]) => (
                 <div key={l} className="flex justify-between">
                   <span className="text-[11px] text-muted-foreground">{l}</span>
@@ -695,23 +715,23 @@ export default function Autopilot() {
                 {/* Yield comparison */}
                 <div className="border border-border bg-card rounded-sm p-5">
                   <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground mb-4">Live Yield Comparison</p>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="border border-border bg-muted/10 p-4">
-                      <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Pool APR</p>
-                      <p className="text-2xl font-black font-mono text-blue-400">{agent.poolApr.toFixed(2)}%</p>
-                      <p className="text-[9px] text-muted-foreground mt-1">USDC/EURC swap fees</p>
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    <div className="border border-border bg-muted/10 p-2.5 sm:p-3">
+                      <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Pool APR</p>
+                      <p className="text-base sm:text-xl font-black font-mono text-blue-400">{agent.poolApr.toFixed(2)}%</p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5 hidden sm:block">USDC/EURC fees</p>
                     </div>
-                    <div className="border border-border bg-muted/10 p-4">
-                      <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Vault APY</p>
-                      <p className="text-2xl font-black font-mono text-emerald-400">{agent.vaultApy.toFixed(2)}%</p>
-                      <p className="text-[9px] text-muted-foreground mt-1">luneUSDC auto-compound</p>
+                    <div className="border border-border bg-muted/10 p-2.5 sm:p-3">
+                      <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Vault APY</p>
+                      <p className="text-base sm:text-xl font-black font-mono text-emerald-400">{agent.vaultApy.toFixed(2)}%</p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5 hidden sm:block">luneUSDC</p>
                     </div>
-                    <div className={cn("border p-4", spreadAboveThreshold ? "border-primary/40 bg-primary/5" : "border-border bg-muted/10")}>
-                      <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Spread</p>
-                      <p className={cn("text-2xl font-black font-mono", spread > 0 ? "text-emerald-400" : spread < 0 ? "text-blue-400" : "text-foreground")}>
+                    <div className={cn("border p-2.5 sm:p-3", spreadAboveThreshold ? "border-primary/40 bg-primary/5" : "border-border bg-muted/10")}>
+                      <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Spread</p>
+                      <p className={cn("text-base sm:text-xl font-black font-mono", spread > 0 ? "text-emerald-400" : spread < 0 ? "text-blue-400" : "text-foreground")}>
                         {spread >= 0 ? "+" : ""}{spread.toFixed(2)}%
                       </p>
-                      <p className="text-[9px] text-muted-foreground mt-1">{spreadAboveThreshold ? "⚡ Threshold met" : `Need >${agent.config.thresholdPct}%`}</p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">{spreadAboveThreshold ? "⚡ Active" : `>${agent.config.thresholdPct}%`}</p>
                     </div>
                   </div>
                 </div>
@@ -719,16 +739,16 @@ export default function Autopilot() {
                 {/* Positions */}
                 <div className="border border-border bg-card rounded-sm p-5">
                   <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground mb-4">Managed Positions</p>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
                     {[
                       { l: "Pool LP", v: agent.pool.lpBalance.toFixed(4), s: "LP tokens" },
-                      { l: "Vault USDC", v: agent.vault.userDeposited.toFixed(4), s: "in luneUSDC" },
+                      { l: "Vault USDC", v: agent.vault.userDeposited.toFixed(4), s: "luneUSDC" },
                       { l: "Wallet USDC", v: agent.walletUsdc.toFixed(4), s: "undeployed" },
                     ].map(({ l, v, s }) => (
-                      <div key={l} className="border border-border bg-muted/10 p-4">
-                        <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">{l}</p>
-                        <p className="font-black font-mono text-lg">{v}</p>
-                        <p className="text-[9px] text-muted-foreground mt-1">{s}</p>
+                      <div key={l} className="border border-border bg-muted/10 p-2.5 sm:p-3">
+                        <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">{l}</p>
+                        <p className="font-black font-mono text-sm sm:text-base truncate">{v}</p>
+                        <p className="text-[9px] text-muted-foreground mt-0.5 hidden sm:block">{s}</p>
                       </div>
                     ))}
                   </div>
@@ -741,9 +761,12 @@ export default function Autopilot() {
                     <button onClick={agent.clearLog} className="text-muted-foreground hover:text-foreground transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
                   </div>
                   <div className="max-h-[420px] overflow-y-auto px-5">
-                    {agent.log.length === 0
-                      ? <p className="py-10 text-xs text-muted-foreground text-center">No decisions yet - switch to Chat and say "evaluate".</p>
-                      : agent.log.map((e) => <LogEntry key={e.id} entry={e} />)}
+                    {agent.log.length === 0 ? (
+                      <div className="py-10 flex flex-col items-center gap-3">
+                        <p className="text-xs text-muted-foreground text-center">No evaluations yet.</p>
+                        <p className="text-[10px] text-muted-foreground/60 text-center">Enable autonomous mode or click Evaluate Now to start.</p>
+                      </div>
+                    ) : agent.log.map((e) => <LogEntry key={e.id} entry={e} />)}
                   </div>
                 </div>
               </div>
@@ -784,7 +807,7 @@ export default function Autopilot() {
                   <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">Status</p>
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { l: "State", v: agent.config.active ? "RUNNING" : "STOPPED", c: agent.config.active ? "text-emerald-400" : "text-muted-foreground" },
+                      { l: "State", v: agent.config.active ? "RUNNING" : "STANDBY", c: agent.config.active ? "text-emerald-400" : "text-muted-foreground" },
                       { l: "Uptime", v: formatUptime(agent.startedAt), c: "text-foreground" },
                       { l: "Decisions", v: String(agent.log.length), c: "text-foreground" },
                       { l: "Executions", v: String(agent.log.filter((l) => l.executed).length), c: "text-foreground" },
