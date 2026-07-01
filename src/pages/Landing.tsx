@@ -439,16 +439,56 @@ function EarnVisual({ tvl }: { tvl: number }) {
   );
 }
 
+// ── Chain logos ──────────────────────────────────────────────────────────────
+
+function ChainLogo({ chain }: { chain: string }) {
+  if (chain === "ETH") return (
+    <svg viewBox="0 0 32 32" className="h-5 w-5 shrink-0">
+      <path fill="#627EEA" d="M16 2 5 17 16 13z" opacity=".6"/>
+      <path fill="#627EEA" d="M16 2 27 17 16 13z"/>
+      <path fill="#627EEA" d="M5 17 16 23 27 17 16 13z" opacity=".2"/>
+      <path fill="#627EEA" d="M5 17 16 13l0 10z" opacity=".6"/>
+      <path fill="#627EEA" d="M16 24.5 5 19 16 30z" opacity=".6"/>
+      <path fill="#627EEA" d="M16 24.5 27 19 16 30z"/>
+    </svg>
+  );
+  if (chain === "ARB") return (
+    <svg viewBox="0 0 32 32" className="h-5 w-5 shrink-0">
+      <circle cx="16" cy="16" r="16" fill="#213147"/>
+      <path fill="#28A0F0" d="M14.6 6.5 8 18.5l2.4 4L16 13l5.6 9.5 2.4-4L17.4 6.5c-.4-.7-1.2-1.1-2-.9-.6.2-1.3.5-1.7.9z"/>
+      <path fill="#96BEDC" d="M18 23l-2-3.5-2 3.5H10.3L16 32l5.7-9H18z"/>
+    </svg>
+  );
+  if (chain === "BASE") return (
+    <svg viewBox="0 0 32 32" className="h-5 w-5 shrink-0">
+      <circle cx="16" cy="16" r="16" fill="#0052FF"/>
+      <path fill="white" d="M16.1 25c4.9 0 8.8-4 8.8-8.9S21 7.2 16.1 7.2c-4.6 0-8.4 3.6-8.8 8.1h11.5v1.6H7.3c.4 4.5 4.2 8.1 8.8 8.1z"/>
+    </svg>
+  );
+  if (chain === "OP") return (
+    <svg viewBox="0 0 32 32" className="h-5 w-5 shrink-0">
+      <circle cx="16" cy="16" r="16" fill="#FF0420"/>
+      <path fill="white" d="M10.2 13.2c0-1.5.9-2.4 2.4-2.4h1.3c1.5 0 2.4.9 2.4 2.4v.5h-2v-.5c0-.4-.2-.6-.5-.6h-1.1c-.3 0-.5.2-.5.6v5.6c0 .4.2.6.5.6H14c.3 0 .5-.2.5-.6v-.5h2v.5c0 1.5-.9 2.4-2.4 2.4h-1.5c-1.5 0-2.4-.9-2.4-2.4v-5.6zm8 0c0-1.5.9-2.4 2.4-2.4h1.3c1.5 0 2.4.9 2.4 2.4v5.6c0 1.5-.9 2.4-2.4 2.4h-1.3c-1.5 0-2.4-.9-2.4-2.4v-5.6zm2 5.6c0 .4.2.6.5.6h1.1c.3 0 .5-.2.5-.6v-5.6c0-.4-.2-.6-.5-.6h-1.1c-.3 0-.5.2-.5.6v5.6z"/>
+    </svg>
+  );
+  if (chain === "AVAX") return (
+    <svg viewBox="0 0 32 32" className="h-5 w-5 shrink-0">
+      <circle cx="16" cy="16" r="16" fill="#E84142"/>
+      <path fill="white" d="M21.8 21.5h-3.5l-2.3-4-2.3 4H10.2l4.3-7.5-1.5-2.5L7 21.5H4.5L13 7h2.5l1.5 2.6 1.5-2.6H21L28 21.5h-2.5l-4.3-7.5-1.5 2.5 4.1 7z"/>
+    </svg>
+  );
+  if (chain === "MATIC") return (
+    <svg viewBox="0 0 32 32" className="h-5 w-5 shrink-0">
+      <circle cx="16" cy="16" r="16" fill="#8247E5"/>
+      <path fill="white" d="M20.5 13.3l-1.6-.9-3.3-1.9-3.3 1.9-1.6.9v3.8l1.6.9 3.3 1.9 3.3-1.9 1.6-.9v-1.9l-3.3 1.9-3.3-1.9v-1.9l3.3-1.9 3.3 1.9v1.9l1.6-.9v-1.9z"/>
+    </svg>
+  );
+  return <div className="h-5 w-5 rounded-full bg-muted shrink-0" />;
+}
+
 // ── Bridge network visual ────────────────────────────────────────────────────
 
-const CHAINS = [
-  { short: "ETH",  color: "#627EEA" },
-  { short: "ARB",  color: "#28A0F0" },
-  { short: "BASE", color: "#0052FF" },
-  { short: "OP",   color: "#FF0420" },
-  { short: "AVAX", color: "#E84142" },
-  { short: "MATIC",color: "#8247E5" },
-];
+const CHAINS = ["ETH", "ARB", "BASE", "OP", "AVAX", "MATIC"];
 
 function BridgeNetworkVisual() {
   return (
@@ -456,16 +496,16 @@ function BridgeNetworkVisual() {
       <div className="relative w-full max-w-[400px]">
         <div className="grid grid-cols-3 gap-3 items-center">
           <div className="flex flex-col gap-3">
-            {CHAINS.slice(0, 3).map((c, i) => (
+            {CHAINS.slice(0, 3).map((chain, i) => (
               <motion.div
-                key={c.short}
+                key={chain}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 + i * 0.08, duration: 0.5, ease: EASE }}
                 className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2.5"
               >
-                <div className="h-2 w-2 rounded-full shrink-0" style={{ background: c.color }} />
-                <span className="text-xs font-bold text-foreground">{c.short}</span>
+                <ChainLogo chain={chain} />
+                <span className="text-xs font-bold text-foreground">{chain}</span>
                 <motion.div
                   animate={{ opacity: [0.3, 1, 0.3] }}
                   transition={{ duration: 2, repeat: Infinity, delay: i * 0.3, ease: "easeInOut" }}
@@ -488,9 +528,9 @@ function BridgeNetworkVisual() {
           </div>
 
           <div className="flex flex-col gap-3">
-            {CHAINS.slice(3).map((c, i) => (
+            {CHAINS.slice(3).map((chain, i) => (
               <motion.div
-                key={c.short}
+                key={chain}
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 + i * 0.08, duration: 0.5, ease: EASE }}
@@ -501,8 +541,8 @@ function BridgeNetworkVisual() {
                   transition={{ duration: 2, repeat: Infinity, delay: 0.5 + i * 0.3, ease: "easeInOut" }}
                   className="h-1.5 w-1.5 rounded-full bg-primary"
                 />
-                <span className="text-xs font-bold text-foreground">{c.short}</span>
-                <div className="h-2 w-2 rounded-full ml-auto shrink-0" style={{ background: c.color }} />
+                <span className="text-xs font-bold text-foreground">{chain}</span>
+                <ChainLogo chain={chain} />
               </motion.div>
             ))}
           </div>

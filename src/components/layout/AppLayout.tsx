@@ -23,17 +23,19 @@ import lunexLogo from "@/assets/lunex-logo.png";
 
 const NAV = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/swap", icon: Repeat, label: "Swap" },
-  { to: "/pool", icon: Droplets, label: "Pool" },
-  { to: "/yield", icon: Sprout, label: "Yield" },
-  { to: "/bridge", icon: ArrowLeftRight, label: "Bridge" },
-  { to: "/send", icon: Send, label: "Send" },
-  { to: "/faucet", icon: Droplets, label: "Faucet" },
-  { to: "/points", icon: Crown, label: "Points" },
-  { to: "/autopilot", icon: Bot, label: "Lunex AI" },
-  // { to: "/agent-network", icon: CalendarClock, label: "Recurring" },
-  // Public analytics dashboard is route-only (/analytics), intentionally not in the nav.
-  { to: "/docs", icon: BookOpen, label: "Docs" },
+  { to: "/swap",      icon: Repeat,          label: "Swap"      },
+  { to: "/yield",     icon: Sprout,          label: "Yield"     },
+  { to: "/pool",      icon: Droplets,        label: "Pool"      },
+  { to: "/autopilot", icon: Bot,             label: "Lunex AI"  },
+  { to: "/bridge",    icon: ArrowLeftRight,  label: "Bridge"    },
+  { to: "/faucet",    icon: Droplets,        label: "Faucet"    },
+  { to: "/send",      icon: Send,            label: "Send"      },
+  { to: "/docs",      icon: BookOpen,        label: "Docs"      },
+];
+
+// Non-navigable items shown in sidebar (coming soon / locked)
+const NAV_STATIC = [
+  { icon: Crown, label: "Points", hint: "Coming soon" },
 ];
 
 const PATH_LABELS: Record<string, string> = {
@@ -117,6 +119,24 @@ function Sidebar({
               </>
             )}
           </NavLink>
+        ))}
+        {NAV_STATIC.map(({ icon: Icon, label, hint }) => (
+          <div
+            key={label}
+            title={hint}
+            className={cn(
+              "flex items-center gap-3 rounded-lg py-2.5 text-muted-foreground/40 cursor-default select-none",
+              collapsed ? "justify-center px-0" : "px-3",
+            )}
+          >
+            <Icon size={19} strokeWidth={2} className="shrink-0" />
+            {!collapsed && (
+              <span className="flex-1 text-sm font-medium">{label}</span>
+            )}
+            {!collapsed && (
+              <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/30">Soon</span>
+            )}
+          </div>
         ))}
       </nav>
     </aside>
