@@ -10,14 +10,14 @@ interface TradingViewChartProps {
 function getTVSymbol(from: string, to: string): string {
   const pair = `${from}-${to}`.toUpperCase();
   const map: Record<string, string> = {
-    "EURC-USDC": "KRAKEN:EURCUSD",
-    "USDC-EURC": "KRAKEN:EURCUSD",
-    "EURC-USDT": "KRAKEN:EURCUSD",
-    "USDT-EURC": "KRAKEN:EURCUSD",
+    "EURC-USDC": "BINANCE:EURCUSDT",
+    "USDC-EURC": "BINANCE:EURCUSDT",
+    "EURC-USDT": "BINANCE:EURCUSDT",
+    "USDT-EURC": "BINANCE:EURCUSDT",
     "USDC-USDT": "BINANCE:USDCUSDT",
     "USDT-USDC": "BINANCE:USDCUSDT",
   };
-  return map[pair] ?? "KRAKEN:EURCUSD";
+  return map[pair] ?? "BINANCE:EURCUSDT";
 }
 
 declare global {
