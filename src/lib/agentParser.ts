@@ -21,9 +21,9 @@ export interface ParsedIntent {
   action: ActionKind;
   amount?: string;       // primary amount string ("100", "all", "half", "50%")
   amount2?: string;      // secondary (e.g. EURC side when adding both)
-  fromToken?: "USDC" | "EURC";
-  toToken?: "USDC" | "EURC";
-  vaultToken?: "USDC" | "EURC";
+  fromToken?: "USDC" | "EURC" | "USDT";
+  toToken?: "USDC" | "EURC" | "USDT";
+  vaultToken?: "USDC" | "EURC" | "USDT";
   fromChain?: BridgeChainKey;
   toChain?: BridgeChainKey;
   recipient?: string;
@@ -51,18 +51,18 @@ function extractAllAmounts(s: string): string[] {
   return matches.map((m) => m[1].replace(/,/g, ""));
 }
 
-function extractToken(s: string): "USDC" | "EURC" | undefined {
+function extractToken(s: string): "USDC" | "EURC" | "USDT" | undefined {
   if (/\beurc\b|\beuro\b|\beur\b/.test(s)) return "EURC";
+  if (/\busdt\b|\btether\b/.test(s)) return "USDT";
   if (/\busdc\b|\bdollar\b/.test(s)) return "USDC";
   return undefined;
 }
 
-function extractTokenPair(s: string): ["USDC" | "EURC" | undefined, "USDC" | "EURC" | undefined] {
-  // Look for "USDC to EURC", "EURC for USDC", etc.
-  const forMatch = s.match(/\b(usdc|eurc)\b.*?\b(?:to|for|→|->|into)\b.*?\b(usdc|eurc)\b/i);
+function extractTokenPair(s: string): ["USDC" | "EURC" | "USDT" | undefined, "USDC" | "EURC" | "USDT" | undefined] {
+  const forMatch = s.match(/\b(usdc|eurc|usdt)\b.*?\b(?:to|for|→|->|into)\b.*?\b(usdc|eurc|usdt)\b/i);
   if (forMatch) {
-    const a = forMatch[1].toUpperCase() as "USDC" | "EURC";
-    const b = forMatch[2].toUpperCase() as "USDC" | "EURC";
+    const a = forMatch[1].toUpperCase() as "USDC" | "EURC" | "USDT";
+    const b = forMatch[2].toUpperCase() as "USDC" | "EURC" | "USDT";
     return [a, b];
   }
   return [extractToken(s), undefined];

@@ -47,21 +47,6 @@ const YieldOverview = () => {
         <p className="text-muted-foreground text-sm font-mono mt-1">Institutional auto-compounding ERC-4626 standard strategies</p>
       </div>
 
-      {isConnected && (
-        <div className="flex items-center justify-between px-6 py-4 mb-8 bg-primary/10 border border-primary/30 rounded-sm">
-          <div className="flex items-center gap-3">
-             <Wallet className="h-4 w-4 text-primary" />
-             <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Global Unified Balance</span>
-          </div>
-          {globalBalanceLoading ? (
-            <Loader2 className="h-3 w-3 animate-spin text-primary" />
-          ) : (
-            <span className="font-mono text-sm font-bold text-primary">
-              {globalBalance} USDC
-            </span>
-          )}
-        </div>
-      )}
 
       {isConnected && (
          <div className="mb-12">

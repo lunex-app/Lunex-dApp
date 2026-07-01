@@ -13,7 +13,7 @@ import { useVaultData } from "./useVaultData";
 import { useTokenBalance } from "./useTokenBalance";
 import { estimatePoolApy, useDynamicApy } from "./useApy";
 import { stableSwapAbi, vaultAbi, erc20Abi } from "@/config/abis";
-import { CONTRACTS, TOKENS, TOKEN_INDEX, arcTestnet } from "@/config/wagmi";
+import { CONTRACTS, TOKENS, arcTestnet } from "@/config/wagmi";
 import { applySlippage } from "@/lib/slippage";
 import type { Write } from "@/lib/circleTx";
 import type { BridgeChainKey } from "@/features/bridge/config/bridgeConfig";
@@ -23,62 +23,90 @@ import type { BridgeChainKey } from "@/features/bridge/config/bridgeConfig";
 export interface ActionResult {
   ok: boolean;
   txHash?: string;
-  detail?: string;  // human-readable extra info (e.g. "swapped 100 USDC → 99.87 EURC")
+  detail?: string;
   error?: string;
+}
+
+export type TokenSymbol = "USDC" | "EURC" | "USDT";
+
+// ── Pool routing (mirrors useSwap.ts) ────────────────────────────────────────
+
+const POOL_ROUTES: [string, string, `0x${string}`][] = [
+  ["USDC", "EURC", CONTRACTS.LUNEX_SWAP_POOL],
+  ["USDC", "USDT", CONTRACTS.POOL_USDC_USDT],
+  ["EURC", "USDT", CONTRACTS.POOL_EURC_USDT],
+];
+
+function resolvePool(from: string, to: string): { pool: `0x${string}`; i: bigint; j: bigint } {
+  for (const [coin0, coin1, pool] of POOL_ROUTES) {
+    if ((from === coin0 && to === coin1) || (from === coin1 && to === coin0)) {
+      return { pool, i: from === coin0 ? 0n : 1n, j: to === coin0 ? 0n : 1n };
+    }
+  }
+  return { pool: CONTRACTS.LUNEX_SWAP_POOL, i: 0n, j: 1n };
+}
+
+function vaultAddr(token: TokenSymbol): `0x${string}` {
+  if (token === "EURC") return CONTRACTS.LUNE_VAULT_EURC;
+  if (token === "USDT") return CONTRACTS.LUNE_VAULT_USDT;
+  return CONTRACTS.LUNE_VAULT_USDC;
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useFullAgent() {
-  const { address, isConnected, signer } = useWallet();
+  const { address, isConnected, signer, circle, uc } = useWallet();
   const tx = useTx();
   const bridge = useBridge();
   const { send: sendToken, isPending: isSendPending } = useSendToken();
 
-  // ── Live position data ────────────────────────────────────────────────────
-  const pool = usePoolData();
+  const pool     = usePoolData();
   const vaultUsdc = useVaultData("USDC");
   const vaultEurc = useVaultData("EURC");
-  const usdcBalance = useTokenBalance("USDC");
-  const eurcBalance = useTokenBalance("EURC");
+  const vaultUsdt = useVaultData("USDT");
+  const usdcBal   = useTokenBalance("USDC");
+  const eurcBal   = useTokenBalance("EURC");
+  const usdtBal   = useTokenBalance("USDT");
 
-  // ── Yield metrics ─────────────────────────────────────────────────────────
-  const poolApr = estimatePoolApy(pool.totalLiquidity, pool.totalLiquidity * 0.3, pool.feePercent);
+  const poolApr      = estimatePoolApy(pool.totalLiquidity, pool.totalLiquidity * 0.3, pool.feePercent);
   const vaultUsdcApy = useDynamicApy("vault-USDC", vaultUsdc.sharePrice, 4.0);
   const vaultEurcApy = useDynamicApy("vault-EURC", vaultEurc.sharePrice, 4.0);
+  const vaultUsdtApy = useDynamicApy("vault-USDT", vaultUsdt.sharePrice, 4.0);
 
-  // Stable singleton - creating publicClient inside the hook body would make a new instance every render
   const publicClient = useRef(createPublicClient({ chain: arcTestnet, transport: http() })).current;
+
+  // ── Detect wallet kind for send ───────────────────────────────────────────
+
+  const sendKind = circle ? "passkey" : uc ? "email" : "eoa";
 
   // ── Swap ─────────────────────────────────────────────────────────────────
 
   const performSwap = useCallback(
-    async (fromSymbol: "USDC" | "EURC", toSymbol: "USDC" | "EURC", amount: string): Promise<ActionResult> => {
+    async (fromSymbol: TokenSymbol, toSymbol: TokenSymbol, amount: string): Promise<ActionResult> => {
       if (!address || !isConnected) return { ok: false, error: "Wallet not connected." };
       try {
         const fromToken = TOKENS[fromSymbol];
-        const toToken = TOKENS[toSymbol];
+        const toToken   = TOKENS[toSymbol];
         const parsedAmount = parseUnits(amount, fromToken.decimals);
-        const i = BigInt(TOKEN_INDEX[fromSymbol]);
-        const j = BigInt(TOKEN_INDEX[toSymbol]);
+        const { pool: poolAddress, i, j } = resolvePool(fromSymbol, toSymbol);
 
         const dyRaw = await publicClient.readContract({
-          address: CONTRACTS.LUNEX_SWAP_POOL, abi: stableSwapAbi,
+          address: poolAddress, abi: stableSwapAbi,
           functionName: "get_dy", args: [i, j, parsedAmount],
         }) as bigint;
 
-        if (!dyRaw || dyRaw <= 0n) return { ok: false, error: "No liquidity available for this swap." };
-        const minDy = applySlippage(dyRaw, 50n); // 0.5% slippage
+        if (!dyRaw || dyRaw <= 0n) return { ok: false, error: "No liquidity available for this pair." };
+        const minDy = applySlippage(dyRaw, 50n);
         const expectedOut = Number(formatUnits(dyRaw, toToken.decimals)).toFixed(4);
 
         const writes: Write[] = [
-          { address: fromToken.address, abi: erc20Abi, functionName: "approve", args: [CONTRACTS.LUNEX_SWAP_POOL, parsedAmount] },
-          { address: CONTRACTS.LUNEX_SWAP_POOL, abi: stableSwapAbi, functionName: "exchange", args: [i, j, parsedAmount, minDy] },
+          { address: fromToken.address, abi: erc20Abi, functionName: "approve", args: [poolAddress, parsedAmount] },
+          { address: poolAddress, abi: stableSwapAbi, functionName: "exchange", args: [i, j, parsedAmount, minDy] },
         ];
         const hash = await tx.execute(writes);
         return { ok: true, txHash: hash ?? undefined, detail: `Swapped ${amount} ${fromSymbol} → ${expectedOut} ${toSymbol}` };
-      } catch (e: any) {
-        return { ok: false, error: e?.message?.slice(0, 160) ?? "Swap failed." };
+      } catch (e: unknown) {
+        return { ok: false, error: (e as Error)?.message?.slice(0, 160) ?? "Swap failed." };
       }
     },
     [address, isConnected, tx, publicClient],
@@ -107,9 +135,9 @@ export function useFullAgent() {
 
         const hash = await tx.execute(writes);
         const parts = [usdcParsed > 0n && `${usdcAmount} USDC`, eurcParsed > 0n && `${eurcAmount} EURC`].filter(Boolean).join(" + ");
-        return { ok: true, txHash: hash ?? undefined, detail: `Added ${parts} to pool. Est. ${formatUnits(lpPreview, 18).slice(0, 8)} LP.` };
-      } catch (e: any) {
-        return { ok: false, error: e?.message?.slice(0, 160) ?? "Add liquidity failed." };
+        return { ok: true, txHash: hash ?? undefined, detail: `Added ${parts} to pool.` };
+      } catch (e: unknown) {
+        return { ok: false, error: (e as Error)?.message?.slice(0, 160) ?? "Add liquidity failed." };
       }
     },
     [address, isConnected, tx, publicClient],
@@ -143,8 +171,8 @@ export function useFullAgent() {
           ok: true, txHash: hash ?? undefined,
           detail: `Removed ${pct < 100 ? pct + "% of" : "all"} LP${mode !== "both" ? ` as ${mode.toUpperCase()}` : ""}.`,
         };
-      } catch (e: any) {
-        return { ok: false, error: e?.message?.slice(0, 160) ?? "Remove liquidity failed." };
+      } catch (e: unknown) {
+        return { ok: false, error: (e as Error)?.message?.slice(0, 160) ?? "Remove liquidity failed." };
       }
     },
     [address, isConnected, tx, pool.lpBalanceRaw],
@@ -153,20 +181,20 @@ export function useFullAgent() {
   // ── Vault Deposit ─────────────────────────────────────────────────────────
 
   const vaultDeposit = useCallback(
-    async (token: "USDC" | "EURC", rawAmount: bigint): Promise<ActionResult> => {
+    async (token: TokenSymbol, rawAmount: bigint): Promise<ActionResult> => {
       if (!address || !isConnected) return { ok: false, error: "Wallet not connected." };
       if (rawAmount <= 0n) return { ok: false, error: "No balance to deposit." };
       try {
         const t = TOKENS[token];
-        const vaultAddr = token === "USDC" ? CONTRACTS.LUNE_VAULT_USDC : CONTRACTS.LUNE_VAULT_EURC;
+        const vault = vaultAddr(token);
         const hash = await tx.execute([
-          { address: t.address, abi: erc20Abi, functionName: "approve", args: [vaultAddr, rawAmount] },
-          { address: vaultAddr, abi: vaultAbi, functionName: "deposit", args: [rawAmount, address] },
+          { address: t.address, abi: erc20Abi, functionName: "approve", args: [vault, rawAmount] },
+          { address: vault, abi: vaultAbi, functionName: "deposit", args: [rawAmount, address] },
         ]);
         const human = formatUnits(rawAmount, t.decimals);
-        return { ok: true, txHash: hash ?? undefined, detail: `Deposited ${parseFloat(human).toFixed(4)} ${token} into lune${token} vault.` };
-      } catch (e: any) {
-        return { ok: false, error: e?.message?.slice(0, 160) ?? "Vault deposit failed." };
+        return { ok: true, txHash: hash ?? undefined, detail: `Deposited ${parseFloat(human).toFixed(4)} ${token} into vault.` };
+      } catch (e: unknown) {
+        return { ok: false, error: (e as Error)?.message?.slice(0, 160) ?? "Vault deposit failed." };
       }
     },
     [address, isConnected, tx],
@@ -175,38 +203,38 @@ export function useFullAgent() {
   // ── Vault Withdraw ────────────────────────────────────────────────────────
 
   const vaultWithdraw = useCallback(
-    async (token: "USDC" | "EURC", sharesRaw?: bigint): Promise<ActionResult> => {
+    async (token: TokenSymbol, sharesRaw?: bigint): Promise<ActionResult> => {
       if (!address || !isConnected) return { ok: false, error: "Wallet not connected." };
       try {
-        const vaultData = token === "USDC" ? vaultUsdc : vaultEurc;
-        const vaultAddr = token === "USDC" ? CONTRACTS.LUNE_VAULT_USDC : CONTRACTS.LUNE_VAULT_EURC;
+        const vaultData = token === "USDC" ? vaultUsdc : token === "EURC" ? vaultEurc : vaultUsdt;
+        const vault = vaultAddr(token);
         const shares = sharesRaw ?? vaultData.userSharesRaw;
         if (!shares || shares <= 0n) return { ok: false, error: `No ${token} shares in vault.` };
         const hash = await tx.execute([
-          { address: vaultAddr, abi: vaultAbi, functionName: "redeem", args: [shares, address, address] },
+          { address: vault, abi: vaultAbi, functionName: "redeem", args: [shares, address, address] },
         ]);
         const redeemed = formatUnits(vaultData.userAssetsRaw, 6);
         return { ok: true, txHash: hash ?? undefined, detail: `Withdrew ~${parseFloat(redeemed).toFixed(4)} ${token} from vault.` };
-      } catch (e: any) {
-        return { ok: false, error: e?.message?.slice(0, 160) ?? "Vault withdrawal failed." };
+      } catch (e: unknown) {
+        return { ok: false, error: (e as Error)?.message?.slice(0, 160) ?? "Vault withdrawal failed." };
       }
     },
-    [address, isConnected, tx, vaultUsdc, vaultEurc],
+    [address, isConnected, tx, vaultUsdc, vaultEurc, vaultUsdt],
   );
 
   // ── Send Token ────────────────────────────────────────────────────────────
 
   const send = useCallback(
-    async (token: "USDC" | "EURC", toAddress: string, amount: string): Promise<ActionResult> => {
+    async (token: TokenSymbol, toAddress: string, amount: string): Promise<ActionResult> => {
       if (!address || !isConnected) return { ok: false, error: "Wallet not connected." };
       try {
-        const hash = await sendToken({ fromKind: "eoa", token, chainKey: "arc", to: toAddress, amount });
+        const hash = await sendToken({ fromKind: sendKind, token, chainKey: "arc", to: toAddress, amount });
         return { ok: true, txHash: hash ?? undefined, detail: `Sent ${amount} ${token} to ${toAddress.slice(0, 6)}…${toAddress.slice(-4)}.` };
-      } catch (e: any) {
-        return { ok: false, error: e?.message?.slice(0, 160) ?? "Send failed." };
+      } catch (e: unknown) {
+        return { ok: false, error: (e as Error)?.message?.slice(0, 160) ?? "Send failed." };
       }
     },
-    [address, isConnected, sendToken],
+    [address, isConnected, sendToken, sendKind],
   );
 
   // ── Bridge ────────────────────────────────────────────────────────────────
@@ -220,40 +248,44 @@ export function useFullAgent() {
           ok: true,
           detail: `Bridge initiated: ${amount} ${token} from ${fromChain.toUpperCase()} → ${toChain.toUpperCase()}. Approve each wallet prompt, then wait for Circle attestation (~2-5 min).`,
         };
-      } catch (e: any) {
-        return { ok: false, error: e?.message?.slice(0, 160) ?? "Bridge failed." };
+      } catch (e: unknown) {
+        return { ok: false, error: (e as Error)?.message?.slice(0, 160) ?? "Bridge failed." };
       }
     },
     [address, isConnected, bridge],
   );
 
-  // ── Context summary (for chat responses) ─────────────────────────────────
+  // ── Context summary ───────────────────────────────────────────────────────
 
   const getContext = useCallback(() => ({
-    usdcBalance: usdcBalance.balance ? parseFloat(usdcBalance.balance.formatted) : 0,
-    eurcBalance: eurcBalance.balance ? parseFloat(eurcBalance.balance.formatted) : 0,
-    usdcBalanceRaw: usdcBalance.balance?.value ?? 0n,
-    eurcBalanceRaw: eurcBalance.balance?.value ?? 0n,
-    lpBalance: pool.lpBalance,
-    lpBalanceRaw: pool.lpBalanceRaw,
-    vaultUsdcDeposited: vaultUsdc.userDeposited,
-    vaultUsdcSharesRaw: vaultUsdc.userSharesRaw,
-    vaultEurcDeposited: vaultEurc.userDeposited,
-    vaultEurcSharesRaw: vaultEurc.userSharesRaw,
+    usdcBalance:         usdcBal.balance ? parseFloat(usdcBal.balance.formatted) : 0,
+    eurcBalance:         eurcBal.balance ? parseFloat(eurcBal.balance.formatted) : 0,
+    usdtBalance:         usdtBal.balance ? parseFloat(usdtBal.balance.formatted) : 0,
+    usdcBalanceRaw:      usdcBal.balance?.value ?? 0n,
+    eurcBalanceRaw:      eurcBal.balance?.value ?? 0n,
+    usdtBalanceRaw:      usdtBal.balance?.value ?? 0n,
+    lpBalance:           pool.lpBalance,
+    lpBalanceRaw:        pool.lpBalanceRaw,
+    vaultUsdcDeposited:  vaultUsdc.userDeposited,
+    vaultUsdcSharesRaw:  vaultUsdc.userSharesRaw,
+    vaultEurcDeposited:  vaultEurc.userDeposited,
+    vaultEurcSharesRaw:  vaultEurc.userSharesRaw,
+    vaultUsdtDeposited:  vaultUsdt.userDeposited,
+    vaultUsdtSharesRaw:  vaultUsdt.userSharesRaw,
     poolApr,
     vaultUsdcApy,
     vaultEurcApy,
-    totalLiquidity: pool.totalLiquidity,
-    bridgeStatus: bridge.status,
-    bridgeError: bridge.error,
-    bridgeTx: bridge.bridgeTx,
-  }), [usdcBalance, eurcBalance, pool, vaultUsdc, vaultEurc, poolApr, vaultUsdcApy, vaultEurcApy, bridge]);
+    vaultUsdtApy,
+    totalLiquidity:      pool.totalLiquidity,
+    bridgeStatus:        bridge.status,
+    bridgeError:         bridge.error,
+    bridgeTx:            bridge.bridgeTx,
+  }), [usdcBal, eurcBal, usdtBal, pool, vaultUsdc, vaultEurc, vaultUsdt, poolApr, vaultUsdcApy, vaultEurcApy, vaultUsdtApy, bridge]);
 
   return {
-    // Data
-    pool, vaultUsdc, vaultEurc, usdcBalance, eurcBalance,
-    poolApr, vaultUsdcApy, vaultEurcApy,
-    // Actions
+    pool, vaultUsdc, vaultEurc, vaultUsdt,
+    usdcBalance: usdcBal, eurcBalance: eurcBal, usdtBalance: usdtBal,
+    poolApr, vaultUsdcApy, vaultEurcApy, vaultUsdtApy,
     performSwap,
     addLiquidity,
     removeLiquidity,
@@ -262,7 +294,6 @@ export function useFullAgent() {
     send,
     startBridge,
     getContext,
-    // Raw state
     tx,
     bridge,
     isBusy: tx.isPending || isSendPending || !["idle", "complete", "failed"].includes(bridge.status),

@@ -1,26 +1,28 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Fingerprint, LogOut, ChevronDown, Copy, Check, X, Mail, ArrowLeft, Loader2 } from "lucide-react";
+import { Fingerprint, LogOut, ChevronDown, Copy, Check, X, Mail, ArrowLeft, Loader2, Wallet } from "lucide-react";
 import { toast } from "sonner";
+import { useSignMessage } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/context/WalletProvider";
+import { useTokenBalances } from "@/hooks/useTokenBalance";
 import { humanizeError } from "@/lib/errors";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 
 function shortAddr(a?: string, head = 6, tail = 4) {
   if (!a) return "";
   return `${a.slice(0, head)}…${a.slice(-tail)}`;
 }
 
-/**
- * Primary wallet control. Connected: USDC balance, address + copy, disconnect.
- * Disconnected: a Connect button opening a modal of Circle login options
- * (passkey smart wallet + email/PIN wallet). The modal is driven by the shared
- * WalletProvider state so page-level "Connect" prompts reuse it.
- */
+function buildVerifyMessage(address: string) {
+  return `Welcome to Lunex!\n\nSign this message to verify ownership of your wallet. This does not trigger a transaction or cost any gas.\n\nAddress: ${address}\nTimestamp: ${Date.now()}`;
+}
+
 export default function WalletButton() {
   const {
     address,
     isConnected,
+    isInjectedOnly,
     circle,
     uc,
     balance,
@@ -39,8 +41,35 @@ export default function WalletButton() {
     closeConnect,
   } = useWallet();
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const onChain = useTokenBalances();
+  const { signMessageAsync } = useSignMessage();
+
+  const [menuOpen, setMenuOpen]   = useState(false);
+  const [copied, setCopied]       = useState(false);
+  const [verified, setVerified]   = useState(false);
+  const [verifying, setVerifying] = useState(false);
+
+  // Reset verification whenever the injected address changes
+  useEffect(() => {
+    setVerified(false);
+    setVerifying(false);
+  }, [address]);
+
+  // Auto-prompt to verify as soon as an injected wallet connects
+  useEffect(() => {
+    if (!isInjectedOnly || !address || verified || verifying) return;
+    setVerifying(true);
+    signMessageAsync({ message: buildVerifyMessage(address) })
+      .then(() => {
+        setVerified(true);
+        toast.success("Wallet verified");
+      })
+      .catch(() => {
+        toast.error("Verification skipped — you can retry from the wallet menu.");
+      })
+      .finally(() => setVerifying(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInjectedOnly, address]);
 
   const copy = () => {
     if (!address) return;
@@ -51,8 +80,13 @@ export default function WalletButton() {
   };
 
   if (isConnected && address) {
-    const tag = circle ? (circle.username[0] || "C").toUpperCase() : uc ? "P" : "•";
-    const kind = circle ? `Passkey · ${circle.username}` : uc ? "PIN wallet · Circle" : "Injected wallet";
+    const tag = circle ? (circle.username[0] || "C").toUpperCase() : uc ? "P" : "W";
+    const kind = circle ? `Passkey · ${circle.username}` : uc ? "PIN wallet · Circle" : "Browser wallet";
+
+    const usdcDisplay = isInjectedOnly ? onChain.USDC.formatted : (balance ?? 0).toFixed(2);
+    const eurcDisplay = isInjectedOnly ? onChain.EURC.formatted : (eurcBalance ?? 0).toFixed(2);
+    const usdtDisplay = isInjectedOnly ? onChain.USDT.formatted : null;
+
     return (
       <div className="relative">
         <Button
@@ -70,22 +104,31 @@ export default function WalletButton() {
             <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
             <div className="absolute right-0 z-50 mt-2 w-64 rounded-lg border border-border bg-card p-3 shadow-2xl">
               <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">{kind}</div>
+
               <div className="mb-3 flex items-center justify-between rounded-md border border-border bg-background px-3 py-2">
                 <span className="font-mono text-xs text-muted-foreground">{shortAddr(address, 8, 6)}</span>
                 <button onClick={copy} className="text-muted-foreground hover:text-primary" title="Copy address">
                   {copied ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
               </div>
-              <div className="mb-3 grid grid-cols-2 gap-2">
+
+              <div className={`mb-3 grid gap-2 ${usdtDisplay !== null ? "grid-cols-3" : "grid-cols-2"}`}>
                 <div className="rounded-md border border-border bg-background px-3 py-2.5">
                   <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">USDC</div>
-                  <div className="font-mono text-base font-bold text-foreground tabular-nums">{(balance ?? 0).toFixed(2)}</div>
+                  <div className="font-mono text-sm font-bold text-foreground tabular-nums">{usdcDisplay}</div>
                 </div>
                 <div className="rounded-md border border-border bg-background px-3 py-2.5">
                   <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">EURC</div>
-                  <div className="font-mono text-base font-bold text-foreground tabular-nums">{(eurcBalance ?? 0).toFixed(2)}</div>
+                  <div className="font-mono text-sm font-bold text-foreground tabular-nums">{eurcDisplay}</div>
                 </div>
+                {usdtDisplay !== null && (
+                  <div className="rounded-md border border-border bg-background px-3 py-2.5">
+                    <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">USDT</div>
+                    <div className="font-mono text-sm font-bold text-foreground tabular-nums">{usdtDisplay}</div>
+                  </div>
+                )}
               </div>
+
               {network && (
                 <div className="mb-3 flex items-center justify-between rounded-md border border-border bg-background px-3 py-2">
                   <span className="text-[9px] uppercase tracking-widest text-muted-foreground">Network</span>
@@ -94,6 +137,7 @@ export default function WalletButton() {
                   </span>
                 </div>
               )}
+
               <button
                 onClick={() => {
                   disconnect();
@@ -151,8 +195,8 @@ function ConnectModal({ connecting, circleEnabled, ucEnabled, lastUsername, last
   const [view, setView] = useState<"options" | "passkey" | "email">("options");
   const [username, setUsername] = useState(lastUsername ?? "");
   const [email, setEmail] = useState(lastUcEmail ?? "");
+  const { openConnectModal } = useConnectModal();
 
-  // Close on Escape.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -217,6 +261,19 @@ function ConnectModal({ connecting, circleEnabled, ucEnabled, lastUsername, last
                 </div>
               </button>
             )}
+            <button
+              onClick={() => {
+                onClose();
+                openConnectModal?.();
+              }}
+              className="flex w-full items-center gap-3 rounded-md border border-border bg-background p-3 text-left transition-colors hover:border-primary"
+            >
+              <Wallet className="h-5 w-5 text-primary shrink-0" />
+              <div>
+                <div className="text-sm font-semibold">Browser / Mobile Wallet</div>
+                <div className="text-[11px] text-muted-foreground">MetaMask, WalletConnect, Coinbase, and more.</div>
+              </div>
+            </button>
             {!circleEnabled && !ucEnabled && (
               <p className="text-xs text-muted-foreground">No wallet providers are configured.</p>
             )}
