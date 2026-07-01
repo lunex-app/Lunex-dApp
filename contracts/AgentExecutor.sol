@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "./interfaces/IERC20.sol";
+interface IERC20Full {
+    function balanceOf(address account) external view returns (uint256);
+    function transfer(address to, uint256 amount) external returns (bool);
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    function approve(address spender, uint256 amount) external returns (bool);
+}
 
 interface IPool {
     function remove_liquidity_one_coin(uint256 amount, uint256 i, uint256 minAmount) external returns (uint256);
@@ -62,18 +67,18 @@ contract AgentExecutor {
      *         Requires: user approved LP_TOKEN to this contract.
      */
     function rebalanceToVault(address user) external onlyOperatorOf(user) {
-        uint256 lp = IERC20(LP_TOKEN).balanceOf(user);
+        uint256 lp = IERC20Full(LP_TOKEN).balanceOf(user);
         require(lp > 0, "AgentExecutor: no LP tokens");
 
         // Pull LP from user into this contract
-        IERC20(LP_TOKEN).transferFrom(user, address(this), lp);
+        IERC20Full(LP_TOKEN).transferFrom(user, address(this), lp);
 
         // Remove LP as single-sided USDC (coin index 0)
-        IERC20(LP_TOKEN).approve(SWAP_POOL, lp);
+        IERC20Full(LP_TOKEN).approve(SWAP_POOL, lp);
         uint256 usdc = IPool(SWAP_POOL).remove_liquidity_one_coin(lp, 0, 0);
 
         // Deposit USDC to vault; shares go directly to user
-        IERC20(USDC).approve(VAULT_USDC, usdc);
+        IERC20Full(USDC).approve(VAULT_USDC, usdc);
         IVault(VAULT_USDC).deposit(usdc, user);
 
         emit RebalancedToVault(user, lp, usdc);
@@ -85,20 +90,20 @@ contract AgentExecutor {
      *         Requires: user approved VAULT_USDC shares to this contract.
      */
     function rebalanceToPool(address user) external onlyOperatorOf(user) {
-        uint256 shares = IERC20(VAULT_USDC).balanceOf(user);
+        uint256 shares = IERC20Full(VAULT_USDC).balanceOf(user);
         require(shares > 0, "AgentExecutor: no vault shares");
 
         // Pull vault shares into this contract, then redeem (owner == address(this), no extra allowance)
-        IERC20(VAULT_USDC).transferFrom(user, address(this), shares);
+        IERC20Full(VAULT_USDC).transferFrom(user, address(this), shares);
         uint256 usdc = IVault(VAULT_USDC).redeem(shares, address(this), address(this));
 
         // Add USDC as single-sided liquidity; LP minted goes to this contract then forwarded
-        IERC20(USDC).approve(SWAP_POOL, usdc);
+        IERC20Full(USDC).approve(SWAP_POOL, usdc);
         uint256[2] memory amounts = [usdc, uint256(0)];
         uint256 lp = IPool(SWAP_POOL).add_liquidity(amounts, 0);
 
         // Forward LP to user
-        IERC20(LP_TOKEN).transfer(user, lp);
+        IERC20Full(LP_TOKEN).transfer(user, lp);
 
         emit RebalancedToPool(user, shares, lp);
     }
