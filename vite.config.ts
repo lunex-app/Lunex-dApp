@@ -167,10 +167,10 @@ function autopilotDevPlugin(): Plugin {
         if (req.method === "OPTIONS") { res.statusCode = 204; res.end(); return; }
         if (req.method !== "POST") { res.statusCode = 405; res.end(JSON.stringify({ error: "POST only" })); return; }
 
-        const apiKey = process.env.ZEROG_API_KEY;
+        const apiKey = process.env.ANTHROPIC_API_KEY;
         if (!apiKey) {
           res.statusCode = 500;
-          res.end(JSON.stringify({ error: "Add ZEROG_API_KEY=sk-... to your .env.local file" }));
+          res.end(JSON.stringify({ error: "Add ANTHROPIC_API_KEY=sk-ant-... to your .env.local file" }));
           return;
         }
 
@@ -197,11 +197,11 @@ function autopilotDevPlugin(): Plugin {
             .slice(-10).filter((m) => m.content?.trim())
             .map((m) => ({ role: m.role === "agent" ? "assistant" : "user", content: m.content }));
 
-          const anthropicRes = await fetch("https://router-api.0g.ai/v1/messages", {
+          const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
             body: JSON.stringify({
-              model: "glm-5.1",
+              model: "claude-sonnet-4-6",
               max_tokens: 1024,
               system: `${SYSTEM_PROMPT}\n\n${contextBlock}`,
               tools: [EXECUTE_TOOL],

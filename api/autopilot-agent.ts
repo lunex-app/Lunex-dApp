@@ -100,7 +100,7 @@ async function callAnthropic(
     .filter((m) => m.content?.trim())
     .map((m) => ({ role: m.role === "agent" ? "assistant" : ("user" as "user" | "assistant"), content: m.content }));
 
-  const res = await fetch("https://router-api.0g.ai/v1/messages", {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -108,7 +108,7 @@ async function callAnthropic(
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "glm-5.1",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 512,
       system: `${SYSTEM_PROMPT}\n\n${buildContextBlock(context)}`,
       tools: [EXECUTE_TOOL],
@@ -117,7 +117,7 @@ async function callAnthropic(
     }),
   });
 
-  if (!res.ok) throw new Error(`0G AI ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`Anthropic ${res.status}: ${await res.text()}`);
 
   const data = await res.json() as {
     content: { type: string; text?: string; name?: string; input?: Record<string, unknown> }[];
@@ -148,8 +148,8 @@ export default async function handler(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   if (req.method !== "POST")   return new Response(JSON.stringify({ error: "POST only" }), { status: 405, headers: cors });
 
-  const apiKey = process.env.ZEROG_API_KEY;
-  if (!apiKey) return new Response(JSON.stringify({ error: "ZEROG_API_KEY not set in Vercel environment variables" }), { status: 500, headers: cors });
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY not set in Vercel environment variables" }), { status: 500, headers: cors });
 
   try {
     const body = await req.json() as { message: string; context: Record<string, number | boolean>; history: { role: string; content: string }[] };
