@@ -15,7 +15,7 @@ import { estimatePoolApy, useDynamicApy } from "./useApy";
 import { stableSwapAbi, vaultAbi, erc20Abi, lunexUsdtAbi } from "@/config/abis";
 import { CONTRACTS, TOKENS, arcTestnet } from "@/config/wagmi";
 import { applySlippage } from "@/lib/slippage";
-import type { Write } from "@/lib/circleTx";
+import { run, type Write } from "@/lib/circleTx";
 import type { BridgeChainKey } from "@/features/bridge/config/bridgeConfig";
 
 // ── Result types ──────────────────────────────────────────────────────────────
@@ -134,11 +134,18 @@ export function useFullAgent() {
         const parsed1 = parseFloat(amt1) > 0 ? parseUnits(amt1, 6) : 0n;
         if (parsed0 === 0n && parsed1 === 0n) return { ok: false, error: "Specify an amount to add." };
 
-        const lpPreview = await publicClient.readContract({
-          address: info.pool, abi: stableSwapAbi,
-          functionName: "calc_token_amount", args: [[parsed0, parsed1] as [bigint, bigint], true],
-        }) as bigint;
-        const minMint = applySlippage(lpPreview, 50n);
+        // calc_token_amount reverts with division-by-zero on empty pools (D=0).
+        // Fall back to 0 min-mint so the first deposit can still initialize the pool.
+        let minMint = 0n;
+        try {
+          const lpPreview = await publicClient.readContract({
+            address: info.pool, abi: stableSwapAbi,
+            functionName: "calc_token_amount", args: [[parsed0, parsed1] as [bigint, bigint], true],
+          }) as bigint;
+          minMint = applySlippage(lpPreview, 50n);
+        } catch {
+          // Pool is empty or preview unavailable — proceed with minMint = 0
+        }
 
         const writes: Write[] = [];
         if (parsed0 > 0n) writes.push({ address: TOKENS[coin0].address, abi: erc20Abi, functionName: "approve", args: [info.pool, parsed0] });
@@ -281,23 +288,26 @@ export function useFullAgent() {
     try {
       const cooldown = await publicClient.readContract({
         address: TOKENS.USDT.address, abi: lunexUsdtAbi,
-        functionName: "cooldownRemaining", args: [address],
+        functionName: "cooldownRemaining", args: [address as `0x${string}`],
       }) as bigint;
       if (cooldown > 0n) {
         const secs = Number(cooldown);
         const h = Math.floor(secs / 3600);
         const m = Math.floor((secs % 3600) / 60);
         const timeStr = h > 0 ? `${h}h ${m}m` : `${m}m ${secs % 60}s`;
-        return { ok: false, error: `Faucet on cooldown — try again in ${timeStr}.` };
+        return { ok: false, error: `Faucet is on cooldown — try again in ${timeStr}.` };
       }
-      const hash = await tx.execute([
-        { address: TOKENS.USDT.address, abi: lunexUsdtAbi, functionName: "claim", args: [] },
-      ]);
-      return { ok: true, txHash: hash ?? undefined, detail: "Claimed 1,000 USDT from the faucet." };
+      // Use run() directly so any wallet error throws here and is caught below,
+      // rather than being swallowed by useTx's internal catch.
+      const hash = await run(
+        [{ address: TOKENS.USDT.address, abi: lunexUsdtAbi as never, functionName: "claim", args: [] }],
+        signer,
+      );
+      return { ok: true, txHash: hash, detail: "Claimed **1,000 USDT** from the faucet." };
     } catch (e: unknown) {
       return { ok: false, error: (e as Error)?.message?.slice(0, 160) ?? "Faucet claim failed." };
     }
-  }, [address, isConnected, tx, publicClient]);
+  }, [address, isConnected, signer, publicClient]);
 
   // ── Context summary ───────────────────────────────────────────────────────
 
