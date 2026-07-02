@@ -5,7 +5,7 @@ import {
   Send, User, LayoutDashboard, MessageSquare,
   Sparkles, ArrowLeftRight, Droplets, Sprout,
   ArrowDownToLine, Link2, AlertCircle, Loader2, ExternalLink, Wallet,
-  ShieldCheck, ShieldOff,
+  ShieldCheck, ShieldOff, Plus, X,
 } from "lucide-react";
 import { formatUnits } from "viem";
 import { useWallet } from "@/context/WalletProvider";
@@ -41,6 +41,52 @@ interface ChatMessage {
   isStreaming?: boolean;
   status?: "ok" | "error" | "step";
   txCard?: TxCardData;
+}
+
+interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messages: ChatMessage[];
+}
+
+// ── Chat session persistence ──────────────────────────────────────────────────
+
+const STORAGE_KEY = "lunex_ai_chats";
+
+function loadSessions(): ChatSession[] {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]"); }
+  catch { return []; }
+}
+
+function saveSessions(sessions: ChatSession[]) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions.slice(0, 50))); }
+  catch {}
+}
+
+function makeWelcome(): ChatMessage {
+  return {
+    id: "welcome",
+    role: "agent",
+    content: "I'm **Lunex AI**. Swap, bridge, send, deposit to vaults, manage liquidity — just tell me what you need.",
+    timestamp: Date.now(),
+  };
+}
+
+function chatTitle(msgs: ChatMessage[]): string {
+  const first = msgs.find((m) => m.role === "user");
+  if (!first) return "New chat";
+  return first.content.length > 42 ? first.content.slice(0, 42) + "…" : first.content;
+}
+
+function relTime(ts: number): string {
+  const d = Date.now() - ts;
+  if (d < 60e3) return "just now";
+  if (d < 3600e3) return `${Math.floor(d / 60e3)}m ago`;
+  if (d < 86400e3) return `${Math.floor(d / 3600e3)}h ago`;
+  if (d < 604800e3) return `${Math.floor(d / 86400e3)}d ago`;
+  return new Date(ts).toLocaleDateString();
 }
 
 // ── Dashboard helpers ─────────────────────────────────────────────────────────
@@ -208,6 +254,86 @@ function UserMessage({ msg }: { msg: ChatMessage }) {
   );
 }
 
+// ── History sidebar ───────────────────────────────────────────────────────────
+
+function HistorySidebar({
+  sessions,
+  activeId,
+  onSelect,
+  onNew,
+  onDelete,
+  onClose,
+}: {
+  sessions: ChatSession[];
+  activeId: string;
+  onSelect: (id: string) => void;
+  onNew: () => void;
+  onDelete: (id: string, e: React.MouseEvent) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="flex flex-col h-full bg-background">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-border shrink-0">
+        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Chat History</span>
+        <button
+          onClick={onClose}
+          className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors lg:hidden"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* New chat */}
+      <div className="px-2.5 pt-2.5 pb-1 shrink-0">
+        <button
+          onClick={onNew}
+          className="w-full flex items-center gap-2 rounded-lg border border-dashed border-border bg-transparent px-3 py-2 text-xs font-semibold text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5 shrink-0" />New chat
+        </button>
+      </div>
+
+      {/* Sessions list */}
+      <div className="flex-1 overflow-y-auto py-1 px-1.5">
+        {sessions.length === 0 ? (
+          <p className="text-[10px] text-muted-foreground/60 text-center py-8 px-3 leading-relaxed">
+            No saved chats yet.<br />Start a conversation to save it here.
+          </p>
+        ) : (
+          sessions.map((s) => (
+            <div
+              key={s.id}
+              onClick={() => onSelect(s.id)}
+              className={cn(
+                "group relative flex flex-col gap-0.5 cursor-pointer px-3 py-2.5 rounded-lg mb-0.5 transition-colors",
+                s.id === activeId
+                  ? "bg-primary/10 border border-primary/20"
+                  : "hover:bg-muted/40 border border-transparent",
+              )}
+            >
+              <span className={cn(
+                "text-[11px] font-medium leading-snug pr-5 line-clamp-2",
+                s.id === activeId ? "text-foreground" : "text-muted-foreground",
+              )}>
+                {s.title}
+              </span>
+              <span className="text-[9px] text-muted-foreground/50 font-mono">{relTime(s.updatedAt)}</span>
+              <button
+                onClick={(e) => onDelete(s.id, e)}
+                className="absolute right-2 top-2.5 hidden group-hover:flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                title="Delete chat"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Quick-start chips ─────────────────────────────────────────────────────────
 
 const CHIPS = [
@@ -220,13 +346,6 @@ const CHIPS = [
   { label: "Add 10 USDC to pool",        icon: <Droplets className="h-3 w-3" /> },
   { label: "Remove all liquidity",       icon: <ArrowDownToLine className="h-3 w-3" /> },
 ];
-
-const WELCOME: ChatMessage = {
-  id: "welcome",
-  role: "agent",
-  content: `I'm **Lunex AI**. Swap, bridge, send, deposit to vaults, manage liquidity — just tell me what you need.`,
-  timestamp: Date.now(),
-};
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
@@ -241,8 +360,86 @@ export default function Autopilot() {
   const [activeTab, setActiveTab] = useState<Tab>("chat");
   const [, setTick] = useState(0);
 
-  // Chat state
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
+  // ── Chat session state ───────────────────────────────────────────────────────
+  const [sessions, setSessions] = useState<ChatSession[]>(() => loadSessions());
+  const sessionsRef = useRef<ChatSession[]>(sessions);
+  useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
+
+  const [activeId, setActiveId] = useState<string>(() => {
+    const s = loadSessions();
+    return s.length > 0 ? s[0].id : `chat_${Date.now()}`;
+  });
+
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const s = loadSessions();
+    if (s.length > 0 && s[0].messages.length > 0) return s[0].messages;
+    return [makeWelcome()];
+  });
+
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Auto-save messages → sessions whenever messages change
+  useEffect(() => {
+    const toSave = messages.map((m) => ({ ...m, isStreaming: false }));
+    setSessions((prev) => {
+      const existing = prev.find((s) => s.id === activeId);
+      const updated: ChatSession = {
+        id: activeId,
+        title: chatTitle(messages),
+        createdAt: existing?.createdAt ?? Date.now(),
+        updatedAt: Date.now(),
+        messages: toSave,
+      };
+      const next = [updated, ...prev.filter((s) => s.id !== activeId)].slice(0, 50);
+      saveSessions(next);
+      return next;
+    });
+  }, [messages, activeId]);
+
+  // ── Session handlers ─────────────────────────────────────────────────────────
+  const resetStreamState = useCallback(() => {
+    setStreamId(null);
+    setStreamTarget("");
+    setStreamIndex(0);
+    setIsTyping(false);
+    isBusyRef.current = false;
+  }, []);
+
+  const newChat = useCallback(() => {
+    resetStreamState();
+    const id = `chat_${Date.now()}`;
+    setActiveId(id);
+    setMessages([makeWelcome()]);
+    setShowHistory(false);
+  }, [resetStreamState]);
+
+  const selectChat = useCallback((id: string) => {
+    if (id === activeId) { setShowHistory(false); return; }
+    resetStreamState();
+    const session = sessionsRef.current.find((s) => s.id === id);
+    setActiveId(id);
+    setMessages(session?.messages?.length ? session.messages : [makeWelcome()]);
+    setShowHistory(false);
+  }, [activeId, resetStreamState]);
+
+  const deleteChat = useCallback((id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSessions((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      saveSessions(next);
+      return next;
+    });
+    if (id === activeId) {
+      const remaining = sessionsRef.current.filter((s) => s.id !== id);
+      if (remaining.length > 0) {
+        selectChat(remaining[0].id);
+      } else {
+        newChat();
+      }
+    }
+  }, [activeId, selectChat, newChat]);
+
+  // ── Chat state ───────────────────────────────────────────────────────────────
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
 
@@ -253,7 +450,7 @@ export default function Autopilot() {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const isBusyRef = useRef(false);
-  const messagesRef = useRef<ChatMessage[]>([WELCOME]);
+  const messagesRef = useRef<ChatMessage[]>(messages);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   // Uptime ticker
@@ -294,14 +491,13 @@ export default function Autopilot() {
     setMessages((p) => [...p, { id, role: "agent", content, timestamp: Date.now(), ...extra }]);
   }, []);
 
-  // Wait for the current stream to finish
   const waitForStream = useCallback((text: string) =>
     new Promise<void>((resolve) => {
       const duration = text.length * 6 + 300;
       setTimeout(resolve, duration);
     }), []);
 
-  // ── Action executor - routes Claude's structured response to protocol calls ──
+  // ── Action executor ──────────────────────────────────────────────────────────
 
   const executeAction = useCallback(async (action: string, params: Record<string, unknown>): Promise<ActionResult | null> => {
     if (!isConnected) { openConnect(); return null; }
@@ -310,7 +506,6 @@ export default function Autopilot() {
     const ctx = full.getContext();
     let result: ActionResult | null = null;
 
-    // Show a step-in-progress message before executing
     const stepLabels: Record<string, string> = {
       swap: `Approving **${String(params.fromToken ?? "token")}** and confirming swap...`,
       add_liquidity: "Approving tokens and adding liquidity...",
@@ -380,8 +575,8 @@ export default function Autopilot() {
           const spread = ctx.vaultUsdcApy - ctx.poolApr;
           addMessage(
             Math.abs(spread) > agent.config.thresholdPct
-              ? `Evaluation complete ⚡\n\nSpread **${Math.abs(spread).toFixed(2)}%** exceeds threshold **${agent.config.thresholdPct}%**. The **${spread > 0 ? "vault" : "pool"}** is outperforming. Say **"execute rebalance"** to act.`
-              : `Evaluation complete. Spread **${Math.abs(spread).toFixed(2)}%** is below the **${agent.config.thresholdPct}%** threshold - current allocation is near-optimal.`
+              ? `Evaluation complete\n\nSpread **${Math.abs(spread).toFixed(2)}%** exceeds threshold **${agent.config.thresholdPct}%**. The **${spread > 0 ? "vault" : "pool"}** is outperforming. Say **"execute rebalance"** to act.`
+              : `Evaluation complete. Spread **${Math.abs(spread).toFixed(2)}%** is below the **${agent.config.thresholdPct}%** threshold — current allocation is near-optimal.`
           );
           return;
         }
@@ -424,7 +619,7 @@ export default function Autopilot() {
     return result;
   }, [isConnected, openConnect, full, agent, addMessage]);
 
-  // ── Main send handler — agentic loop ─────────────────────────────────────────
+  // ── Main send handler ─────────────────────────────────────────────────────────
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isTyping || isBusyRef.current) return;
@@ -434,7 +629,6 @@ export default function Autopilot() {
     setMessages((p) => [...p, { id: `user_${Date.now()}`, role: "user", content: originalText, timestamp: Date.now() }]);
     setInput("");
 
-    // Session-local history accumulator so each loop iteration sees prior steps
     const sessionHistory: { role: string; content: string }[] = [];
 
     const getCtx = () => {
@@ -457,11 +651,9 @@ export default function Autopilot() {
       };
     };
 
-    // Agentic loop — up to 5 steps before forcing a stop
     for (let step = 0; step < 5; step++) {
       setIsTyping(true);
 
-      // Build history: last 6 chat messages + anything done this session
       const baseHistory = messagesRef.current
         .filter((m) => !m.isStreaming && m.content.trim())
         .slice(-6)
@@ -490,30 +682,24 @@ export default function Autopilot() {
 
       setIsTyping(false);
 
-      // Stream the text response
       if (llmResponse.text) {
         startStream(llmResponse.text);
         sessionHistory.push({ role: "assistant", content: llmResponse.text });
       }
 
-      // No action or "respond" → done
       if (!llmResponse.action || llmResponse.action === "respond") break;
 
-      // Wait for text to finish streaming before executing
       if (llmResponse.text) await waitForStream(llmResponse.text);
 
-      // Execute the on-chain action
       const result = await executeAction(llmResponse.action, llmResponse.params ?? {});
 
-      if (!result || !result.ok) break; // stop on failure
+      if (!result || !result.ok) break;
 
-      // Record result in session history so the LLM knows what happened
       sessionHistory.push({
         role: "user",
         content: `[Step ${step + 1} completed: ${result.detail ?? llmResponse.action}]`,
       });
 
-      // Brief pause to let chain settle before next step
       await new Promise<void>((r) => setTimeout(r, 800));
     }
 
@@ -544,11 +730,24 @@ export default function Autopilot() {
                 <p className="text-[11px] text-muted-foreground">Autonomous DeFi agent</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {agent.config.active && (
                 <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest px-3 py-1 bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
                   ● ACTIVE
                 </Badge>
+              )}
+              {/* History toggle — only visible in chat tab */}
+              {activeTab === "chat" && (
+                <button
+                  onClick={() => setShowHistory((v) => !v)}
+                  title="Chat history"
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-lg border border-border transition-colors",
+                    showHistory ? "bg-primary/10 text-primary border-primary/30" : "bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted/40",
+                  )}
+                >
+                  <Clock className="h-4 w-4" />
+                </button>
               )}
               <div className="flex rounded-lg border border-border overflow-hidden">
                 {(["chat", "dashboard"] as Tab[]).map((tab) => (
@@ -566,7 +765,49 @@ export default function Autopilot() {
 
       {/* ── Chat Tab ── */}
       {activeTab === "chat" && (
-        <div className="flex flex-1 min-h-0">
+        <div className="flex flex-1 min-h-0 relative">
+
+          {/* History sidebar — mobile overlay backdrop */}
+          {showHistory && (
+            <div
+              className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm lg:hidden"
+              onClick={() => setShowHistory(false)}
+            />
+          )}
+
+          {/* History sidebar panel */}
+          {showHistory && (
+            <div className={cn(
+              "flex flex-col border-r border-border z-40",
+              // Mobile: fixed overlay from left
+              "fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-[220px] lg:hidden",
+              // Desktop: inline inside the flex row
+              "lg:relative lg:top-auto lg:h-auto lg:w-[200px] lg:z-auto lg:shrink-0 lg:flex",
+            )}>
+              <HistorySidebar
+                sessions={sessions}
+                activeId={activeId}
+                onSelect={selectChat}
+                onNew={newChat}
+                onDelete={deleteChat}
+                onClose={() => setShowHistory(false)}
+              />
+            </div>
+          )}
+          {/* Desktop inline history panel (rendered inside flex, not fixed) */}
+          {showHistory && (
+            <div className="hidden lg:flex w-[200px] shrink-0 flex-col border-r border-border">
+              <HistorySidebar
+                sessions={sessions}
+                activeId={activeId}
+                onSelect={selectChat}
+                onNew={newChat}
+                onDelete={deleteChat}
+                onClose={() => setShowHistory(false)}
+              />
+            </div>
+          )}
+
           {/* Messages column */}
           <div className="flex flex-1 flex-col min-h-0">
             <div className="flex-1 overflow-y-auto py-4">
@@ -579,7 +820,7 @@ export default function Autopilot() {
               </div>
             </div>
 
-            {/* Suggestion chips - only shown at start when connected */}
+            {/* Suggestion chips */}
             {messages.length <= 2 && !isTyping && !streamId && isConnected && (
               <div className="max-w-3xl mx-auto px-4 pb-2">
                 <div className="flex flex-wrap gap-2">
@@ -627,7 +868,7 @@ export default function Autopilot() {
             </div>
           </div>
 
-          {/* Right sidebar */}
+          {/* Right controls sidebar */}
           <div className="hidden lg:flex w-[280px] shrink-0 flex-col border-l border-border bg-card/50 p-5 gap-5 overflow-y-auto">
             <div className="space-y-4">
               <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">Quick Controls</p>
