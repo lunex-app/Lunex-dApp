@@ -749,15 +749,12 @@ export default function Autopilot() {
                   <Clock className="h-4 w-4" />
                 </button>
               )}
-              <div className="flex rounded-lg border border-border overflow-hidden">
-                {(["chat", "dashboard"] as Tab[]).map((tab) => (
-                  <button key={tab} onClick={() => setActiveTab(tab)}
-                    className={cn("flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold transition-colors border-l border-border first:border-l-0",
-                      activeTab === tab ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted/40")}>
-                    {tab === "chat" ? <><MessageSquare className="h-3.5 w-3.5" />Chat</> : <><LayoutDashboard className="h-3.5 w-3.5" />Dashboard</>}
-                  </button>
-                ))}
-              </div>
+              <button
+                onClick={() => setActiveTab(activeTab === "dashboard" ? "chat" : "dashboard")}
+                className={cn("flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg border border-border transition-colors",
+                  activeTab === "dashboard" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted/40")}>
+                <LayoutDashboard className="h-3.5 w-3.5" />Dashboard
+              </button>
             </div>
           </div>
         </div>

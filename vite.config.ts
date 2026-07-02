@@ -224,6 +224,8 @@ function autopilotDevPlugin(): Plugin {
             }
           }
 
+          if (!action && text) action = "respond";
+
           res.statusCode = 200;
           res.end(JSON.stringify({ text, action, params }));
         } catch (e) {

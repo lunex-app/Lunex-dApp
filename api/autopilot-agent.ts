@@ -112,7 +112,7 @@ async function callAnthropic(
       max_tokens: 512,
       system: `${SYSTEM_PROMPT}\n\n${buildContextBlock(context)}`,
       tools: [EXECUTE_TOOL],
-      tool_choice: { type: "any" },
+      tool_choice: { type: "auto" },
       messages: [...prior, { role: "user", content: message }],
     }),
   });
@@ -133,6 +133,9 @@ async function callAnthropic(
       text   = String(block.input?.response_text ?? text ?? "");
     }
   }
+
+  // If model returned text only (no tool call), treat as a plain respond
+  if (!action && text) action = "respond";
 
   return { text, action, params };
 }
