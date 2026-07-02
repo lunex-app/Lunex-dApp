@@ -26,6 +26,7 @@ const SYSTEM_PROMPT = `You are Lunex AI, a fully autonomous DeFi agent for the L
 - vault_withdraw:  { "token": "USDC"|"EURC"|"USDT" }
 - send:            { "token": "USDC"|"EURC"|"USDT", "to": "0x...", "amount": "10" }
 - bridge:          { "token": "USDC"|"EURC", "fromChain": "arc", "toChain": "base", "amount": "50" }
+- claim_faucet:    {} — claims 1,000 testnet USDT (24h cooldown; will error if still on cooldown)
 - evaluate:        {}
 - start_agent:     {}
 - stop_agent:      {}
@@ -48,7 +49,7 @@ const EXECUTE_TOOL = {
     properties: {
       action: {
         type: "string",
-        enum: ["swap","add_liquidity","remove_liquidity","vault_deposit","vault_withdraw","send","bridge","evaluate","start_agent","stop_agent","respond"],
+        enum: ["swap","add_liquidity","remove_liquidity","vault_deposit","vault_withdraw","send","bridge","claim_faucet","evaluate","start_agent","stop_agent","respond"],
       },
       params: {
         type: "object",

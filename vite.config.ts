@@ -122,6 +122,7 @@ function autopilotDevPlugin(): Plugin {
 - vault_withdraw: { token: "USDC"|"EURC"|"USDT" }
 - send: { token: "USDC"|"EURC"|"USDT", to: "0x...", amount }
 - bridge: { token: "USDC"|"EURC", fromChain, toChain, amount }
+- claim_faucet: {} — claims 1,000 testnet USDT (24h cooldown; will error if on cooldown)
 - evaluate: {}
 - start_agent: {}
 - stop_agent: {}
@@ -144,7 +145,7 @@ function autopilotDevPlugin(): Plugin {
     input_schema: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["swap","add_liquidity","remove_liquidity","vault_deposit","vault_withdraw","send","bridge","evaluate","start_agent","stop_agent","set_threshold"] },
+        action: { type: "string", enum: ["swap","add_liquidity","remove_liquidity","vault_deposit","vault_withdraw","send","bridge","claim_faucet","evaluate","start_agent","stop_agent","set_threshold"] },
         params: { type: "object" },
         response_text: { type: "string", description: "What to tell the user while the tx executes" },
       },

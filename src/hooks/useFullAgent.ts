@@ -12,7 +12,7 @@ import { usePoolData } from "./usePoolData";
 import { useVaultData } from "./useVaultData";
 import { useTokenBalance } from "./useTokenBalance";
 import { estimatePoolApy, useDynamicApy } from "./useApy";
-import { stableSwapAbi, vaultAbi, erc20Abi } from "@/config/abis";
+import { stableSwapAbi, vaultAbi, erc20Abi, lunexUsdtAbi } from "@/config/abis";
 import { CONTRACTS, TOKENS, arcTestnet } from "@/config/wagmi";
 import { applySlippage } from "@/lib/slippage";
 import type { Write } from "@/lib/circleTx";
@@ -274,6 +274,31 @@ export function useFullAgent() {
     [address, isConnected, bridge],
   );
 
+  // ── Faucet ────────────────────────────────────────────────────────────────
+
+  const claimFaucet = useCallback(async (): Promise<ActionResult> => {
+    if (!address || !isConnected) return { ok: false, error: "Wallet not connected." };
+    try {
+      const cooldown = await publicClient.readContract({
+        address: TOKENS.USDT.address, abi: lunexUsdtAbi,
+        functionName: "cooldownRemaining", args: [address],
+      }) as bigint;
+      if (cooldown > 0n) {
+        const secs = Number(cooldown);
+        const h = Math.floor(secs / 3600);
+        const m = Math.floor((secs % 3600) / 60);
+        const timeStr = h > 0 ? `${h}h ${m}m` : `${m}m ${secs % 60}s`;
+        return { ok: false, error: `Faucet on cooldown — try again in ${timeStr}.` };
+      }
+      const hash = await tx.execute([
+        { address: TOKENS.USDT.address, abi: lunexUsdtAbi, functionName: "claim", args: [] },
+      ]);
+      return { ok: true, txHash: hash ?? undefined, detail: "Claimed 1,000 USDT from the faucet." };
+    } catch (e: unknown) {
+      return { ok: false, error: (e as Error)?.message?.slice(0, 160) ?? "Faucet claim failed." };
+    }
+  }, [address, isConnected, tx, publicClient]);
+
   // ── Context summary ───────────────────────────────────────────────────────
 
   const getContext = useCallback(() => ({
@@ -312,6 +337,7 @@ export function useFullAgent() {
     vaultWithdraw,
     send,
     startBridge,
+    claimFaucet,
     getContext,
     tx,
     bridge,

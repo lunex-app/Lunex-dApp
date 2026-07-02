@@ -176,10 +176,12 @@ const TX_CARD_ICONS: Record<string, React.ReactNode> = {
   vault_withdraw: <Sprout className="h-3.5 w-3.5" />,
   send: <Send className="h-3.5 w-3.5" />,
   bridge: <Link2 className="h-3.5 w-3.5" />,
+  claim_faucet: <Droplets className="h-3.5 w-3.5" />,
 };
 const TX_CARD_LABELS: Record<string, string> = {
   swap: "Swap", add_liquidity: "Add Liquidity", remove_liquidity: "Remove Liquidity",
   vault_deposit: "Vault Deposit", vault_withdraw: "Vault Withdraw", send: "Send", bridge: "Bridge",
+  claim_faucet: "Claim Faucet",
 };
 
 function TxCard({ data }: { data: TxCardData }) {
@@ -514,6 +516,7 @@ export default function Autopilot() {
       vault_withdraw: `Redeeming shares from vault...`,
       send: `Sending **${String(params.token ?? "token")}** to recipient...`,
       bridge: `Approving **${String(params.token ?? "USDC")}** and initiating bridge ${String(params.fromChain ?? "arc").toUpperCase()} → ${String(params.toChain ?? "base").toUpperCase()}...`,
+      claim_faucet: "Claiming **1,000 USDT** from the faucet...",
     };
     if (stepLabels[action]) addMessage(stepLabels[action], { status: "step" });
 
@@ -563,6 +566,10 @@ export default function Autopilot() {
           const balRaw = token === "USDC" ? ctx.usdcBalanceRaw : token === "EURC" ? ctx.eurcBalanceRaw : ctx.usdtBalanceRaw;
           const raw    = resolveAmount(params.amount as string, balRaw);
           result = await full.send(token, String(params.to ?? ""), formatUnits(raw, 6));
+          break;
+        }
+        case "claim_faucet": {
+          result = await full.claimFaucet();
           break;
         }
         case "bridge": {
