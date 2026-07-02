@@ -884,7 +884,7 @@ const Landing = () => {
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-start gap-4">
-                <Link to="/dashboard" className="group inline-flex items-center gap-2 bg-primary text-primary-foreground text-sm font-bold px-8 py-4 rounded-sm hover:bg-primary/90 transition-all">
+                <Link to="/swap" className="group inline-flex items-center gap-2 bg-primary text-primary-foreground text-sm font-bold px-8 py-4 rounded-sm hover:bg-primary/90 transition-all">
                   Launch Lunex <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
                 </Link>
                 <Link to="/docs" className="inline-flex items-center gap-2 border border-border text-muted-foreground text-sm font-semibold px-8 py-4 rounded-sm hover:border-primary/40 hover:text-primary transition-all">

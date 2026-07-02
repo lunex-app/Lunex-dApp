@@ -1102,10 +1102,6 @@ export default function Autopilot() {
                       className="w-full gap-2 font-black uppercase tracking-widest text-[10px] h-10" disabled={agent.isExecuting}>
                       <RefreshCw className={cn("h-3.5 w-3.5", agent.isExecuting && "animate-spin")} />Evaluate Now
                     </Button>
-                    <Button onClick={() => setActiveTab("chat")} variant="outline"
-                      className="w-full gap-2 font-black uppercase tracking-widest text-[10px] h-10">
-                      <MessageSquare className="h-3.5 w-3.5" />Open Chat
-                    </Button>
                   </div>
                 </div>
 
