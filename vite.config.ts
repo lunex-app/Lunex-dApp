@@ -116,8 +116,8 @@ function autopilotDevPlugin(): Plugin {
 
 ## Actions (ALWAYS call execute_action for anything the user wants to do)
 - swap: { fromToken: "USDC"|"EURC"|"USDT", toToken: "USDC"|"EURC"|"USDT", amount }
-- add_liquidity: { usdcAmount, eurcAmount } — set "0" for any side not deposited
-- remove_liquidity: { mode: "both"|"usdc"|"eurc", percent: 1-100 }
+- add_liquidity: { pool: "USDC/EURC"|"USDC/USDT"|"EURC/USDT", usdcAmount?, eurcAmount?, usdtAmount? } — omit or "0" for tokens not in the pool
+- remove_liquidity: { pool: "USDC/EURC"|"USDC/USDT"|"EURC/USDT", mode: "both"|"usdc"|"eurc"|"usdt", percent: 1-100 }
 - vault_deposit: { token: "USDC"|"EURC"|"USDT", amount }
 - vault_withdraw: { token: "USDC"|"EURC"|"USDT" }
 - send: { token: "USDC"|"EURC"|"USDT", to: "0x...", amount }

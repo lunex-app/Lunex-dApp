@@ -20,8 +20,8 @@ const SYSTEM_PROMPT = `You are Lunex AI, a fully autonomous DeFi agent for the L
 
 ### Action schemas (all go inside "params"):
 - swap:            { "fromToken": "USDC"|"EURC"|"USDT", "toToken": "USDC"|"EURC"|"USDT", "amount": "10" }
-- add_liquidity:   { "usdcAmount": "50", "eurcAmount": "50" }
-- remove_liquidity:{ "mode": "both"|"usdc"|"eurc", "percent": 100 }
+- add_liquidity:   { "pool": "USDC/EURC"|"USDC/USDT"|"EURC/USDT", "usdcAmount": "50", "eurcAmount": "50", "usdtAmount": "0" } — omit or "0" for tokens not in the pool
+- remove_liquidity:{ "pool": "USDC/EURC"|"USDC/USDT"|"EURC/USDT", "mode": "both"|"usdc"|"eurc"|"usdt", "percent": 100 }
 - vault_deposit:   { "token": "USDC"|"EURC"|"USDT", "amount": "100" }
 - vault_withdraw:  { "token": "USDC"|"EURC"|"USDT" }
 - send:            { "token": "USDC"|"EURC"|"USDT", "to": "0x...", "amount": "10" }
@@ -53,17 +53,19 @@ const EXECUTE_TOOL = {
       params: {
         type: "object",
         properties: {
-          fromToken: { type: "string" },
-          toToken:   { type: "string" },
-          token:     { type: "string" },
-          amount:    { type: "string" },
-          usdcAmount:{ type: "string" },
-          eurcAmount:{ type: "string" },
-          mode:      { type: "string" },
-          percent:   { type: "number" },
-          to:        { type: "string" },
-          fromChain: { type: "string" },
-          toChain:   { type: "string" },
+          fromToken:  { type: "string" },
+          toToken:    { type: "string" },
+          token:      { type: "string" },
+          amount:     { type: "string" },
+          pool:       { type: "string" },
+          usdcAmount: { type: "string" },
+          eurcAmount: { type: "string" },
+          usdtAmount: { type: "string" },
+          mode:       { type: "string" },
+          percent:    { type: "number" },
+          to:         { type: "string" },
+          fromChain:  { type: "string" },
+          toChain:    { type: "string" },
         },
       },
       response_text: {

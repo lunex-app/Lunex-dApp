@@ -528,15 +528,19 @@ export default function Autopilot() {
           break;
         }
         case "add_liquidity": {
-          result = await full.addLiquidity(
-            String(params.usdcAmount ?? "0"),
-            String(params.eurcAmount ?? "0"),
-          );
+          const poolKey = String(params.pool ?? "USDC/EURC");
+          result = await full.addLiquidity(poolKey, {
+            USDC: params.usdcAmount ? String(params.usdcAmount) : undefined,
+            EURC: params.eurcAmount ? String(params.eurcAmount) : undefined,
+            USDT: params.usdtAmount ? String(params.usdtAmount) : undefined,
+          });
           break;
         }
         case "remove_liquidity": {
+          const poolKey = String(params.pool ?? "USDC/EURC");
           result = await full.removeLiquidity(
-            (params.mode as "both" | "usdc" | "eurc") ?? "both",
+            poolKey,
+            String(params.mode ?? "both"),
             Number(params.percent ?? 100),
           );
           break;

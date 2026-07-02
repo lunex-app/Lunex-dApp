@@ -37,6 +37,14 @@ const POOL_ROUTES: [string, string, `0x${string}`][] = [
   ["EURC", "USDT", CONTRACTS.POOL_EURC_USDT],
 ];
 
+type PoolKey = "USDC/EURC" | "USDC/USDT" | "EURC/USDT";
+
+const POOL_INFO: Record<PoolKey, { pool: `0x${string}`; lp: `0x${string}`; coins: [TokenSymbol, TokenSymbol] }> = {
+  "USDC/EURC": { pool: CONTRACTS.LUNEX_SWAP_POOL, lp: CONTRACTS.LUNEX_LP,     coins: ["USDC", "EURC"] },
+  "USDC/USDT": { pool: CONTRACTS.POOL_USDC_USDT,  lp: CONTRACTS.LP_USDC_USDT, coins: ["USDC", "USDT"] },
+  "EURC/USDT": { pool: CONTRACTS.POOL_EURC_USDT,  lp: CONTRACTS.LP_EURC_USDT, coins: ["EURC", "USDT"] },
+};
+
 function resolvePool(from: string, to: string): { pool: `0x${string}`; i: bigint; j: bigint } {
   for (const [coin0, coin1, pool] of POOL_ROUTES) {
     if ((from === coin0 && to === coin1) || (from === coin1 && to === coin0)) {
@@ -115,27 +123,31 @@ export function useFullAgent() {
   // ── Add Liquidity ─────────────────────────────────────────────────────────
 
   const addLiquidity = useCallback(
-    async (usdcAmount: string, eurcAmount: string): Promise<ActionResult> => {
+    async (poolKey: string, tokenAmounts: Partial<Record<TokenSymbol, string>>): Promise<ActionResult> => {
       if (!address || !isConnected) return { ok: false, error: "Wallet not connected." };
       try {
-        const usdcParsed = usdcAmount && parseFloat(usdcAmount) > 0 ? parseUnits(usdcAmount, 6) : 0n;
-        const eurcParsed = eurcAmount && parseFloat(eurcAmount) > 0 ? parseUnits(eurcAmount, 6) : 0n;
-        if (usdcParsed === 0n && eurcParsed === 0n) return { ok: false, error: "Specify an amount to add." };
+        const info = POOL_INFO[(poolKey as PoolKey)] ?? POOL_INFO["USDC/EURC"];
+        const [coin0, coin1] = info.coins;
+        const amt0 = tokenAmounts[coin0] ?? "0";
+        const amt1 = tokenAmounts[coin1] ?? "0";
+        const parsed0 = parseFloat(amt0) > 0 ? parseUnits(amt0, 6) : 0n;
+        const parsed1 = parseFloat(amt1) > 0 ? parseUnits(amt1, 6) : 0n;
+        if (parsed0 === 0n && parsed1 === 0n) return { ok: false, error: "Specify an amount to add." };
 
         const lpPreview = await publicClient.readContract({
-          address: CONTRACTS.LUNEX_SWAP_POOL, abi: stableSwapAbi,
-          functionName: "calc_token_amount", args: [[usdcParsed, eurcParsed] as [bigint, bigint], true],
+          address: info.pool, abi: stableSwapAbi,
+          functionName: "calc_token_amount", args: [[parsed0, parsed1] as [bigint, bigint], true],
         }) as bigint;
         const minMint = applySlippage(lpPreview, 50n);
 
         const writes: Write[] = [];
-        if (usdcParsed > 0n) writes.push({ address: TOKENS.USDC.address, abi: erc20Abi, functionName: "approve", args: [CONTRACTS.LUNEX_SWAP_POOL, usdcParsed] });
-        if (eurcParsed > 0n) writes.push({ address: TOKENS.EURC.address, abi: erc20Abi, functionName: "approve", args: [CONTRACTS.LUNEX_SWAP_POOL, eurcParsed] });
-        writes.push({ address: CONTRACTS.LUNEX_SWAP_POOL, abi: stableSwapAbi, functionName: "add_liquidity", args: [[usdcParsed, eurcParsed] as [bigint, bigint], minMint] });
+        if (parsed0 > 0n) writes.push({ address: TOKENS[coin0].address, abi: erc20Abi, functionName: "approve", args: [info.pool, parsed0] });
+        if (parsed1 > 0n) writes.push({ address: TOKENS[coin1].address, abi: erc20Abi, functionName: "approve", args: [info.pool, parsed1] });
+        writes.push({ address: info.pool, abi: stableSwapAbi, functionName: "add_liquidity", args: [[parsed0, parsed1] as [bigint, bigint], minMint] });
 
         const hash = await tx.execute(writes);
-        const parts = [usdcParsed > 0n && `${usdcAmount} USDC`, eurcParsed > 0n && `${eurcAmount} EURC`].filter(Boolean).join(" + ");
-        return { ok: true, txHash: hash ?? undefined, detail: `Added ${parts} to pool.` };
+        const parts = [parsed0 > 0n && `${amt0} ${coin0}`, parsed1 > 0n && `${amt1} ${coin1}`].filter(Boolean).join(" + ");
+        return { ok: true, txHash: hash ?? undefined, detail: `Added ${parts} to ${poolKey} pool.` };
       } catch (e: unknown) {
         return { ok: false, error: (e as Error)?.message?.slice(0, 160) ?? "Add liquidity failed." };
       }
@@ -146,36 +158,43 @@ export function useFullAgent() {
   // ── Remove Liquidity ──────────────────────────────────────────────────────
 
   const removeLiquidity = useCallback(
-    async (mode: "both" | "usdc" | "eurc", percentOfBalance: number = 100): Promise<ActionResult> => {
+    async (poolKey: string, mode: string, percentOfBalance: number = 100): Promise<ActionResult> => {
       if (!address || !isConnected) return { ok: false, error: "Wallet not connected." };
       try {
-        const totalLp = pool.lpBalanceRaw;
-        if (totalLp <= 0n) return { ok: false, error: "No LP tokens in your wallet." };
+        const info = POOL_INFO[(poolKey as PoolKey)] ?? POOL_INFO["USDC/EURC"];
+        const [coin0] = info.coins;
+
+        const totalLp = await publicClient.readContract({
+          address: info.lp, abi: erc20Abi,
+          functionName: "balanceOf", args: [address],
+        }) as bigint;
+        if (totalLp <= 0n) return { ok: false, error: `No LP tokens for ${poolKey} pool in your wallet.` };
 
         const pct = Math.min(100, Math.max(1, percentOfBalance));
         const lpAmount = (totalLp * BigInt(Math.round(pct * 100))) / 10000n;
 
         const writes: Write[] = [
-          { address: CONTRACTS.LUNEX_LP, abi: erc20Abi, functionName: "approve", args: [CONTRACTS.LUNEX_SWAP_POOL, lpAmount] },
+          { address: info.lp, abi: erc20Abi, functionName: "approve", args: [info.pool, lpAmount] },
         ];
 
-        if (mode === "both") {
-          writes.push({ address: CONTRACTS.LUNEX_SWAP_POOL, abi: stableSwapAbi, functionName: "remove_liquidity", args: [lpAmount, [0n, 0n] as [bigint, bigint]] });
+        const normalizedMode = mode.toLowerCase();
+        if (normalizedMode === "both") {
+          writes.push({ address: info.pool, abi: stableSwapAbi, functionName: "remove_liquidity", args: [lpAmount, [0n, 0n] as [bigint, bigint]] });
         } else {
-          const coinIdx = BigInt(mode === "usdc" ? 0 : 1);
-          writes.push({ address: CONTRACTS.LUNEX_SWAP_POOL, abi: stableSwapAbi, functionName: "remove_liquidity_one_coin", args: [lpAmount, coinIdx, 0n] });
+          const coinIdx = BigInt(coin0.toLowerCase() === normalizedMode ? 0 : 1);
+          writes.push({ address: info.pool, abi: stableSwapAbi, functionName: "remove_liquidity_one_coin", args: [lpAmount, coinIdx, 0n] });
         }
 
         const hash = await tx.execute(writes);
         return {
           ok: true, txHash: hash ?? undefined,
-          detail: `Removed ${pct < 100 ? pct + "% of" : "all"} LP${mode !== "both" ? ` as ${mode.toUpperCase()}` : ""}.`,
+          detail: `Removed ${pct < 100 ? pct + "% of" : "all"} ${poolKey} LP${normalizedMode !== "both" ? ` as ${normalizedMode.toUpperCase()}` : ""}.`,
         };
       } catch (e: unknown) {
         return { ok: false, error: (e as Error)?.message?.slice(0, 160) ?? "Remove liquidity failed." };
       }
     },
-    [address, isConnected, tx, pool.lpBalanceRaw],
+    [address, isConnected, tx, publicClient],
   );
 
   // ── Vault Deposit ─────────────────────────────────────────────────────────
